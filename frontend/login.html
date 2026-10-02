@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingresar · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="login">
+    <!-- Panel de marca -->
+    <aside class="login-marca">
+      <img class="login-logo" src="img/xpress-logo-blanco.png" alt="XPRESS">
+
+      <div class="login-mensaje">
+        <p class="login-etiqueta">XPS Pricing</p>
+        <h1 class="login-titular">Tarifas y cotizaciones de carga internacional</h1>
+        <span class="login-acento" aria-hidden="true"></span>
+        <p class="login-bajada">Costos de agentes, precios de venta y cotizaciones en un solo lugar.</p>
+
+        <svg class="login-ruta" viewBox="0 0 320 110" aria-hidden="true" focusable="false">
+          <path class="ruta-linea" d="M16 94 Q160 -14 304 94"></path>
+          <circle class="ruta-origen" cx="16" cy="94" r="6"></circle>
+          <circle class="ruta-destino" cx="304" cy="94" r="6"></circle>
+        </svg>
+
+        <ul class="login-capacidades">
+          <li>
+            <span class="login-icono" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></svg>
+            </span>
+            <div>
+              <strong>Aéreo, LCL y FCL</strong>
+              <span>Tarifas de costo y venta por ruta, con vigencias.</span>
+            </div>
+          </li>
+          <li>
+            <span class="login-icono" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4"></path><path d="m16.71 13.88.7.71-2.82 2.82"></path></svg>
+            </span>
+            <div>
+              <strong>Multimoneda</strong>
+              <span>Costos en su moneda original, cotización en USD.</span>
+            </div>
+          </li>
+          <li>
+            <span class="login-icono" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path></svg>
+            </span>
+            <div>
+              <strong>Cotizaciones con Incoterms 2020</strong>
+              <span>PDF con la marca XPRESS, listo para el cliente.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <p class="login-pie">XPRESS LOGISTICS XPS S.A. · Sistema de importaciones y exportaciones</p>
+    </aside>
+
+    <!-- Formulario -->
+    <main class="login-panel">
+      <div class="login-formulario">
+        <h2 class="login-form-titulo" id="titulo-panel">Iniciar sesión</h2>
+        <p class="texto-suave" id="bajada-panel">Use el email y la contraseña que le asignó el administrador.</p>
+
+        <div id="alertas" hidden></div>
+
+        <form id="form-login" novalidate>
+          <div class="campo">
+            <label for="email">Email</label>
+            <input class="input" id="email" name="email" type="email" autocomplete="username" placeholder="nombre@xpress.ec" required>
+          </div>
+          <div class="campo">
+            <label for="password">Contraseña</label>
+            <div class="grupo-input">
+              <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+              <button class="btn-mostrar" id="btn-mostrar" type="button" aria-controls="password" aria-pressed="false">Mostrar</button>
+            </div>
+            <span class="aviso-mayus" id="aviso-mayus" hidden>Bloq Mayús está activado</span>
+          </div>
+          <button class="btn btn-primario btn-bloque btn-grande" id="btn-ingresar" type="submit">Ingresar</button>
+          <div class="login-enlaces">
+            <button class="enlace" id="btn-ir-cambio" type="button">Cambiar contraseña</button>
+          </div>
+        </form>
+
+        <form id="form-cambio" novalidate hidden>
+          <div class="campo">
+            <label for="cambio-email">Email</label>
+            <input class="input" id="cambio-email" name="email" type="email" autocomplete="username" placeholder="nombre@xpress.ec" required>
+          </div>
+          <div class="campo">
+            <label for="cambio-actual">Contraseña actual</label>
+            <input class="input" id="cambio-actual" name="actual" type="password" autocomplete="current-password" required>
+          </div>
+          <div class="campo">
+            <label for="cambio-nueva">Nueva contraseña</label>
+            <input class="input" id="cambio-nueva" name="nueva" type="password" autocomplete="new-password" required>
+            <span class="ayuda" id="cambio-politica"></span>
+          </div>
+          <div class="campo">
+            <label for="cambio-confirmacion">Confirme la nueva contraseña</label>
+            <input class="input" id="cambio-confirmacion" name="confirmacion" type="password" autocomplete="new-password" required>
+          </div>
+          <button class="btn btn-primario btn-bloque btn-grande" id="btn-cambiar" type="submit">Cambiar contraseña e ingresar</button>
+          <div class="login-enlaces">
+            <button class="enlace" id="btn-ir-login" type="button">Volver a iniciar sesión</button>
+          </div>
+        </form>
+
+        <p class="login-nota">¿Olvidó su contraseña? Pida al administrador que la restablezca.<br>Acceso exclusivo para personal autorizado de XPRESS.</p>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

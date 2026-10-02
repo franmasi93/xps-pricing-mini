@@ -1,0 +1,16 @@
+# Secretos: nunca al repo
+.env
+
+# Entorno virtual
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# PDF generados
+*.pdf
+
+# Sistema operativo
+.DS_Store

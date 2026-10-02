@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Usuarios · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Usuarios</h1>
+          <p class="topbar-subtitulo">Accesos, roles y contraseñas</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo usuario</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="tarjeta-cabecera">
+            <div>
+              <h3>Listado de usuarios</h3>
+              <p class="texto-suave">La baja se hace desactivando al usuario; no se borran usuarios.</p>
+            </div>
+            <div class="filtros">
+              <div class="campo">
+                <label for="filtro-rol">Rol</label>
+                <select class="select" id="filtro-rol"></select>
+              </div>
+              <div class="campo">
+                <label for="filtro-estado">Estado</label>
+                <select class="select" id="filtro-estado">
+                  <option value="">Todos</option>
+                  <option value="true">Activos</option>
+                  <option value="false">Inactivos</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <table class="tabla">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Último acceso</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-cuerpo"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Crear usuario -->
+  <dialog class="dialogo" id="dialogo-crear" aria-labelledby="titulo-crear">
+    <h2 id="titulo-crear">Nuevo usuario</h2>
+    <div id="alertas-crear" hidden></div>
+    <form id="form-crear" novalidate>
+      <div class="campo">
+        <label for="crear-email">Email</label>
+        <input class="input" id="crear-email" name="email" type="email" autocomplete="off" required>
+      </div>
+      <div class="campo">
+        <label for="crear-nombre">Nombre</label>
+        <input class="input" id="crear-nombre" name="nombre" type="text" maxlength="120" autocomplete="off" required>
+      </div>
+      <div class="campo">
+        <label for="crear-rol">Rol</label>
+        <select class="select" id="crear-rol" name="rol" required></select>
+      </div>
+      <div class="campo">
+        <label for="crear-password">Contraseña temporal</label>
+        <input class="input" id="crear-password" name="password" type="password" autocomplete="new-password" required>
+        <span class="ayuda" data-politica></span>
+        <span class="ayuda">El usuario deberá cambiarla al ingresar por primera vez.</span>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Crear usuario</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Editar usuario -->
+  <dialog class="dialogo" id="dialogo-editar" aria-labelledby="titulo-editar">
+    <h2 id="titulo-editar">Editar usuario</h2>
+    <p class="texto-suave cifra" id="editar-email"></p>
+    <div id="alertas-editar" hidden></div>
+    <form id="form-editar" novalidate>
+      <div class="campo">
+        <label for="editar-nombre">Nombre</label>
+        <input class="input" id="editar-nombre" name="nombre" type="text" maxlength="120" required>
+      </div>
+      <div class="campo">
+        <label for="editar-rol">Rol</label>
+        <select class="select" id="editar-rol" name="rol" required></select>
+      </div>
+      <label class="campo-check" for="editar-activo">
+        <input id="editar-activo" name="activo" type="checkbox">
+        Usuario activo
+      </label>
+      <p class="ayuda" id="editar-bloqueo" hidden></p>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar cambios</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Restablecer contraseña -->
+  <dialog class="dialogo" id="dialogo-restablecer" aria-labelledby="titulo-restablecer">
+    <h2 id="titulo-restablecer">Restablecer contraseña</h2>
+    <p class="texto-suave cifra" id="restablecer-email"></p>
+    <div id="alertas-restablecer" hidden></div>
+    <form id="form-restablecer" novalidate>
+      <div class="campo">
+        <label for="restablecer-password">Nueva contraseña temporal</label>
+        <input class="input" id="restablecer-password" name="password" type="password" autocomplete="new-password" required>
+        <span class="ayuda" data-politica></span>
+        <span class="ayuda">Se cerrarán sus sesiones abiertas y deberá cambiarla al ingresar.</span>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Restablecer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/usuarios.js"></script>
+</body>
+</html>
