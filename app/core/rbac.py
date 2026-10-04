@@ -65,12 +65,33 @@ def tiene_permiso(usuario: Usuario, codigo: str) -> bool:
     return codigo in permisos_de(usuario)
 
 
+def _permiso_denegado() -> ErrorNegocio:
+    return ErrorNegocio(403, "PERMISO_DENEGADO", "No tiene permiso para esta acción")
+
+
 def require_permiso(codigo: str) -> Callable[..., Usuario]:
     """Dependencia para routers: exige usuario habilitado con el permiso indicado."""
 
     def _dependencia(usuario: Usuario = Depends(get_usuario_habilitado)) -> Usuario:
         if not tiene_permiso(usuario, codigo):
-            raise ErrorNegocio(403, "PERMISO_DENEGADO", "No tiene permiso para esta acción")
+            raise _permiso_denegado()
         return usuario
 
     return _dependencia
+
+
+def require_alguno_permiso(*codigos: str) -> Callable[..., Usuario]:
+    """Dependencia para routers: exige al menos uno de los permisos indicados."""
+
+    def _dependencia(usuario: Usuario = Depends(get_usuario_habilitado)) -> Usuario:
+        if permisos_de(usuario).isdisjoint(codigos):
+            raise _permiso_denegado()
+        return usuario
+
+    return _dependencia
+
+
+def exigir_permiso(usuario: Usuario, codigo: str) -> None:
+    """Gating en services cuando el permiso depende del dato (por ejemplo, la clave de configuración)."""
+    if not tiene_permiso(usuario, codigo):
+        raise _permiso_denegado()

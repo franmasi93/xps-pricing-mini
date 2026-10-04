@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Incoterms · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Incoterms 2020</h1>
+          <p class="topbar-subtitulo">Qué bloques cotiza XPRESS según el término y el sentido</p>
+        </div>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="tarjeta-cabecera">
+            <div>
+              <h3 id="titulo-matriz">Importación: el cliente es el comprador</h3>
+              <p class="texto-suave" id="bajada-matriz">✓ = XPRESS lo cotiza · — = lo paga la otra parte. El seguro siempre se propone apagado (opcional).</p>
+            </div>
+            <div class="segmentado" role="group" aria-label="Sentido">
+              <button type="button" class="activo" data-sentido="IMPORTACION" aria-pressed="true">Importación</button>
+              <button type="button" data-sentido="EXPORTACION" aria-pressed="false">Exportación</button>
+            </div>
+          </div>
+          <p class="nota-lectura" id="nota-edicion" hidden>La matriz guardada es la de importación; la de exportación es su complemento. Los cambios quedan en la auditoría.</p>
+          <table class="tabla matriz">
+            <thead id="cabecera-matriz"></thead>
+            <tbody id="tabla-matriz"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-incoterm" aria-labelledby="titulo-incoterm">
+    <h2 id="titulo-incoterm">Editar Incoterm</h2>
+    <div id="alertas-incoterm" hidden></div>
+    <form id="form-incoterm" novalidate>
+      <div class="campo">
+        <label for="incoterm-nombre">Nombre</label>
+        <input class="input" id="incoterm-nombre" name="nombre" type="text" maxlength="60" required>
+      </div>
+      <p class="etiqueta">Bloques que XPRESS cotiza en importación</p>
+      <div class="grupo-checks" id="incoterm-bloques"></div>
+      <label class="campo-check" for="incoterm-solo-maritimo">
+        <input id="incoterm-solo-maritimo" name="solo_maritimo" type="checkbox">
+        Solo marítimo (no se permite con aéreo)
+      </label>
+      <label class="campo-check" for="incoterm-activo">
+        <input id="incoterm-activo" name="activo" type="checkbox">
+        Activo
+      </label>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/incoterms.js"></script>
+</body>
+</html>

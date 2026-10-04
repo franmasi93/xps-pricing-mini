@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proveedores · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Proveedores</h1>
+          <p class="topbar-subtitulo">Agentes de carga y sus datos de contacto</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo proveedor</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <p class="nota-lectura" id="nota-lectura" hidden>Vista de solo lectura: su rol puede consultar los proveedores, pero no editarlos.</p>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo campo-busqueda">
+              <label for="filtro-q">Buscar</label>
+              <input class="input" id="filtro-q" type="search" placeholder="Nombre o contacto">
+            </div>
+            <div class="campo">
+              <label for="filtro-pais">País</label>
+              <select class="select" id="filtro-pais"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-activo">Estado</label>
+              <select class="select" id="filtro-activo">
+                <option value="">Todos</option>
+                <option value="true">Activos</option>
+                <option value="false">Inactivos</option>
+              </select>
+            </div>
+          </div>
+          <table class="tabla">
+            <thead><tr><th>Nombre</th><th>País</th><th>Contacto</th><th>Email</th><th>Teléfono</th><th>Estado</th><th id="th-acciones">Acciones</th></tr></thead>
+            <tbody id="tabla-proveedores"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-proveedor" aria-labelledby="titulo-proveedor">
+    <h2 id="titulo-proveedor">Proveedor</h2>
+    <div id="alertas-proveedor" hidden></div>
+    <form id="form-proveedor" novalidate>
+      <div class="campo">
+        <label for="proveedor-nombre">Nombre</label>
+        <input class="input" id="proveedor-nombre" name="nombre" type="text" maxlength="150" required>
+      </div>
+      <div class="campo">
+        <label for="proveedor-pais">País</label>
+        <select class="select" id="proveedor-pais" name="pais" required></select>
+      </div>
+      <div class="campo">
+        <label for="proveedor-contacto">Contacto (opcional)</label>
+        <input class="input" id="proveedor-contacto" name="contacto" type="text" maxlength="120">
+      </div>
+      <div class="campo">
+        <label for="proveedor-email">Email (opcional)</label>
+        <input class="input" id="proveedor-email" name="email" type="email" maxlength="254" autocomplete="off">
+      </div>
+      <div class="campo">
+        <label for="proveedor-telefono">Teléfono (opcional)</label>
+        <input class="input" id="proveedor-telefono" name="telefono" type="text" maxlength="40">
+      </div>
+      <div class="campo">
+        <label for="proveedor-notas">Notas (opcional)</label>
+        <textarea class="input" id="proveedor-notas" name="notas" maxlength="5000" rows="3"></textarea>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/proveedores.js"></script>
+</body>
+</html>

@@ -1,24 +1,46 @@
 """Errores de negocio y traducción de IntegrityError a 409/422 (nunca 500).
 
-Formato de respuesta: {"detail": {"codigo": "...", "mensaje": "..."}}
+Formato de respuesta: {"detail": {"codigo": "...", "mensaje": "...", ...datos extra}}
 """
+from typing import Any
+
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 MENSAJES_POR_CONSTRAINT = {
     "uq_usuario_email_lower": (409, "EMAIL_DUPLICADO", "Ya existe un usuario con ese email"),
+    "uq_region_codigo": (409, "REGION_DUPLICADA", "Ya existe una región con ese código"),
+    "uq_pais_iso2": (409, "PAIS_DUPLICADO", "Ya existe un país con ese código ISO"),
+    "uq_puerto_codigo": (409, "PUERTO_DUPLICADO", "Ya existe un puerto con ese código"),
+    "uq_moneda_codigo": (409, "MONEDA_DUPLICADA", "Ya existe una moneda con ese código"),
+    "uq_tasa_cambio_moneda_fecha": (
+        409,
+        "TASA_DUPLICADA",
+        "Ya existe una tasa para esa moneda en esa fecha; corríjala en lugar de crear otra",
+    ),
+    "uq_proveedor_nombre_lower": (409, "PROVEEDOR_DUPLICADO", "Ya existe un proveedor con ese nombre"),
 }
 
 
 class ErrorNegocio(Exception):
-    def __init__(self, status_code: int, codigo: str, mensaje: str, headers: dict[str, str] | None = None):
+    def __init__(
+        self,
+        status_code: int,
+        codigo: str,
+        mensaje: str,
+        headers: dict[str, str] | None = None,
+        extra: dict[str, Any] | None = None,
+    ):
         super().__init__(mensaje)
         self.status_code = status_code
         self.codigo = codigo
         self.mensaje = mensaje
         self.headers = headers
+        self.extra = extra or {}
 
 
 def traducir_integrity_error(exc: IntegrityError) -> ErrorNegocio:
@@ -40,10 +62,19 @@ def confirmar(db: Session) -> None:
         raise traducir_integrity_error(exc) from None
 
 
+def enviar(db: Session) -> None:
+    """Flush que traduce IntegrityError (para obtener IDs antes de auditar, sin cerrar la transacción)."""
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise traducir_integrity_error(exc) from None
+
+
 def _respuesta(error: ErrorNegocio) -> JSONResponse:
     return JSONResponse(
         status_code=error.status_code,
-        content={"detail": {"codigo": error.codigo, "mensaje": error.mensaje}},
+        content={"detail": {"codigo": error.codigo, "mensaje": error.mensaje, **error.extra}},
         headers=error.headers,
     )
 
@@ -56,3 +87,12 @@ def registrar_manejadores(app: FastAPI) -> None:
     @app.exception_handler(IntegrityError)
     async def _manejar_integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
         return _respuesta(traducir_integrity_error(exc))
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _manejar_http(request: Request, exc: StarletteHTTPException):
+        # Sin DELETE en ningún recurso: la baja es activo=false.
+        if exc.status_code == 405:
+            return _respuesta(
+                ErrorNegocio(405, "METODO_NO_PERMITIDO", "Método no permitido", headers=exc.headers)
+            )
+        return await http_exception_handler(request, exc)

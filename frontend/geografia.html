@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Geografía · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Geografía</h1>
+          <p class="topbar-subtitulo">Regiones, países, puertos y aeropuertos</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nueva región</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+
+        <section id="herramientas" hidden>
+          <div class="pestanas" role="tablist">
+            <button class="pestana activa" type="button" role="tab" data-pestana="regiones">Regiones</button>
+            <button class="pestana" type="button" role="tab" data-pestana="paises">Países</button>
+            <button class="pestana" type="button" role="tab" data-pestana="puertos">Puertos</button>
+          </div>
+
+          <!-- Regiones -->
+          <section class="tarjeta" data-panel="regiones">
+            <div class="filtros">
+              <div class="campo">
+                <label for="filtro-region-activo">Estado</label>
+                <select class="select" id="filtro-region-activo">
+                  <option value="">Todos</option>
+                  <option value="true">Activos</option>
+                  <option value="false">Inactivos</option>
+                </select>
+              </div>
+            </div>
+            <table class="tabla">
+              <thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody id="tabla-regiones"></tbody>
+            </table>
+          </section>
+
+          <!-- Países -->
+          <section class="tarjeta" data-panel="paises" hidden>
+            <div class="filtros">
+              <div class="campo">
+                <label for="filtro-pais-region">Región</label>
+                <select class="select" id="filtro-pais-region"></select>
+              </div>
+              <div class="campo">
+                <label for="filtro-pais-activo">Estado</label>
+                <select class="select" id="filtro-pais-activo">
+                  <option value="">Todos</option>
+                  <option value="true">Activos</option>
+                  <option value="false">Inactivos</option>
+                </select>
+              </div>
+            </div>
+            <table class="tabla">
+              <thead><tr><th>ISO</th><th>Nombre</th><th>Región</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody id="tabla-paises"></tbody>
+            </table>
+          </section>
+
+          <!-- Puertos -->
+          <section class="tarjeta" data-panel="puertos" hidden>
+            <div class="filtros">
+              <div class="campo campo-busqueda">
+                <label for="filtro-puerto-q">Buscar</label>
+                <input class="input" id="filtro-puerto-q" type="search" placeholder="Código o nombre">
+              </div>
+              <div class="campo">
+                <label for="filtro-puerto-tipo">Tipo</label>
+                <select class="select" id="filtro-puerto-tipo">
+                  <option value="">Todos</option>
+                  <option value="MARITIMO">Marítimo</option>
+                  <option value="AEREO">Aéreo</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="filtro-puerto-pais">País</label>
+                <select class="select" id="filtro-puerto-pais"></select>
+              </div>
+              <div class="campo">
+                <label for="filtro-puerto-activo">Estado</label>
+                <select class="select" id="filtro-puerto-activo">
+                  <option value="">Todos</option>
+                  <option value="true">Activos</option>
+                  <option value="false">Inactivos</option>
+                </select>
+              </div>
+            </div>
+            <table class="tabla">
+              <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>País</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody id="tabla-puertos"></tbody>
+            </table>
+          </section>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Región -->
+  <dialog class="dialogo" id="dialogo-region" aria-labelledby="titulo-region">
+    <h2 id="titulo-region">Región</h2>
+    <div id="alertas-region" hidden></div>
+    <form id="form-region" novalidate>
+      <div class="campo">
+        <label for="region-codigo">Código</label>
+        <input class="input cifra" id="region-codigo" name="codigo" type="text" maxlength="20" autocomplete="off" required>
+        <span class="ayuda">De 2 a 20 letras, números o guion bajo. Ejemplo: SUDAMERICA.</span>
+      </div>
+      <div class="campo">
+        <label for="region-nombre">Nombre</label>
+        <input class="input" id="region-nombre" name="nombre" type="text" maxlength="80" required>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- País -->
+  <dialog class="dialogo" id="dialogo-pais" aria-labelledby="titulo-pais">
+    <h2 id="titulo-pais">País</h2>
+    <div id="alertas-pais" hidden></div>
+    <form id="form-pais" novalidate>
+      <div class="campo">
+        <label for="pais-iso2">Código ISO (2 letras)</label>
+        <input class="input cifra" id="pais-iso2" name="iso2" type="text" maxlength="2" autocomplete="off" required>
+      </div>
+      <div class="campo">
+        <label for="pais-nombre">Nombre</label>
+        <input class="input" id="pais-nombre" name="nombre" type="text" maxlength="100" required>
+      </div>
+      <div class="campo">
+        <label for="pais-region">Región</label>
+        <select class="select" id="pais-region" name="region" required></select>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Puerto -->
+  <dialog class="dialogo" id="dialogo-puerto" aria-labelledby="titulo-puerto">
+    <h2 id="titulo-puerto">Puerto</h2>
+    <div id="alertas-puerto" hidden></div>
+    <form id="form-puerto" novalidate>
+      <div class="campo">
+        <label for="puerto-tipo">Tipo</label>
+        <select class="select" id="puerto-tipo" name="tipo" required>
+          <option value="MARITIMO">Marítimo</option>
+          <option value="AEREO">Aéreo</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label for="puerto-codigo">Código</label>
+        <input class="input cifra" id="puerto-codigo" name="codigo" type="text" maxlength="5" autocomplete="off" required>
+        <span class="ayuda">Marítimo: UN/LOCODE de 5 (ECGYE) · Aéreo: IATA de 3 (GYE)</span>
+      </div>
+      <div class="campo">
+        <label for="puerto-nombre">Nombre</label>
+        <input class="input" id="puerto-nombre" name="nombre" type="text" maxlength="120" required>
+      </div>
+      <div class="campo">
+        <label for="puerto-pais">País</label>
+        <select class="select" id="puerto-pais" name="pais" required></select>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/geografia.js"></script>
+</body>
+</html>

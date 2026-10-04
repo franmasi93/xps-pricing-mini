@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     JWT_EXPIRA_MIN: int
 
     # Con valor por defecto
+    # IVA_TASA NO se usa en ningún cálculo: la tasa de IVA se lee siempre de la tabla
+    # configuracion (services/configuracion.leer_iva_tasa), regla de §5.2.
     IVA_TASA: Decimal = Decimal("15.00")
     COT_PREFIJO: str = "COT"
     MONEDA_BASE: str = "USD"

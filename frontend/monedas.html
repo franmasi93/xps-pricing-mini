@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monedas y tasas · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Monedas y tasas de cambio</h1>
+          <p class="topbar-subtitulo">Cuántos USD vale 1 unidad de cada moneda, por fecha (NIC 21)</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nueva-tasa" type="button" hidden>Registrar tasa</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <p class="nota-lectura" id="nota-lectura" hidden>Vista de solo lectura: su rol puede consultar monedas y tasas, pero no editarlas.</p>
+
+        <div id="herramientas" hidden>
+          <section class="tarjeta">
+            <div class="tarjeta-cabecera">
+              <div>
+                <h3>Monedas</h3>
+                <p class="texto-suave">USD es la moneda base: no se desactiva y su tasa siempre es 1.</p>
+              </div>
+              <button class="btn btn-secundario" id="btn-nueva-moneda" type="button" hidden>Nueva moneda</button>
+            </div>
+            <table class="tabla">
+              <thead><tr><th>Código</th><th>Nombre</th><th>Símbolo</th><th>Estado</th><th data-solo-edicion>Acciones</th></tr></thead>
+              <tbody id="tabla-monedas"></tbody>
+            </table>
+          </section>
+
+          <section class="tarjeta">
+            <div class="tarjeta-cabecera">
+              <div>
+                <h3>Tasas de cambio</h3>
+                <p class="texto-suave">La cotización usa la tasa más reciente con fecha igual o anterior a la de emisión.</p>
+              </div>
+              <div class="filtros">
+                <div class="campo">
+                  <label for="filtro-moneda">Moneda</label>
+                  <select class="select" id="filtro-moneda"></select>
+                </div>
+                <div class="campo">
+                  <label for="filtro-desde">Desde</label>
+                  <input class="input" id="filtro-desde" type="date">
+                </div>
+                <div class="campo">
+                  <label for="filtro-hasta">Hasta</label>
+                  <input class="input" id="filtro-hasta" type="date">
+                </div>
+              </div>
+            </div>
+            <table class="tabla">
+              <thead><tr><th>Moneda</th><th>Vigente desde</th><th>USD por 1 unidad</th><th>Registrada</th><th data-solo-edicion>Acciones</th></tr></thead>
+              <tbody id="tabla-tasas"></tbody>
+            </table>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Moneda -->
+  <dialog class="dialogo" id="dialogo-moneda" aria-labelledby="titulo-moneda">
+    <h2 id="titulo-moneda">Moneda</h2>
+    <div id="alertas-moneda" hidden></div>
+    <form id="form-moneda" novalidate>
+      <div class="campo">
+        <label for="moneda-codigo">Código ISO 4217</label>
+        <input class="input cifra" id="moneda-codigo" name="codigo" type="text" maxlength="3" autocomplete="off" required>
+        <span class="ayuda">3 letras. Ejemplos: EUR, CNY.</span>
+      </div>
+      <div class="campo">
+        <label for="moneda-nombre">Nombre</label>
+        <input class="input" id="moneda-nombre" name="nombre" type="text" maxlength="80" required>
+      </div>
+      <div class="campo">
+        <label for="moneda-simbolo">Símbolo</label>
+        <input class="input" id="moneda-simbolo" name="simbolo" type="text" maxlength="8" required>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Registrar tasa -->
+  <dialog class="dialogo" id="dialogo-tasa" aria-labelledby="titulo-tasa">
+    <h2 id="titulo-tasa">Registrar tasa de cambio</h2>
+    <div id="alertas-tasa" hidden></div>
+    <form id="form-tasa" novalidate>
+      <div class="campo">
+        <label for="tasa-moneda">Moneda</label>
+        <select class="select" id="tasa-moneda" name="moneda" required></select>
+      </div>
+      <div class="campo">
+        <label for="tasa-fecha">Vigente desde</label>
+        <input class="input" id="tasa-fecha" name="fecha" type="date" required>
+      </div>
+      <div class="campo">
+        <label for="tasa-valor" id="tasa-rotulo">USD por 1 unidad</label>
+        <input class="input cifra" id="tasa-valor" name="valor" type="text" inputmode="decimal" autocomplete="off" placeholder="0.140000" required>
+        <span class="tasa-anterior" id="tasa-anterior"></span>
+        <span class="ayuda">Hasta 6 decimales. Ejemplo: 1 EUR ≈ 1.08 USD; 1 CNY ≈ 0.14 USD (no 7.1).</span>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar tasa</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Corregir tasa -->
+  <dialog class="dialogo" id="dialogo-corregir" aria-labelledby="titulo-corregir">
+    <h2 id="titulo-corregir">Corregir tasa</h2>
+    <p class="texto-suave cifra" id="corregir-referencia"></p>
+    <div id="alertas-corregir" hidden></div>
+    <form id="form-corregir" novalidate>
+      <div class="campo">
+        <label for="corregir-valor" id="corregir-rotulo">USD por 1 unidad</label>
+        <input class="input cifra" id="corregir-valor" name="valor" type="text" inputmode="decimal" autocomplete="off" required>
+        <span class="ayuda">La corrección queda registrada en la auditoría con el valor anterior y el nuevo.</span>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar corrección</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirmación de desvío -->
+  <dialog class="dialogo" id="dialogo-desvio" aria-labelledby="titulo-desvio">
+    <h2 id="titulo-desvio">¿Seguro? Puede estar invertida</h2>
+    <div class="alerta alerta-aviso" role="alert" id="desvio-mensaje"></div>
+    <p class="tasa-anterior" id="desvio-anterior"></p>
+    <p class="tasa-anterior" id="desvio-nueva"></p>
+    <div class="acciones-form">
+      <button class="btn btn-secundario" type="button" data-cerrar>Cancelar y revisar</button>
+      <button class="btn btn-primario" type="button" id="btn-confirmar-desvio">Sí, guardar igual</button>
+    </div>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/monedas.js"></script>
+</body>
+</html>

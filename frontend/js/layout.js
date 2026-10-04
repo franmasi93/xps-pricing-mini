@@ -1,14 +1,32 @@
 /* Sidebar: menú por grupos (según los permisos de /v1/auth/yo) y bloque de perfil con Salir. */
 "use strict";
 
+// `permisos`: null = visible para todos; si no, basta con tener uno de la lista.
 const GRUPOS_MENU = [
   {
     titulo: "General",
-    opciones: [{ texto: "Inicio", archivo: "inicio.html", permiso: null }],
+    opciones: [
+      { texto: "Inicio", archivo: "inicio.html", permisos: null },
+      { texto: "Incoterms", archivo: "incoterms.html", permisos: null },
+    ],
+  },
+  {
+    titulo: "Catálogos",
+    opciones: [
+      { texto: "Geografía", archivo: "geografia.html", permisos: ["catalogo.editar"] },
+      { texto: "Proveedores", archivo: "proveedores.html", permisos: ["catalogo.editar", "costo.ver"] },
+    ],
+  },
+  {
+    titulo: "Tarifas",
+    opciones: [{ texto: "Monedas y tasas", archivo: "monedas.html", permisos: ["tasa.editar", "costo.ver"] }],
   },
   {
     titulo: "Administración",
-    opciones: [{ texto: "Usuarios", archivo: "usuarios.html", permiso: "usuario.admin" }],
+    opciones: [
+      { texto: "Configuración", archivo: "configuracion.html", permisos: ["config.editar", "tarifa.editar"] },
+      { texto: "Usuarios", archivo: "usuarios.html", permisos: ["usuario.admin"] },
+    ],
   },
 ];
 
@@ -59,7 +77,9 @@ async function iniciarLayout(archivoActual, { permitirForzado = false } = {}) {
 
   const permisos = new Set(yo.permisos);
   for (const grupo of GRUPOS_MENU) {
-    const visibles = grupo.opciones.filter((opcion) => opcion.permiso === null || permisos.has(opcion.permiso));
+    const visibles = grupo.opciones.filter(
+      (opcion) => opcion.permisos === null || opcion.permisos.some((permiso) => permisos.has(permiso))
+    );
     if (visibles.length === 0) {
       continue;
     }

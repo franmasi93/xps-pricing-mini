@@ -47,18 +47,24 @@ const XPS = (() => {
   // ---------- Errores ----------
 
   class ErrorApi extends Error {
-    constructor(status, codigo, mensaje, redirigiendo = false) {
+    constructor(status, codigo, mensaje, redirigiendo = false, detalle = {}) {
       super(mensaje);
       this.status = status;
       this.codigo = codigo;
       this.redirigiendo = redirigiendo;
+      // Datos extra del error de negocio (por ejemplo tasa_anterior y fecha_anterior).
+      this.detalle = detalle;
     }
   }
 
   function interpretarError(datos) {
     const detalle = datos && datos.detail;
     if (detalle && typeof detalle === "object" && !Array.isArray(detalle) && typeof detalle.mensaje === "string") {
-      return { codigo: typeof detalle.codigo === "string" ? detalle.codigo : null, mensaje: detalle.mensaje };
+      return {
+        codigo: typeof detalle.codigo === "string" ? detalle.codigo : null,
+        mensaje: detalle.mensaje,
+        detalle,
+      };
     }
     if (Array.isArray(detalle)) {
       // 422 de validación de FastAPI: se nombran los campos, nunca el cuerpo crudo.
@@ -107,7 +113,7 @@ const XPS = (() => {
       return datos;
     }
 
-    const { codigo, mensaje } = interpretarError(datos);
+    const { codigo, mensaje, detalle } = interpretarError(datos);
     if (respuesta.status === 401 && manejar401) {
       borrarToken();
       irA(RUTA_LOGIN);
@@ -117,7 +123,7 @@ const XPS = (() => {
       irA(RUTA_CAMBIO);
       throw new ErrorApi(403, codigo, mensaje, true);
     }
-    throw new ErrorApi(respuesta.status, codigo, mensaje);
+    throw new ErrorApi(respuesta.status, codigo, mensaje, false, detalle || {});
   }
 
   // ---------- DOM seguro ----------

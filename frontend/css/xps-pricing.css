@@ -182,7 +182,8 @@ a {
   margin-bottom: var(--esp-4);
 }
 
-.campo label {
+.campo label,
+.etiqueta {
   font-weight: 600;
   font-size: 0.85rem;
   color: var(--tinta-700);
@@ -862,6 +863,150 @@ a {
   }
 }
 
+/* ---------- Pestañas ---------- */
+
+.pestanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1);
+  margin-bottom: var(--gap);
+  border-bottom: 1px solid var(--linea);
+}
+
+.pestana {
+  padding: var(--esp-2) var(--esp-4);
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--tinta-500);
+  cursor: pointer;
+}
+
+.pestana:hover {
+  color: var(--tinta-900);
+}
+
+.pestana.activa {
+  color: var(--naranja);
+  border-bottom-color: var(--naranja);
+}
+
+.pestana:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--naranja-halo);
+}
+
+/* ---------- Selector segmentado (Importación / Exportación) ---------- */
+
+.segmentado {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-md);
+  background: var(--superficie-2);
+}
+
+.segmentado button {
+  padding: 6px var(--esp-4);
+  border: none;
+  border-radius: var(--radio-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--tinta-500);
+  cursor: pointer;
+}
+
+.segmentado button.activo {
+  background: var(--superficie);
+  color: var(--navy);
+  box-shadow: 0 1px 3px rgba(0, 7, 113, 0.12);
+}
+
+.segmentado button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--naranja-halo);
+}
+
+/* ---------- Matriz de Incoterms ---------- */
+
+.matriz th,
+.matriz td {
+  text-align: center;
+}
+
+.matriz th:first-child,
+.matriz td:first-child {
+  text-align: left;
+}
+
+.marca-si {
+  font-weight: 700;
+  color: var(--ok);
+}
+
+.marca-no {
+  color: var(--tinta-400);
+}
+
+.grupo-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--esp-1) var(--esp-4);
+  margin-bottom: var(--esp-3);
+}
+
+/* ---------- Avisos de solo lectura y ayudas ---------- */
+
+.nota-lectura {
+  margin-bottom: var(--gap);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--radio-sm);
+  background: var(--superficie-2);
+  font-size: 0.85rem;
+  color: var(--tinta-500);
+}
+
+.tasa-anterior {
+  font-family: var(--fuente-cifras);
+  font-size: 0.8rem;
+  color: var(--tinta-500);
+}
+
+.campo-busqueda {
+  flex: 2 1 220px;
+}
+
+/* ---------- Configuración ---------- */
+
+.config-item {
+  padding: var(--esp-4) 0;
+  border-bottom: 1px solid var(--linea);
+}
+
+.config-item:last-child {
+  border-bottom: none;
+}
+
+.config-item .campo {
+  margin-bottom: var(--esp-2);
+}
+
+.config-item textarea.input {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.config-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--esp-2);
+}
+
 /* ---------- Diálogos ---------- */
 
 .dialogo {
@@ -966,6 +1111,15 @@ a {
 
   .filtros .campo {
     max-width: none;
+  }
+
+  .grupo-checks {
+    grid-template-columns: 1fr;
+  }
+
+  .matriz td,
+  .matriz td:first-child {
+    text-align: left;
   }
 
   /* Tabla como tarjetas: sin scroll horizontal */
