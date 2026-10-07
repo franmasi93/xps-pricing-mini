@@ -5,8 +5,21 @@
 const GRUPOS_MENU = [
   {
     titulo: "General",
+    opciones: [{ texto: "Inicio", archivo: "inicio.html", permisos: null }],
+  },
+  {
+    titulo: "Tarifas",
     opciones: [
-      { texto: "Inicio", archivo: "inicio.html", permisos: null },
+      { texto: "Tarifas", archivo: "tarifas.html", permisos: ["tarifa.ver"] },
+      // P7: el comercial no la ve (la API se la permite leer para el cotizador de F3).
+      { texto: "Recargos", archivo: "recargos.html", permisos: ["tarifa.editar", "costo.ver"] },
+      { texto: "Monedas y tasas", archivo: "monedas.html", permisos: ["tasa.editar", "costo.ver"] },
+    ],
+  },
+  {
+    titulo: "Comercial",
+    opciones: [
+      { texto: "Clientes", archivo: "clientes.html", permisos: ["cliente.ver"] },
       { texto: "Incoterms", archivo: "incoterms.html", permisos: null },
     ],
   },
@@ -16,10 +29,6 @@ const GRUPOS_MENU = [
       { texto: "Geografía", archivo: "geografia.html", permisos: ["catalogo.editar"] },
       { texto: "Proveedores", archivo: "proveedores.html", permisos: ["catalogo.editar", "costo.ver"] },
     ],
-  },
-  {
-    titulo: "Tarifas",
-    opciones: [{ texto: "Monedas y tasas", archivo: "monedas.html", permisos: ["tasa.editar", "costo.ver"] }],
   },
   {
     titulo: "Administración",

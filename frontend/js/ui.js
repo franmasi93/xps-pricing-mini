@@ -78,5 +78,47 @@ const UI = (() => {
     return texto ? `${ruta}?${texto}` : ruta;
   }
 
-  return { SIN_PERMISO, tieneAlguno, exigirAlguno, celda, texto, boton, badgeEstado, filaVacia, opciones, prepararDialogo, consulta };
+  /** Etiqueta del estado de vigencia calculado por el backend (FUTURA, VIGENTE, POR_VENCER, VENCIDA). */
+  function badgeVigencia(estado, diasAlerta) {
+    const etiquetas = {
+      FUTURA: ["badge badge-estado badge-info", "Futura"],
+      VIGENTE: ["badge badge-estado badge-activo", "Vigente"],
+      POR_VENCER: ["badge badge-estado badge-alerta", `Vence en ≤${diasAlerta} días`],
+      VENCIDA: ["badge badge-estado badge-critico", "Vencida"],
+    };
+    const [clase, texto] = etiquetas[estado] || ["badge badge-estado badge-inactivo", estado];
+    return crear("span", { clase, texto });
+  }
+
+  /** Lee los días de alerta de la configuración (los ve cualquier usuario con sesión). */
+  async function diasAlerta() {
+    const configuracion = await XPS.api("/configuracion");
+    const clave = configuracion.find((c) => c.clave === "dias_alerta_vencimiento");
+    return clave ? clave.valor : "7";
+  }
+
+  /** Monto tal como lo envía el backend (texto con 4 decimales) más la moneda; nunca se calcula aquí. */
+  function monto(valor, moneda) {
+    if (valor === null || valor === undefined) {
+      return texto(null);
+    }
+    return crear("span", { clase: "cifra", texto: moneda ? `${valor} ${moneda}` : valor });
+  }
+
+  return {
+    SIN_PERMISO,
+    tieneAlguno,
+    exigirAlguno,
+    celda,
+    texto,
+    boton,
+    badgeEstado,
+    badgeVigencia,
+    diasAlerta,
+    monto,
+    filaVacia,
+    opciones,
+    prepararDialogo,
+    consulta,
+  };
 })();

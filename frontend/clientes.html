@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clientes · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Clientes</h1>
+          <p class="topbar-subtitulo" id="subtitulo">Libreta de clientes y contactos</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo cliente</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <p class="nota-lectura" id="nota-lectura" hidden>Vista de solo lectura: su rol puede consultar los clientes, pero no editarlos.</p>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo campo-busqueda">
+              <label for="filtro-q">Buscar</label>
+              <input class="input" id="filtro-q" type="search" placeholder="Razón social o identificación (2 caracteres o más)">
+            </div>
+            <div class="campo">
+              <label for="filtro-activo">Estado</label>
+              <select class="select" id="filtro-activo">
+                <option value="true">Activos</option>
+                <option value="false">Inactivos</option>
+                <option value="">Todos</option>
+              </select>
+            </div>
+          </div>
+          <table class="tabla">
+            <thead>
+              <tr><th>Razón social</th><th>Identificación</th><th>País</th><th>Comercial</th><th>Contacto principal</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="tabla-clientes"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Cliente -->
+  <dialog class="dialogo dialogo-ancho" id="dialogo-cliente" aria-labelledby="titulo-cliente">
+    <h2 id="titulo-cliente">Nuevo cliente</h2>
+    <div id="alertas-cliente" hidden></div>
+    <form id="form-cliente" novalidate>
+      <div class="grupo-campos">
+        <div class="campo">
+          <label for="cliente-razon">Razón social</label>
+          <input class="input" id="cliente-razon" name="razon_social" type="text" maxlength="200" required>
+        </div>
+        <div class="campo">
+          <label for="cliente-tipo">Tipo de identificación</label>
+          <select class="select" id="cliente-tipo" name="tipo_id" required>
+            <option value="RUC">RUC (13 dígitos, termina en 001)</option>
+            <option value="CEDULA">Cédula (10 dígitos)</option>
+            <option value="PASAPORTE">Pasaporte</option>
+            <option value="EXTRANJERO">Identificación extranjera</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="cliente-identificacion">Número de identificación</label>
+          <input class="input cifra" id="cliente-identificacion" name="ruc_o_id" type="text" maxlength="40" autocomplete="off" required>
+        </div>
+        <div class="campo">
+          <label for="cliente-pais">País</label>
+          <select class="select" id="cliente-pais" name="pais_id" required></select>
+        </div>
+        <div class="campo">
+          <label for="cliente-ciudad">Ciudad</label>
+          <input class="input" id="cliente-ciudad" name="ciudad" type="text" maxlength="100">
+        </div>
+        <div class="campo">
+          <label for="cliente-telefono">Teléfono</label>
+          <input class="input" id="cliente-telefono" name="telefono" type="text" maxlength="40">
+        </div>
+        <div class="campo" id="campo-comercial" hidden>
+          <label for="cliente-comercial">Comercial asignado (obligatorio)</label>
+          <select class="select" id="cliente-comercial" name="comercial_asignado_id"></select>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="cliente-direccion">Dirección</label>
+        <input class="input" id="cliente-direccion" name="direccion" type="text" maxlength="250">
+      </div>
+      <div class="campo">
+        <label for="cliente-notas">Notas (opcional)</label>
+        <textarea class="input" id="cliente-notas" name="notas" maxlength="5000" rows="2"></textarea>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Contactos -->
+  <dialog class="dialogo dialogo-ancho" id="dialogo-contactos" aria-labelledby="titulo-contactos">
+    <h2 id="titulo-contactos">Contactos</h2>
+    <div id="alertas-contactos" hidden></div>
+    <table class="tabla">
+      <thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Teléfono</th><th>Principal</th><th>Estado</th><th id="th-acciones-contacto">Acciones</th></tr></thead>
+      <tbody id="tabla-contactos"></tbody>
+    </table>
+    <form id="form-contacto" novalidate hidden>
+      <h3 id="titulo-form-contacto">Agregar contacto</h3>
+      <div class="grupo-campos">
+        <div class="campo">
+          <label for="contacto-nombre">Nombre</label>
+          <input class="input" id="contacto-nombre" name="nombre" type="text" maxlength="120" required>
+        </div>
+        <div class="campo">
+          <label for="contacto-cargo">Cargo</label>
+          <input class="input" id="contacto-cargo" name="cargo" type="text" maxlength="80">
+        </div>
+        <div class="campo">
+          <label for="contacto-email">Email</label>
+          <input class="input" id="contacto-email" name="email" type="email" maxlength="254">
+        </div>
+        <div class="campo">
+          <label for="contacto-telefono">Teléfono</label>
+          <input class="input" id="contacto-telefono" name="telefono" type="text" maxlength="40">
+        </div>
+      </div>
+      <label class="campo-check" for="contacto-principal">
+        <input id="contacto-principal" name="principal" type="checkbox">
+        Contacto principal
+      </label>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" id="btn-cancelar-contacto">Limpiar</button>
+        <button class="btn btn-primario" type="submit">Guardar contacto</button>
+      </div>
+    </form>
+    <div class="acciones-form">
+      <button class="btn btn-secundario" type="button" data-cerrar>Cerrar</button>
+    </div>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/clientes.js"></script>
+</body>
+</html>

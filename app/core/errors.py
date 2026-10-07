@@ -23,7 +23,26 @@ MENSAJES_POR_CONSTRAINT = {
         "Ya existe una tasa para esa moneda en esa fecha; corríjala en lugar de crear otra",
     ),
     "uq_proveedor_nombre_lower": (409, "PROVEEDOR_DUPLICADO", "Ya existe un proveedor con ese nombre"),
+    "uq_tipo_equipo_codigo": (409, "TIPO_EQUIPO_DUPLICADO", "Ya existe un tipo de equipo con ese código"),
+    # D-F2-7: sin revelar la razón social ni el comercial del cliente existente.
+    "uq_cliente_tipo_identificacion": (
+        409,
+        "CLIENTE_DUPLICADO",
+        "Ya existe un cliente con esa identificación; solicite su asignación al administrador",
+    ),
+    "uq_contacto_cliente_principal": (409, "PRINCIPAL_DUPLICADO", "El cliente ya tiene un contacto principal"),
+    "ex_tarifa_vigencia_sin_superposicion": (
+        409,
+        "VIGENCIA_SUPERPUESTA",
+        "La vigencia se superpone con otra tarifa activa con la misma clave",
+    ),
+    "ex_recargo_vigencia_sin_superposicion": (
+        409,
+        "VIGENCIA_SUPERPUESTA",
+        "La vigencia se superpone con otro recargo activo con la misma clave",
+    ),
 }
+SQLSTATE_EXCLUSION = "23P01"  # exclusion_violation (D-F2-1)
 
 
 class ErrorNegocio(Exception):
@@ -48,6 +67,8 @@ def traducir_integrity_error(exc: IntegrityError) -> ErrorNegocio:
     nombre = getattr(diag, "constraint_name", None) or ""
     if nombre in MENSAJES_POR_CONSTRAINT:
         return ErrorNegocio(*MENSAJES_POR_CONSTRAINT[nombre])
+    if getattr(exc.orig, "sqlstate", None) == SQLSTATE_EXCLUSION:
+        return ErrorNegocio(409, "VIGENCIA_SUPERPUESTA", "La vigencia se superpone con otro registro activo")
     if nombre.startswith("uq_") or nombre.startswith("pk_"):
         return ErrorNegocio(409, "DUPLICADO", "Ya existe un registro con esos datos")
     return ErrorNegocio(422, "DATOS_INVALIDOS", "Los datos no cumplen las reglas de la base de datos")

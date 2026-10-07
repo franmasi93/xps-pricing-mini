@@ -329,6 +329,57 @@ a {
   color: var(--tinta-500);
 }
 
+.badge-info {
+  background: var(--info-fondo);
+  color: var(--info);
+}
+
+.badge-alerta {
+  background: var(--alerta-fondo);
+  color: var(--alerta);
+}
+
+.badge-critico {
+  background: var(--critico-fondo);
+  color: var(--critico);
+}
+
+/* ---------- Ficha (lista de pares etiqueta / valor) ---------- */
+
+.ficha {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--esp-3) var(--esp-5);
+  margin: 0 0 var(--esp-4);
+}
+
+.ficha div {
+  min-width: 0;
+}
+
+.ficha dt {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tinta-400);
+}
+
+.ficha dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.grupo-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--esp-4);
+}
+
+.dialogo-ancho {
+  width: min(760px, calc(100vw - 32px));
+}
+
 /* ---------- Card ---------- */
 
 .tarjeta {
@@ -1113,7 +1164,9 @@ a {
     max-width: none;
   }
 
-  .grupo-checks {
+  .grupo-checks,
+  .grupo-campos,
+  .ficha {
     grid-template-columns: 1fr;
   }
 

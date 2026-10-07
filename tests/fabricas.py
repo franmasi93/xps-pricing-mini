@@ -12,7 +12,19 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Moneda, Pais, Proveedor, Puerto, Region, TasaCambio, Usuario
+from app.models import (
+    Cliente,
+    ContactoCliente,
+    Moneda,
+    Pais,
+    Proveedor,
+    Puerto,
+    Region,
+    Tarifa,
+    TasaCambio,
+    TipoEquipo,
+    Usuario,
+)
 
 LETRAS = string.ascii_uppercase
 
@@ -88,3 +100,110 @@ def crear_proveedor(db: Session, pais: Pais | None = None, nombre: str | None = 
     db.add(proveedor)
     db.commit()
     return proveedor
+
+
+# ---------- M5: tarifas y recargos ----------
+
+UNIDAD_POR_MODO = {"AEREO": "KG", "LCL": "WM", "FCL": "CONTENEDOR"}
+
+
+def usd(db: Session) -> Moneda:
+    return db.scalars(select(Moneda).where(Moneda.codigo == "USD")).one()
+
+
+def tipo_equipo(db: Session, codigo: str = "40HC") -> TipoEquipo:
+    return db.scalars(select(TipoEquipo).where(TipoEquipo.codigo == codigo)).one()
+
+
+def puertos_para(db: Session, modo: str) -> tuple[Puerto, Puerto]:
+    """Origen y destino nuevos, del tipo que corresponde al modo."""
+    tipo = "AEREO" if modo == "AEREO" else "MARITIMO"
+    return crear_puerto(db, tipo=tipo), crear_puerto(db, tipo=tipo)
+
+
+def payload_tarifa(db: Session, modo: str = "LCL", **cambios) -> dict:
+    """Cuerpo válido para POST /v1/tarifas, con proveedor y puertos propios del test."""
+    origen, destino = puertos_para(db, modo)
+    datos = {
+        "proveedor_id": crear_proveedor(db).id,
+        "modo": modo,
+        "origen_puerto_id": origen.id,
+        "destino_puerto_id": destino.id,
+        "tipo_equipo_id": tipo_equipo(db).id if modo == "FCL" else None,
+        "rate_unit": UNIDAD_POR_MODO[modo],
+        "costo": "100",
+        "moneda_id": usd(db).id,
+        "minimo": "0",
+        "metodo_venta": "MARKUP",
+        "parametro_venta": "20",
+        "valido_desde": "2026-01-01",
+        "valido_hasta": "2026-12-31",
+    }
+    return datos | cambios
+
+
+def crear_tarifa(db: Session, modo: str = "LCL", **cambios) -> Tarifa:
+    """Tarifa insertada por ORM (sin pasar por el service) para preparar datos de prueba."""
+    datos = payload_tarifa(db, modo)
+    datos |= {"valido_desde": date(2026, 1, 1), "valido_hasta": date(2026, 12, 31)} | cambios
+    for campo in ("costo", "minimo", "parametro_venta", "precio_venta_manual", "minimo_venta_manual"):
+        if datos.get(campo) is not None:
+            datos[campo] = Decimal(str(datos[campo]))
+    tarifa = Tarifa(**datos)
+    db.add(tarifa)
+    db.commit()
+    return tarifa
+
+
+def cedula_libre(db: Session) -> str:
+    usadas = set(db.scalars(select(Cliente.ruc_o_id)))
+    while True:
+        cedula = "".join(random.choices(string.digits, k=10))
+        if cedula not in usadas:
+            return cedula
+
+
+def crear_cliente(db: Session, comercial: Usuario, activo: bool = True, razon_social: str | None = None) -> Cliente:
+    """Cliente insertado por ORM, asignado al comercial indicado."""
+    cliente = Cliente(
+        razon_social=razon_social or f"Cliente {uuid4().hex[:8]}",
+        tipo_id="CEDULA",
+        ruc_o_id=cedula_libre(db),
+        pais=crear_pais(db),
+        comercial_asignado_id=comercial.id,
+        activo=activo,
+    )
+    db.add(cliente)
+    db.commit()
+    return cliente
+
+
+def crear_contacto(db: Session, cliente: Cliente, principal: bool = False, nombre: str | None = None) -> ContactoCliente:
+    contacto = ContactoCliente(cliente_id=cliente.id, nombre=nombre or f"Contacto {uuid4().hex[:6]}", principal=principal)
+    db.add(contacto)
+    db.commit()
+    return contacto
+
+
+def payload_recargo(db: Session, puerto: Puerto | None = None, **cambios) -> dict:
+    """Cuerpo válido para POST /v1/recargos: THC de destino en un puerto marítimo propio del test."""
+    datos = {
+        "proveedor_id": None,
+        "puerto_id": (puerto or crear_puerto(db, tipo="MARITIMO")).id,
+        "lado": "DESTINO",
+        "bloque_incoterm": "GASTOS_DESTINO",
+        "concepto": f"THC {uuid4().hex[:6]}",
+        "modo": None,
+        "tipo_equipo_id": None,
+        "rate_unit": "ENVIO",
+        "costo": "50",
+        "moneda_id": usd(db).id,
+        "minimo": "0",
+        "metodo_venta": "MARKUP",
+        "parametro_venta": "10",
+        "aplica_iva": True,
+        "rol_ingreso": "PRINCIPAL",
+        "valido_desde": "2026-01-01",
+        "valido_hasta": "2026-12-31",
+    }
+    return datos | cambios

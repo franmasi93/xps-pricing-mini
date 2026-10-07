@@ -16,11 +16,16 @@ LIMITE_MAXIMO = 200
 
 
 def _serializable(valor: Any) -> Any:
-    """JSONB no acepta Decimal ni fechas: se guardan como texto (sin perder precisión)."""
+    """JSONB no acepta Decimal ni fechas: se guardan como texto (sin perder precisión).
+    Recorre listas y diccionarios anidados (por ejemplo, la foto de los tramos de una tarifa)."""
     if isinstance(valor, Decimal):
         return str(valor)
     if isinstance(valor, (date, datetime)):
         return valor.isoformat()
+    if isinstance(valor, dict):
+        return {clave: _serializable(interno) for clave, interno in valor.items()}
+    if isinstance(valor, (list, tuple)):
+        return [_serializable(interno) for interno in valor]
     return valor
 
 

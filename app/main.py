@@ -6,7 +6,18 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.errors import registrar_manejadores
-from app.routers import auth, catalogos, geografia, monedas, proveedores, roles, salud, usuarios
+from app.routers import (
+    auth,
+    catalogos,
+    clientes,
+    geografia,
+    monedas,
+    proveedores,
+    roles,
+    salud,
+    tarifas,
+    usuarios,
+)
 
 DIR_FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 RUTA_LOGIN = "/app/login.html"
@@ -23,6 +34,8 @@ api.include_router(geografia.router)
 api.include_router(monedas.router)
 api.include_router(proveedores.router)
 api.include_router(catalogos.router)
+api.include_router(tarifas.router)
+api.include_router(clientes.router)
 app.include_router(api)
 
 

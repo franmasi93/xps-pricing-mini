@@ -39,7 +39,23 @@
         <section class="tarjeta" id="bienvenida" hidden>
           <h3 id="saludo"></h3>
           <p id="detalle-rol" class="texto-suave"></p>
-          <p>Los módulos de tarifas, clientes y cotizaciones estarán disponibles próximamente, según su rol.</p>
+          <p>El cotizador y el envío de cotizaciones estarán disponibles próximamente.</p>
+        </section>
+
+        <section class="tarjeta" id="bloque-por-vencer" hidden>
+          <div class="tarjeta-cabecera">
+            <div>
+              <h3>Tarifas por vencer</h3>
+              <p class="texto-suave" id="por-vencer-bajada"></p>
+            </div>
+            <a class="btn btn-secundario btn-chico" href="tarifas.html">Ver tarifas</a>
+          </div>
+          <table class="tabla">
+            <thead>
+              <tr><th>Ruta</th><th>Modo</th><th>Proveedor</th><th>Venta</th><th>Vence</th></tr>
+            </thead>
+            <tbody id="tabla-por-vencer"></tbody>
+          </table>
         </section>
       </main>
     </div>
@@ -47,6 +63,7 @@
 
   <script src="js/api.js"></script>
   <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
   <script src="js/inicio.js"></script>
 </body>
 </html>
