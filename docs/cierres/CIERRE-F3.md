@@ -275,4 +275,4 @@ Resultado: **PENDIENTE**.
 
 ## 10. Avance
 
-F0 5 % ✅ · F1 15 % ✅ · F2 25 % ✅ · F3 30 % ✅ · **proyecto 75 %**. Sigue F4 (correo con Tencent SES). Commit: ver el segundo commit "F3: acta de cierre con hash", que completa esta línea.
+F0 5 % ✅ · F1 15 % ✅ · F2 25 % ✅ · F3 30 % ✅ · **proyecto 75 %**. Sigue F4 (correo con Tencent SES). Commit: `0a62b2a` "F3: cotizador, emisión, numeración, estados y PDF" (54 archivos, 6518 inserciones, 21 eliminaciones), más el commit "F3: acta de cierre con hash", solo con esta acta.
