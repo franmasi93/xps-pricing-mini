@@ -126,6 +126,39 @@ const XPS = (() => {
     throw new ErrorApi(respuesta.status, codigo, mensaje, false, detalle || {});
   }
 
+  /** Descarga un archivo (por ejemplo el PDF) con el token; devuelve {blob, nombre}. */
+  async function archivo(ruta) {
+    const headers = {};
+    const token = obtenerToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    let respuesta;
+    try {
+      respuesta = await fetch(`/v1${ruta}`, { headers });
+    } catch {
+      throw new ErrorApi(0, "SIN_CONEXION", "No se pudo conectar con el servidor. Revise su conexión.");
+    }
+    if (!respuesta.ok) {
+      let datos = null;
+      try {
+        datos = await respuesta.json();
+      } catch {
+        datos = null;
+      }
+      const { codigo, mensaje } = interpretarError(datos);
+      if (respuesta.status === 401) {
+        borrarToken();
+        irA(RUTA_LOGIN);
+        throw new ErrorApi(401, codigo, mensaje, true);
+      }
+      throw new ErrorApi(respuesta.status, codigo, mensaje);
+    }
+    const disposicion = respuesta.headers.get("Content-Disposition") || "";
+    const coincidencia = disposicion.match(/filename="([^"]+)"/);
+    return { blob: await respuesta.blob(), nombre: coincidencia ? coincidencia[1] : "archivo.pdf" };
+  }
+
   // ---------- DOM seguro ----------
 
   function crear(etiqueta, { clase, texto, atributos } = {}, hijos = []) {
@@ -190,6 +223,7 @@ const XPS = (() => {
     POLITICA_PASSWORD,
     ErrorApi,
     api,
+    archivo,
     obtenerToken,
     guardarToken,
     borrarToken,

@@ -1,4 +1,4 @@
-/* Pantalla de inicio: bienvenida y, con tarifa.ver, el bloque "Tarifas por vencer".
+/* Pantalla de inicio: bienvenida, "Cotizaciones recientes" (según el alcance) y, con tarifa.ver, "Tarifas por vencer".
  * El bloque muestra solo datos de venta: aquí no se dibuja ningún costo, para ningún rol.
  */
 "use strict";
@@ -26,6 +26,25 @@
     document.getElementById("bloque-por-vencer").hidden = false;
   }
 
+  async function cotizacionesRecientes() {
+    const pagina = await XPS.api("/cotizaciones?limit=5");
+    const cuerpo = document.getElementById("tabla-recientes");
+    cuerpo.replaceChildren(...(pagina.items.length ? [] : [UI.filaVacia(5, "Todavía no hay cotizaciones.")]));
+    for (const cotizacion of pagina.items) {
+      const enlace = crear("a", { clase: "enlace", texto: cotizacion.etiqueta, atributos: { href: `cotizacion.html?id=${cotizacion.id}` } });
+      cuerpo.append(
+        crear("tr", {}, [
+          UI.celda("Cotización", [enlace]),
+          UI.celda("Cliente", [UI.texto(cotizacion.cliente.razon_social)]),
+          UI.celda("Ruta", [UI.texto(`${cotizacion.origen.codigo} → ${cotizacion.destino.codigo}`, "cifra")]),
+          UI.celda("Estado", UI.badgesCotizacion(cotizacion.estado, cotizacion.vencida)),
+          UI.celda("Total USD", [UI.monto(cotizacion.total_general)]),
+        ])
+      );
+    }
+    document.getElementById("bloque-recientes").hidden = false;
+  }
+
   const yo = await iniciarLayout("inicio.html");
   if (!yo) {
     return;
@@ -34,6 +53,13 @@
   document.getElementById("detalle-rol").textContent = `Ingresó con el rol ${yo.rol.nombre}.`;
   document.getElementById("bienvenida").hidden = false;
 
+  if (UI.tieneAlguno(yo, ["cotizacion.crear", "cotizacion.ver_todas"])) {
+    try {
+      await cotizacionesRecientes();
+    } catch (error) {
+      XPS.mostrarError(document.getElementById("alertas"), error);
+    }
+  }
   if (UI.tieneAlguno(yo, ["tarifa.ver"])) {
     try {
       await tarifasPorVencer();

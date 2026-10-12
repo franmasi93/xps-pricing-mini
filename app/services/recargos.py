@@ -4,6 +4,7 @@
 - No superposición (D-F2-1) por (proveedor o null, puerto, lado, bloque, concepto, modo o null,
   tipo_equipo o null); el concepto se compara sin distinguir mayúsculas.
 - Unidad según el modo (A1, D-F2-10); sin modo, según el tipo de puerto.
+- Seguro por envío o como % del valor de la mercancía (PCT_VALOR, solo en USD; D-F3-3).
 """
 from datetime import date
 from typing import Any
@@ -40,6 +41,7 @@ LADO_BLOQUES = {
 # A1 + D-F2-10: con modo, manda el modo; sin modo, el tipo de puerto. CONTENEDOR solo con FCL.
 UNIDADES_POR_MODO = {"AEREO": {"KG", "ENVIO"}, "LCL": {"WM", "CBM", "ENVIO"}, "FCL": {"CONTENEDOR", "ENVIO"}}
 UNIDADES_POR_PUERTO = {"AEREO": {"KG", "ENVIO"}, "MARITIMO": {"WM", "CBM", "ENVIO"}}
+UNIDADES_SEGURO = {"ENVIO", "PCT_VALOR"}
 CAMPOS_RECARGO = (
     "proveedor_id",
     "puerto_id",
@@ -78,7 +80,7 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
     puerto = referencia_activa(db, Puerto, datos["puerto_id"], "el puerto", activo)
     if datos.get("proveedor_id") is not None:
         referencia_activa(db, Proveedor, datos["proveedor_id"], "el proveedor", activo)
-    referencia_activa(db, Moneda, datos["moneda_id"], "la moneda", activo)
+    moneda = referencia_activa(db, Moneda, datos["moneda_id"], "la moneda", activo)
 
     datos["concepto"] = normalizar_concepto(datos["concepto"])
     if not datos["concepto"]:
@@ -102,11 +104,19 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
             raise ErrorNegocio(422, "TIPO_EQUIPO_NO_PERMITIDO", "Solo los recargos FCL llevan tipo de equipo")
         referencia_activa(db, TipoEquipo, datos["tipo_equipo_id"], "el tipo de equipo", activo)
 
-    if datos["bloque_incoterm"] == "SEGURO" and datos["rate_unit"] != "ENVIO":
+    # D-F3-3: el seguro va por envío o como % del valor (PCT_VALOR, solo en USD; el costo es el porcentaje).
+    if datos["rate_unit"] == "PCT_VALOR" and datos["bloque_incoterm"] != "SEGURO":
+        raise ErrorNegocio(422, "PCT_VALOR_SOLO_SEGURO", "El % del valor de la mercancía solo se usa en el seguro")
+    if datos["bloque_incoterm"] == "SEGURO" and datos["rate_unit"] not in UNIDADES_SEGURO:
         raise ErrorNegocio(
-            422, "SEGURO_SOLO_POR_ENVIO", "El seguro se registra como monto por envío (el % del valor llega en F3)"
+            422, "SEGURO_UNIDAD_INVALIDA", "El seguro se registra por envío o como % del valor de la mercancía"
         )
-    permitidas = UNIDADES_POR_MODO[modo] if modo is not None else UNIDADES_POR_PUERTO[puerto.tipo]
+    if datos["rate_unit"] == "PCT_VALOR":
+        if moneda.codigo != "USD":
+            raise ErrorNegocio(422, "PCT_VALOR_SOLO_USD", "El seguro como % del valor se registra en USD")
+        permitidas = UNIDADES_SEGURO
+    else:
+        permitidas = UNIDADES_POR_MODO[modo] if modo is not None else UNIDADES_POR_PUERTO[puerto.tipo]
     if datos["rate_unit"] not in permitidas:
         referencia = f"el modo {modo}" if modo is not None else f"un puerto {puerto.tipo.lower()}"
         raise ErrorNegocio(

@@ -31,6 +31,9 @@ MENSAJES_POR_CONSTRAINT = {
         "Ya existe un cliente con esa identificación; solicite su asignación al administrador",
     ),
     "uq_contacto_cliente_principal": (409, "PRINCIPAL_DUPLICADO", "El cliente ya tiene un contacto principal"),
+    "uq_cotizacion_numero": (409, "NUMERO_DUPLICADO", "El número de cotización ya existe; intente emitir de nuevo"),
+    "uq_cotizacion_contenedor_cotizacion_tipo": (422, "CONTENEDOR_DUPLICADO", "Cada tipo de contenedor va una sola vez"),
+    "uq_linea_cotizacion_cotizacion_orden": (409, "ORDEN_DUPLICADO", "Ya existe una línea con ese orden"),
     "ex_tarifa_vigencia_sin_superposicion": (
         409,
         "VIGENCIA_SUPERPUESTA",

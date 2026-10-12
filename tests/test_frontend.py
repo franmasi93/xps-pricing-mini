@@ -40,6 +40,56 @@ def test_paginas_f2(client, pagina):  # T204
     assert [patron for patron in PATRONES_PROHIBIDOS_JS if patron in script.text] == []
 
 
+PAGINAS_F3 = ["cotizaciones", "cotizador", "cotizacion"]
+
+
+@pytest.mark.parametrize("pagina", PAGINAS_F3)
+def test_paginas_f3(client, pagina):  # T257
+    respuesta = client.get(f"/app/{pagina}.html")
+    assert respuesta.status_code == 200
+    hojas_locales = re.findall(r'<link rel="stylesheet" href="(?!https://)([^"]+)"', respuesta.text)
+    assert hojas_locales == ["css/xps-pricing.css"]
+    assert "<style" not in respuesta.text and "style=" not in respuesta.text
+    script = client.get(f"/app/js/{pagina}.js")
+    assert script.status_code == 200
+    assert [patron for patron in PATRONES_PROHIBIDOS_JS if patron in script.text] == []
+
+
+def _permisos_menu(client, texto: str) -> list[str] | None:
+    """Permisos de una opción del menú de layout.js (None = visible para todos)."""
+    layout = client.get("/app/js/layout.js").text
+    opcion = re.search(rf'\{{ texto: "{texto}", archivo: "[^"]+", permisos: (null|\[[^\]]*\]) \}}', layout)
+    assert opcion is not None, texto
+    return None if opcion.group(1) == "null" else re.findall(r'"([^"]+)"', opcion.group(1))
+
+
+def _visible(permisos_opcion: list[str] | None, permisos_rol: set[str]) -> bool:
+    # La misma regla de iniciarLayout: null = todos; si no, basta uno de la lista.
+    return permisos_opcion is None or any(permiso in permisos_rol for permiso in permisos_opcion)
+
+
+def test_menu_cotizaciones_por_permiso(client, db_session):  # T258
+    from sqlalchemy import select
+
+    from app.models import Rol
+
+    permisos_opcion = _permisos_menu(client, "Cotizaciones")
+    assert set(permisos_opcion) == {"cotizacion.crear", "cotizacion.ver_todas"}
+    roles = {rol.codigo: {p.codigo for p in rol.permisos} for rol in db_session.scalars(select(Rol))}
+    # Seed real: admin, pricing y comercial crean; gerencia lee todas. Los cuatro ven la opción.
+    assert {codigo: _visible(permisos_opcion, permisos) for codigo, permisos in roles.items()} == {
+        "admin": True, "pricing": True, "comercial": True, "gerencia": True
+    }
+    # Un rol sin cotizacion.crear ni cotizacion.ver_todas no la ve.
+    assert _visible(permisos_opcion, roles["comercial"] - {"cotizacion.crear", "cotizacion.ver_todas"}) is False
+
+
+def test_incoterms_devuelven_id(client, crear_usuario, headers_de):  # T259
+    respuesta = client.get("/v1/incoterms", headers=headers_de(crear_usuario("comercial")))
+    assert respuesta.status_code == 200
+    assert all(isinstance(incoterm["id"], int) for incoterm in respuesta.json())
+
+
 def test_app_sirve_login_y_css(client):  # T65
     pagina = client.get("/app/login.html")
     assert pagina.status_code == 200

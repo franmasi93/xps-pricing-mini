@@ -1,6 +1,7 @@
 from app.models.base import Base
 from app.models.clientes import Cliente, ContactoCliente
 from app.models.configuracion import Auditoria, Configuracion
+from app.models.cotizaciones import ContadorCotizacion, Cotizacion, CotizacionContenedor, LineaCotizacion
 from app.models.geografia import Pais, Puerto, Region
 from app.models.incoterms import Incoterm
 from app.models.monedas import Moneda, TasaCambio
@@ -14,7 +15,11 @@ __all__ = [
     "Cliente",
     "Configuracion",
     "ContactoCliente",
+    "ContadorCotizacion",
+    "Cotizacion",
+    "CotizacionContenedor",
     "Incoterm",
+    "LineaCotizacion",
     "Moneda",
     "Pais",
     "Permiso",

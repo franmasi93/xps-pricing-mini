@@ -8,7 +8,8 @@ from app.models import Auditoria, Configuracion
 from app.services.configuracion import leer_iva_tasa
 
 SEED = [
-    ("condiciones_generales_pdf", "Pendiente de definir (P5).", "TEXTO", "config.editar"),
+    # La 0004 deja vacías las condiciones provisionales (H2 de F3): emitir exige cargarlas.
+    ("condiciones_generales_pdf", "", "TEXTO", "config.editar"),
     ("dias_alerta_vencimiento", "7", "ENTERO", "tarifa.editar"),
     ("firma_correo", "Pendiente de definir.", "TEXTO", "config.editar"),
     ("iva_tasa", "15.00", "DECIMAL", "config.editar"),

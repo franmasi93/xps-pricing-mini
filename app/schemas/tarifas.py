@@ -16,6 +16,8 @@ from app.schemas.comunes import CatalogoSalida, Entrada, sin_null
 
 Modo = Literal["AEREO", "LCL", "FCL"]
 RateUnit = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO"]
+# D-F3-3: PCT_VALOR (seguro como % del valor) solo existe en los recargos.
+RateUnitRecargo = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO", "PCT_VALOR"]
 MetodoVenta = Literal["MANUAL", "MARKUP", "MARGEN", "FIJO"]
 Lado = Literal["ORIGEN", "DESTINO"]
 BloqueRecargo = Literal[
@@ -264,7 +266,7 @@ class RecargoCrear(_VentaEntrada):
     concepto: str = Field(max_length=200)
     modo: Modo | None = None
     tipo_equipo_id: int | None = None
-    rate_unit: RateUnit
+    rate_unit: RateUnitRecargo
     # Obligatorios y sin valor por defecto: Pricing debe decidirlos en cada recargo.
     aplica_iva: bool
     rol_ingreso: RolIngreso
@@ -278,7 +280,7 @@ class RecargoActualizar(Entrada):
     concepto: str | None = Field(default=None, max_length=200)
     modo: Modo | None = None
     tipo_equipo_id: int | None = None
-    rate_unit: RateUnit | None = None
+    rate_unit: RateUnitRecargo | None = None
     costo: Decimal | None = None
     moneda_id: int | None = None
     minimo: Decimal | None = None

@@ -16,10 +16,10 @@ from app.services import auditoria
 Sentido = Literal["IMPORTACION", "EXPORTACION"]
 
 ADVERTENCIA_DDP_IMPORTACION = (
-    "En DDP de importación no hay nada que cotizar al comprador; cotice al vendedor como exportación"
+    "En DDP el comprador no paga nada a XPRESS; cotice al vendedor como exportación"
 )
 ADVERTENCIA_EXW_EXPORTACION = (
-    "En EXW de exportación no hay nada que cotizar al vendedor; cotice al comprador como importación"
+    "En EXW el vendedor no paga nada a XPRESS; cotice al comprador como importación"
 )
 CAMPOS_EDITABLES = ("nombre", "solo_maritimo", *BLOQUES, "activo")
 

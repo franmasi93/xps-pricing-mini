@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     IVA_TASA: Decimal = Decimal("15.00")
     COT_PREFIJO: str = "COT"
     MONEDA_BASE: str = "USD"
+    # Navegador para el PDF (H12 de F3): chromium de Playwright o el Edge instalado (msedge).
+    PDF_NAVEGADOR: Literal["chromium", "msedge"] = "chromium"
 
     # Opcionales hasta F4 (correo Tencent SES)
     TENCENT_SECRET_ID: SecretStr | None = None

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cotizaciones · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Cotizaciones</h1>
+          <p class="topbar-subtitulo">Borradores, emitidas y su estado</p>
+        </div>
+        <a class="btn btn-primario" id="btn-nueva" href="cotizador.html" hidden>Nueva cotización</a>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <p class="nota-lectura" id="nota-lectura" hidden>Vista de solo lectura: su rol puede consultar las cotizaciones, pero no crearlas ni emitirlas.</p>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo">
+              <label for="filtro-estado">Estado</label>
+              <select class="select" id="filtro-estado">
+                <option value="">Todos</option>
+                <option value="BORRADOR">Borrador</option>
+                <option value="EMITIDA">Emitida</option>
+                <option value="ENVIADA">Enviada</option>
+                <option value="ACEPTADA">Aceptada</option>
+                <option value="RECHAZADA">Rechazada</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="filtro-vencidas">Vencidas</label>
+              <select class="select" id="filtro-vencidas">
+                <option value="">Todas</option>
+                <option value="true">Solo vencidas</option>
+                <option value="false">No vencidas</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="filtro-desde">Creadas desde</label>
+              <input class="input" id="filtro-desde" type="date">
+            </div>
+            <div class="campo">
+              <label for="filtro-hasta">Hasta</label>
+              <input class="input" id="filtro-hasta" type="date">
+            </div>
+          </div>
+          <table class="tabla">
+            <thead>
+              <tr><th>Cotización</th><th>Cliente</th><th>Ruta</th><th>Modo</th><th>Incoterm</th><th>Estado</th><th>Válida hasta</th><th>Total USD</th><th>Comercial</th></tr>
+            </thead>
+            <tbody id="tabla-cotizaciones"></tbody>
+          </table>
+          <div class="acciones-form">
+            <button class="btn btn-secundario btn-chico" id="btn-anterior" type="button">Anterior</button>
+            <span class="texto-suave" id="pagina"></span>
+            <button class="btn btn-secundario btn-chico" id="btn-siguiente" type="button">Siguiente</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/cotizaciones.js"></script>
+</body>
+</html>

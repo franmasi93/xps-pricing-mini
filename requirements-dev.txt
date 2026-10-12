@@ -1,0 +1,3 @@
+-r requirements.txt
+# Solo para los tests del PDF (F3)
+pypdf==6.19.0

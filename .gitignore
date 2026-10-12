@@ -14,3 +14,6 @@ __pycache__/
 
 # Sistema operativo
 .DS_Store
+
+# PDF de prueba de F3 (fuera de git)
+salidas/

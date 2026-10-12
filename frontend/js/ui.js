@@ -105,8 +105,25 @@ const UI = (() => {
     return crear("span", { clase: "cifra", texto: moneda ? `${valor} ${moneda}` : valor });
   }
 
+  /** Estado de la cotización; "Vencida" es una etiqueta calculada por el backend, no un estado. */
+  function badgesCotizacion(estado, vencida) {
+    const clases = {
+      BORRADOR: "badge badge-estado badge-inactivo",
+      EMITIDA: "badge badge-estado badge-info",
+      ENVIADA: "badge badge-estado badge-info",
+      ACEPTADA: "badge badge-estado badge-activo",
+      RECHAZADA: "badge badge-estado badge-critico",
+    };
+    const etiquetas = [crear("span", { clase: clases[estado] || "badge badge-estado", texto: estado })];
+    if (vencida) {
+      etiquetas.push(crear("span", { clase: "badge badge-estado badge-alerta", texto: "Vencida" }));
+    }
+    return etiquetas;
+  }
+
   return {
     SIN_PERMISO,
+    badgesCotizacion,
     tieneAlguno,
     exigirAlguno,
     celda,

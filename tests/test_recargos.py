@@ -63,10 +63,10 @@ def test_coherencia_modo_y_unidad(client, crear_usuario, headers_de, db_session,
         assert _codigo(respuesta) == esperado
 
 
-def test_seguro_solo_por_envio(client, crear_usuario, headers_de, db_session):  # T180
+def test_seguro_por_envio_o_pct_valor(client, crear_usuario, headers_de, db_session):  # T180 (ajustado por D-F3-3)
     datos = payload_recargo(db_session, lado="ORIGEN", bloque_incoterm="SEGURO", rate_unit="WM")
     respuesta = _post(client, headers_de(crear_usuario("pricing")), datos)
-    assert (respuesta.status_code, _codigo(respuesta)) == (422, "SEGURO_SOLO_POR_ENVIO")
+    assert (respuesta.status_code, _codigo(respuesta)) == (422, "SEGURO_UNIDAD_INVALIDA")
 
 
 @pytest.mark.parametrize("campo", ["aplica_iva", "rol_ingreso"])

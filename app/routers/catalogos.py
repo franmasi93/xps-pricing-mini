@@ -28,7 +28,7 @@ def _incoterm_salida(incoterm: Incoterm) -> IncotermSalida:
     importacion, aviso_importacion = servicio_incoterms.bloques_incluidos(incoterm, "IMPORTACION")
     exportacion, aviso_exportacion = servicio_incoterms.bloques_incluidos(incoterm, "EXPORTACION")
     return IncotermSalida(
-        **{campo: getattr(incoterm, campo) for campo in ("codigo", "actualizado_en")},
+        **{campo: getattr(incoterm, campo) for campo in ("id", "codigo", "actualizado_en")},
         **{campo: getattr(incoterm, campo) for campo in servicio_incoterms.CAMPOS_EDITABLES},
         bloques_importacion=importacion,
         bloques_exportacion=exportacion,

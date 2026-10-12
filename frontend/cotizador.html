@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cotizador · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1 id="titulo">Nueva cotización</h1>
+          <p class="topbar-subtitulo">Cliente → sentido, modo y ruta → carga → Incoterm → tarifa → líneas</p>
+        </div>
+        <a class="btn btn-secundario" href="cotizaciones.html">Volver a la lista</a>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+
+        <form id="form-cotizacion" novalidate hidden>
+          <section class="tarjeta">
+            <h3>1. Cliente y contacto</h3>
+            <div class="grupo-campos">
+              <div class="campo campo-busqueda">
+                <label for="buscar-cliente">Buscar cliente</label>
+                <div class="grupo-input">
+                  <input class="input" id="buscar-cliente" type="search" placeholder="Razón social o identificación (2 caracteres o más)">
+                  <button class="btn btn-secundario" id="btn-buscar" type="button">Buscar</button>
+                </div>
+              </div>
+              <div class="campo">
+                <label for="cliente">Cliente</label>
+                <select class="select" id="cliente" required></select>
+              </div>
+              <div class="campo">
+                <label for="contacto">Contacto</label>
+                <select class="select" id="contacto"></select>
+              </div>
+            </div>
+          </section>
+
+          <section class="tarjeta">
+            <h3>2. Sentido, modo y ruta</h3>
+            <div class="grupo-campos">
+              <div class="campo">
+                <label for="sentido">Sentido</label>
+                <select class="select" id="sentido" required>
+                  <option value="IMPORTACION">Importación (el cliente es el comprador)</option>
+                  <option value="EXPORTACION">Exportación (el cliente es el vendedor)</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="modo">Modo</label>
+                <select class="select" id="modo" required>
+                  <option value="AEREO">Aéreo</option>
+                  <option value="LCL">Marítimo LCL</option>
+                  <option value="FCL">Marítimo FCL</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="origen">Origen</label>
+                <select class="select" id="origen" required></select>
+              </div>
+              <div class="campo">
+                <label for="destino">Destino</label>
+                <select class="select" id="destino" required></select>
+              </div>
+            </div>
+          </section>
+
+          <section class="tarjeta">
+            <h3>3. Carga</h3>
+            <div class="grupo-campos">
+              <div class="campo">
+                <label for="peso">Peso real (kg)</label>
+                <input class="input cifra" id="peso" type="text" inputmode="decimal" placeholder="0.000">
+              </div>
+              <div class="campo" id="campo-cbm">
+                <label for="cbm">Volumen (m³)</label>
+                <input class="input cifra" id="cbm" type="text" inputmode="decimal" placeholder="Opcional si indica dimensiones">
+              </div>
+              <div class="campo">
+                <label for="bultos">Bultos</label>
+                <input class="input cifra" id="bultos" type="number" min="0" step="1">
+              </div>
+              <div class="campo">
+                <label for="valor">Valor de la mercancía (USD)</label>
+                <input class="input cifra" id="valor" type="text" inputmode="decimal" placeholder="Para el seguro como % del valor">
+              </div>
+            </div>
+            <div id="bloque-dimensiones">
+              <p class="ayuda">Dimensiones por bulto (cm). El peso volumétrico y el cobrable los calcula el sistema.</p>
+              <table class="tabla">
+                <thead><tr><th>Cantidad</th><th>Largo</th><th>Ancho</th><th>Alto</th><th></th></tr></thead>
+                <tbody id="tabla-dimensiones"></tbody>
+              </table>
+              <button class="btn btn-secundario btn-chico" id="btn-dimension" type="button">Agregar bultos</button>
+            </div>
+            <div id="bloque-contenedores" hidden>
+              <p class="ayuda">Contenedores (FCL): un tipo por fila.</p>
+              <table class="tabla">
+                <thead><tr><th>Tipo</th><th>Cantidad</th><th></th></tr></thead>
+                <tbody id="tabla-contenedores"></tbody>
+              </table>
+              <button class="btn btn-secundario btn-chico" id="btn-contenedor" type="button">Agregar contenedor</button>
+            </div>
+          </section>
+
+          <section class="tarjeta">
+            <h3>4. Incoterm</h3>
+            <div class="grupo-campos">
+              <div class="campo">
+                <label for="incoterm">Incoterm 2020</label>
+                <select class="select" id="incoterm" required></select>
+              </div>
+            </div>
+            <p class="ayuda">FAS, FOB, CFR y CIF son solo marítimos. El sistema avisa si la combinación no se puede cotizar.</p>
+            <div class="campo">
+              <label for="notas-cliente">Notas para el cliente (salen en el PDF)</label>
+              <textarea class="input" id="notas-cliente" maxlength="2000" rows="2"></textarea>
+            </div>
+            <div class="campo">
+              <label for="notas-internas">Notas internas (no salen en el PDF)</label>
+              <textarea class="input" id="notas-internas" maxlength="2000" rows="2"></textarea>
+            </div>
+            <div class="acciones-form">
+              <button class="btn btn-primario" id="btn-guardar" type="submit">Crear borrador y ver tarifas</button>
+            </div>
+          </section>
+        </form>
+
+        <section class="tarjeta" id="paso-tarifas" hidden>
+          <h3>5. Elegir tarifa</h3>
+          <p class="texto-suave" id="tarifas-bajada"></p>
+          <div id="grupos-tarifas"></div>
+          <div class="acciones-form">
+            <button class="btn btn-primario" id="btn-proponer" type="button">Proponer líneas</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/cotizador.js"></script>
+</body>
+</html>

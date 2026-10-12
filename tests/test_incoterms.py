@@ -55,8 +55,8 @@ def test_fob_exportacion_complemento(db_session):  # T117
 @pytest.mark.parametrize(
     ("codigo", "sentido", "texto"),
     [
-        ("DDP", "IMPORTACION", "En DDP de importación no hay nada que cotizar al comprador; cotice al vendedor como exportación"),
-        ("EXW", "EXPORTACION", "En EXW de exportación no hay nada que cotizar al vendedor; cotice al comprador como importación"),
+        ("DDP", "IMPORTACION", "En DDP el comprador no paga nada a XPRESS; cotice al vendedor como exportación"),
+        ("EXW", "EXPORTACION", "En EXW el vendedor no paga nada a XPRESS; cotice al comprador como importación"),
     ],
     ids=["ddp_importacion", "exw_exportacion"],
 )

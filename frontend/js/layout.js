@@ -19,6 +19,8 @@ const GRUPOS_MENU = [
   {
     titulo: "Comercial",
     opciones: [
+      // Admin, pricing y comercial crean; gerencia lee (ver_todas). Cada uno ve según su alcance.
+      { texto: "Cotizaciones", archivo: "cotizaciones.html", permisos: ["cotizacion.crear", "cotizacion.ver_todas"] },
       { texto: "Clientes", archivo: "clientes.html", permisos: ["cliente.ver"] },
       { texto: "Incoterms", archivo: "incoterms.html", permisos: null },
     ],

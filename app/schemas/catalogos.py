@@ -8,6 +8,7 @@ from app.schemas.comunes import Entrada, sin_null
 
 
 class IncotermSalida(BaseModel):
+    id: int  # F3: el cotizador lo envía como incoterm_id
     codigo: str
     nombre: str
     solo_maritimo: bool

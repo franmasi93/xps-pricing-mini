@@ -39,7 +39,23 @@
         <section class="tarjeta" id="bienvenida" hidden>
           <h3 id="saludo"></h3>
           <p id="detalle-rol" class="texto-suave"></p>
-          <p>El cotizador y el envío de cotizaciones estarán disponibles próximamente.</p>
+          <p>El envío de cotizaciones por correo estará disponible en F4.</p>
+        </section>
+
+        <section class="tarjeta" id="bloque-recientes" hidden>
+          <div class="tarjeta-cabecera">
+            <div>
+              <h3>Cotizaciones recientes</h3>
+              <p class="texto-suave">Las últimas cinco que usted puede ver.</p>
+            </div>
+            <a class="btn btn-secundario btn-chico" href="cotizaciones.html">Ver cotizaciones</a>
+          </div>
+          <table class="tabla">
+            <thead>
+              <tr><th>Cotización</th><th>Cliente</th><th>Ruta</th><th>Estado</th><th>Total USD</th></tr>
+            </thead>
+            <tbody id="tabla-recientes"></tbody>
+          </table>
         </section>
 
         <section class="tarjeta" id="bloque-por-vencer" hidden>

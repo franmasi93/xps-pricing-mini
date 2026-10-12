@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>{{ d.numero or "Borrador" }}</title>
+<style>
+  @font-face { font-family: "Inter"; src: url(data:font/ttf;base64,{{ fuente_inter }}) format("truetype"); font-weight: 100 900; }
+  @font-face { font-family: "JetBrains Mono"; src: url(data:font/ttf;base64,{{ fuente_mono }}) format("truetype"); font-weight: 100 900; }
+  :root { --navy: #000771; --naranja: #ED4C01; --gris: #5B6075; --linea: #D9DBE5; --suave: #F4F5FA; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", sans-serif; color: #14172B; font-size: 9.5pt; margin: 0; line-height: 1.4; }
+  .cifra { font-family: "JetBrains Mono", monospace; text-align: right; white-space: nowrap; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--navy); padding-bottom: 10px; }
+  header img { height: 34px; }
+  .titulo { text-align: right; }
+  .titulo h1 { margin: 0; color: var(--navy); font-size: 16pt; font-weight: 800; }
+  .titulo .numero { font-family: "JetBrains Mono", monospace; color: var(--naranja); font-size: 12pt; font-weight: 600; }
+  .titulo p { margin: 2px 0 0; color: var(--gris); }
+  .marca-agua { position: fixed; top: 42%; left: 0; right: 0; text-align: center; transform: rotate(-30deg);
+                font-size: 44pt; font-weight: 900; color: rgba(237, 76, 1, 0.16); z-index: 10; }
+  h2 { color: var(--navy); font-size: 10.5pt; margin: 16px 0 6px; letter-spacing: 0.02em; }
+  .grilla { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .caja { background: var(--suave); border-radius: 6px; padding: 8px 10px; }
+  .caja b { color: var(--navy); }
+  .caja p { margin: 1px 0; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  table.lineas { table-layout: fixed; }
+  table.lineas col.concepto { width: 46%; }
+  table.lineas col.cantidad, table.lineas col.unidad { width: 12%; }
+  table.lineas col.precio, table.lineas col.subtotal { width: 15%; }
+  th { background: var(--navy); color: #fff; font-weight: 600; font-size: 8.5pt; text-align: left; padding: 5px 6px; }
+  th.cifra { text-align: right; }
+  td { border-bottom: 1px solid var(--linea); padding: 5px 6px; vertical-align: top; }
+  tr.subtotal td { font-weight: 700; border-bottom: 2px solid var(--navy); }
+  .totales { margin-left: auto; width: 46%; margin-top: 12px; }
+  .totales td { border: none; padding: 3px 6px; }
+  .totales tr.total td { border-top: 2px solid var(--naranja); font-size: 11.5pt; font-weight: 800; color: var(--navy); }
+  .condiciones { white-space: pre-wrap; font-size: 8.5pt; color: #2B2F45; }
+  .firma { margin-top: 26px; width: 48%; border-top: 1px solid var(--gris); padding-top: 4px; }
+  footer { margin-top: 18px; border-top: 1px solid var(--linea); padding-top: 6px; text-align: center; color: var(--gris); font-size: 8pt; }
+  .vacio { color: var(--gris); font-style: italic; }
+</style>
+</head>
+<body>
+{% if borrador %}<div class="marca-agua">BORRADOR — SIN VALIDEZ</div>{% endif %}
+<header>
+  <img src="data:image/png;base64,{{ logo }}" alt="XPRESS">
+  <div class="titulo">
+    <h1>Cotización</h1>
+    <div class="numero">{{ d.numero or "BORRADOR" }}</div>
+    <p>Emisión: {{ d.fecha_emision or "—" }} · Válida hasta: {{ d.valida_hasta or "—" }}</p>
+    <p>Le atiende: {{ d.comercial.nombre }}{% if d.comercial.email %} · {{ d.comercial.email }}{% endif %}</p>
+  </div>
+</header>
+
+<h2>Cliente</h2>
+<div class="grilla">
+  <div class="caja">
+    <p><b>{{ d.cliente.razon_social }}</b></p>
+    <p>{{ d.cliente.tipo_id }} {{ d.cliente.ruc_o_id }}</p>
+    {% if d.cliente.direccion %}<p>{{ d.cliente.direccion }}</p>{% endif %}
+    <p>{% if d.cliente.ciudad %}{{ d.cliente.ciudad }}, {% endif %}{{ d.cliente.pais }}</p>
+  </div>
+  <div class="caja">
+    {% if d.contacto %}
+    <p><b>{{ d.contacto.nombre }}</b>{% if d.contacto.cargo %} · {{ d.contacto.cargo }}{% endif %}</p>
+    {% if d.contacto.email %}<p>{{ d.contacto.email }}</p>{% endif %}
+    {% if d.contacto.telefono %}<p>{{ d.contacto.telefono }}</p>{% endif %}
+    {% else %}<p class="vacio">Sin contacto</p>{% endif %}
+  </div>
+</div>
+
+<h2>Servicio</h2>
+<div class="grilla">
+  <div class="caja">
+    <p><b>Ruta:</b> {{ d.origen.codigo }} {{ d.origen.nombre }} ({{ d.origen.pais }}) → {{ d.destino.codigo }} {{ d.destino.nombre }} ({{ d.destino.pais }})</p>
+    <p><b>Modo:</b> {{ d.modo }} · <b>Incoterm:</b> {{ d.incoterm.codigo }} · <b>Sentido:</b> {{ "Importación" if d.sentido == "IMPORTACION" else "Exportación" }}</p>
+    <p><b>Transit time:</b> {{ d.transit_time }} · <b>Días libres:</b> {{ d.dias_libres }}</p>
+  </div>
+  <div class="caja">
+    <p><b>Peso:</b> <span class="cifra">{{ d.carga.peso_kg }}</span> kg{% if d.carga.cbm %} · <b>Volumen:</b> <span class="cifra">{{ d.carga.cbm }}</span> m³{% endif %}{% if d.carga.bultos %} · <b>Bultos:</b> {{ d.carga.bultos }}{% endif %}</p>
+    {% if d.carga.peso_cobrable_kg %}<p><b>Peso cobrable:</b> <span class="cifra">{{ d.carga.peso_cobrable_kg }}</span> kg (volumétrico <span class="cifra">{{ d.carga.peso_volumetrico_kg }}</span> kg)</p>{% endif %}
+    {% if d.carga.peso_medida %}<p><b>Peso/medida (W/M):</b> <span class="cifra">{{ d.carga.peso_medida }}</span></p>{% endif %}
+    {% for c in d.carga.contenedores %}<p><b>Contenedor:</b> {{ c.cantidad }} × {{ c.codigo }}</p>{% endfor %}
+    {% if d.carga.valor_mercancia_usd %}<p><b>Valor de la mercancía:</b> USD <span class="cifra">{{ d.carga.valor_mercancia_usd | dinero }}</span></p>{% endif %}
+  </div>
+</div>
+
+{% for bloque in bloques %}
+<h2>{{ bloque.titulo }}</h2>
+<table class="lineas">
+  <colgroup><col class="concepto"><col class="cantidad"><col class="unidad"><col class="precio"><col class="subtotal"></colgroup>
+  <thead><tr><th>Concepto</th><th class="cifra">Cantidad</th><th>Unidad</th><th class="cifra">Precio USD</th><th class="cifra">Subtotal USD</th></tr></thead>
+  <tbody>
+  {% for l in bloque.lineas %}
+    <tr><td>{{ l.concepto }}</td><td class="cifra">{{ l.cantidad | cantidad }}</td><td>{{ l.rate_unit | unidad }}</td><td class="cifra">{{ l.precio_venta_unit_usd | unitario }}</td><td class="cifra">{{ l.subtotal_venta_usd | dinero }}</td></tr>
+  {% else %}
+    <tr><td colspan="5" class="vacio">Sin conceptos en este bloque</td></tr>
+  {% endfor %}
+    <tr class="subtotal"><td colspan="4">Subtotal</td><td class="cifra">{{ bloque.subtotal | dinero }}</td></tr>
+  </tbody>
+</table>
+{% endfor %}
+
+<table class="totales">
+  <tr><td>Recibo de Caja (IVA 0%)</td><td class="cifra">{{ d.totales.subtotal_recibo_caja | dinero }}</td></tr>
+  <tr><td>Factura</td><td class="cifra">{{ d.totales.subtotal_factura | dinero }}</td></tr>
+  <tr><td>IVA {{ d.totales.iva_tasa | porcentaje }}%</td><td class="cifra">{{ d.totales.iva | dinero }}</td></tr>
+  <tr class="total"><td>Total USD</td><td class="cifra">{{ d.totales.total_general | dinero }}</td></tr>
+</table>
+
+{% if d.notas_cliente %}<h2>Notas</h2><p class="condiciones">{{ d.notas_cliente }}</p>{% endif %}
+
+<h2>Condiciones generales</h2>
+{% if d.condiciones %}<p class="condiciones">{{ d.condiciones }}</p>{% else %}<p class="vacio">Condiciones generales pendientes de cargar.</p>{% endif %}
+
+<div class="firma">{{ d.comercial.nombre }}<br>{{ d.empresa }}</div>
+
+<footer>XPRESS LOGISTICS XPS S.A. · Sistema de importaciones y exportaciones</footer>
+</body>
+</html>

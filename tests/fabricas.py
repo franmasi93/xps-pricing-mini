@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.models import (
     Cliente,
     ContactoCliente,
+    Cotizacion,
+    Incoterm,
     Moneda,
     Pais,
     Proveedor,
@@ -207,3 +209,27 @@ def payload_recargo(db: Session, puerto: Puerto | None = None, **cambios) -> dic
         "valido_hasta": "2026-12-31",
     }
     return datos | cambios
+
+
+def incoterm(db: Session, codigo: str = "FOB") -> Incoterm:
+    return db.scalars(select(Incoterm).where(Incoterm.codigo == codigo)).one()
+
+
+def crear_cotizacion(db: Session, comercial: Usuario, modo: str = "LCL", **cambios) -> Cotizacion:
+    """Borrador insertado por ORM (sin pasar por el service), con cliente y puertos propios del test."""
+    origen, destino = puertos_para(db, modo)
+    datos = {
+        "cliente_id": crear_cliente(db, comercial).id,
+        "comercial_id": comercial.id,
+        "sentido": "IMPORTACION",
+        "incoterm_id": incoterm(db).id,
+        "modo": modo,
+        "origen_puerto_id": origen.id,
+        "destino_puerto_id": destino.id,
+        "peso_kg": Decimal("100"),
+        "cbm": Decimal("1"),
+    }
+    cotizacion = Cotizacion(**(datos | cambios))
+    db.add(cotizacion)
+    db.commit()
+    return cotizacion

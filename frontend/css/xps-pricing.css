@@ -1215,3 +1215,40 @@ a {
     padding: var(--esp-4);
   }
 }
+
+/* ---------- F3: cotizador y detalle de cotización ---------- */
+
+.acciones-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+
+.opciones-flete {
+  margin-bottom: var(--esp-4);
+}
+
+.opciones-flete h4 {
+  margin: 0 0 var(--esp-2);
+}
+
+.opciones-flete .campo-check {
+  align-items: flex-start;
+  margin-bottom: var(--esp-2);
+}
+
+.fila-grupo td {
+  font-weight: 700;
+  color: var(--tinta-700);
+  padding-top: var(--esp-4);
+}
+
+#avisos .alerta {
+  margin-bottom: var(--esp-2);
+}
+
+@media (max-width: 640px) {
+  .acciones-cabecera .btn {
+    flex: 1 1 100%;
+  }
+}

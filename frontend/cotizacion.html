@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cotización · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1 id="titulo">Cotización</h1>
+          <p class="topbar-subtitulo" id="estado"></p>
+        </div>
+        <a class="btn btn-secundario" href="cotizaciones.html">Volver a la lista</a>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <div id="avisos"></div>
+
+        <section class="tarjeta" id="acciones" hidden>
+          <div class="acciones-cabecera" id="botones"></div>
+        </section>
+
+        <section class="tarjeta" id="datos" hidden>
+          <dl class="ficha" id="ficha"></dl>
+        </section>
+
+        <section class="tarjeta" id="bloque-lineas" hidden>
+          <h3>Líneas</h3>
+          <table class="tabla">
+            <thead id="cabecera-lineas"></thead>
+            <tbody id="tabla-lineas"></tbody>
+          </table>
+        </section>
+
+        <section class="tarjeta" id="bloque-totales" hidden>
+          <h3>Totales (USD)</h3>
+          <dl class="ficha" id="totales"></dl>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Ajuste manual de una línea -->
+  <dialog class="dialogo" id="dialogo-ajuste" aria-labelledby="titulo-ajuste">
+    <h2 id="titulo-ajuste">Ajustar precio</h2>
+    <div id="alertas-ajuste" hidden></div>
+    <form id="form-ajuste" novalidate>
+      <p class="texto-suave" id="ajuste-linea"></p>
+      <div class="campo">
+        <label for="ajuste-precio">Precio de venta unitario (USD)</label>
+        <input class="input cifra" id="ajuste-precio" type="text" inputmode="decimal" required>
+      </div>
+      <div class="campo">
+        <label for="ajuste-motivo">Motivo (obligatorio, 5 caracteres o más)</label>
+        <textarea class="input" id="ajuste-motivo" maxlength="300" rows="2" required></textarea>
+      </div>
+      <p class="ayuda">Con ajuste manual no se aplica el mínimo de venta; queda en la auditoría.</p>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar ajuste</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Emitir -->
+  <dialog class="dialogo" id="dialogo-emitir" aria-labelledby="titulo-emitir">
+    <h2 id="titulo-emitir">Emitir cotización</h2>
+    <div id="alertas-emitir" hidden></div>
+    <form id="form-emitir" novalidate>
+      <p class="texto-suave">Al emitir se asigna el número, se congelan tasas y precios, y la cotización ya no se edita.</p>
+      <div class="campo">
+        <label for="emitir-validez">Válida hasta (puede acortarla, no alargarla)</label>
+        <input class="input" id="emitir-validez" type="date">
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Emitir</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Rechazo -->
+  <dialog class="dialogo" id="dialogo-rechazo" aria-labelledby="titulo-rechazo">
+    <h2 id="titulo-rechazo">Marcar como rechazada</h2>
+    <div id="alertas-rechazo" hidden></div>
+    <form id="form-rechazo" novalidate>
+      <div class="campo">
+        <label for="rechazo-motivo">Motivo</label>
+        <select class="select" id="rechazo-motivo" required>
+          <option value="">Elija un motivo…</option>
+          <option value="PRECIO">Precio</option>
+          <option value="TIEMPO">Tiempo</option>
+          <option value="COMPETENCIA">Competencia</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label for="rechazo-detalle">Detalle (obligatorio si el motivo es Otro)</label>
+        <textarea class="input" id="rechazo-detalle" maxlength="1000" rows="2"></textarea>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Marcar rechazada</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/cotizacion.js"></script>
+</body>
+</html>

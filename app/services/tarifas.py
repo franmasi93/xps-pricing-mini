@@ -395,13 +395,17 @@ def duplicar_tarifa(db: Session, actor: Usuario, tarifa_id: int, valido_desde: d
 # ---------- Tramos aéreos (D-F2-2) ----------
 
 
+def precio_venta_kg(tarifa: Tarifa, tramo: TramoAereo) -> Decimal:
+    """Venta por kg del tramo en la moneda de la tarifa (hueco 11 de F2: el método se aplica por kg)."""
+    if tarifa.metodo_venta == "MANUAL":
+        return precio_venta.redondear(tramo.precio_venta_kg)
+    return precio_venta.aplicar_metodo(tarifa.metodo_venta, tramo.costo_kg, tarifa.parametro_venta)
+
+
 def presentar_tramos(tarifa: Tarifa, nivel: str):
     salida = []
     for tramo in tarifa.tramos:
-        if tarifa.metodo_venta == "MANUAL":
-            venta = precio_venta.redondear(tramo.precio_venta_kg)
-        else:
-            venta = precio_venta.aplicar_metodo(tarifa.metodo_venta, tramo.costo_kg, tarifa.parametro_venta)
+        venta = precio_venta_kg(tarifa, tramo)
         datos = {"desde_kg": tramo.desde_kg, "precio_venta_kg": venta}
         if nivel == NIVEL_VENTA:
             salida.append(TramoVenta(**datos))
