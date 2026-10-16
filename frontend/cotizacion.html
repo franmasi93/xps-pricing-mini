@@ -58,6 +58,16 @@
           <h3>Totales (USD)</h3>
           <dl class="ficha" id="totales"></dl>
         </section>
+
+        <section class="tarjeta" id="bloque-envios" hidden>
+          <h3>Envíos por correo</h3>
+          <table class="tabla">
+            <thead>
+              <tr><th>Fecha</th><th>Enviado por</th><th>Para</th><th>CC</th><th>Estado</th><th>Mensaje</th><th>MessageId</th></tr>
+            </thead>
+            <tbody id="tabla-envios"></tbody>
+          </table>
+        </section>
       </main>
     </div>
   </div>
@@ -123,6 +133,28 @@
       <div class="acciones-form">
         <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
         <button class="btn btn-primario" type="submit">Marcar rechazada</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Enviar por correo (C5) -->
+  <dialog class="dialogo" id="dialogo-enviar" aria-labelledby="titulo-enviar">
+    <h2 id="titulo-enviar">Enviar por correo</h2>
+    <div id="alertas-enviar" hidden></div>
+    <form id="form-enviar" novalidate>
+      <dl class="ficha">
+        <div><dt>Para</dt><dd id="enviar-para"></dd></div>
+        <div><dt>Asunto</dt><dd id="enviar-asunto"></dd></div>
+        <div><dt>Adjunto</dt><dd id="enviar-adjunto"></dd></div>
+      </dl>
+      <div class="campo">
+        <span class="etiqueta">Con copia a (otros contactos activos del cliente)</span>
+        <div id="enviar-cc"></div>
+      </div>
+      <p class="ayuda" id="enviar-bcc" hidden>Se envía además una copia oculta interna a Pricing.</p>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit" id="btn-enviar">Enviar</button>
       </div>
     </form>
   </dialog>

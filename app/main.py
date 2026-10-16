@@ -10,6 +10,7 @@ from app.routers import (
     auth,
     catalogos,
     clientes,
+    correo,
     cotizaciones,
     geografia,
     monedas,
@@ -38,6 +39,7 @@ api.include_router(catalogos.router)
 api.include_router(tarifas.router)
 api.include_router(clientes.router)
 api.include_router(cotizaciones.router)
+api.include_router(correo.router)
 app.include_router(api)
 
 

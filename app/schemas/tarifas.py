@@ -16,8 +16,9 @@ from app.schemas.comunes import CatalogoSalida, Entrada, sin_null
 
 Modo = Literal["AEREO", "LCL", "FCL"]
 RateUnit = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO"]
-# D-F3-3: PCT_VALOR (seguro como % del valor) solo existe en los recargos.
-RateUnitRecargo = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO", "PCT_VALOR"]
+# D-F3-3: PCT_VALOR (seguro como % del valor) solo existe en los recargos; D3 de F4: PCT_RECIBO también.
+RateUnitRecargo = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO", "PCT_VALOR", "PCT_RECIBO"]
+UnidadPeso = Literal["KG", "LB"]
 MetodoVenta = Literal["MANUAL", "MARKUP", "MARGEN", "FIJO"]
 Lado = Literal["ORIGEN", "DESTINO"]
 BloqueRecargo = Literal[
@@ -91,6 +92,8 @@ class TarifaVenta(BaseModel):
     destino: PuertoRef
     tipo_equipo: TipoEquipoRef | None
     rate_unit: str
+    unidad_peso: str
+    transportista: str | None
     moneda: str
     precio_venta: Decimal
     precio_venta_minimo: Decimal
@@ -199,6 +202,8 @@ class TarifaCrear(_VentaEntrada):
     destino_puerto_id: int
     tipo_equipo_id: int | None = None
     rate_unit: RateUnit
+    unidad_peso: UnidadPeso = "KG"
+    transportista: str | None = Field(default=None, max_length=200)
     transit_time_dias: int | None = Field(default=None, ge=0, le=3650)
     dias_libres: int | None = Field(default=None, ge=0, le=3650)
     notas: str | None = Field(default=None, max_length=5000)
@@ -213,6 +218,8 @@ class TarifaActualizar(Entrada):
     destino_puerto_id: int | None = None
     tipo_equipo_id: int | None = None
     rate_unit: RateUnit | None = None
+    unidad_peso: UnidadPeso | None = None
+    transportista: str | None = Field(default=None, max_length=200)
     costo: Decimal | None = None
     moneda_id: int | None = None
     minimo: Decimal | None = None
@@ -233,6 +240,7 @@ class TarifaActualizar(Entrada):
         "origen_puerto_id",
         "destino_puerto_id",
         "rate_unit",
+        "unidad_peso",
         "costo",
         "moneda_id",
         "minimo",

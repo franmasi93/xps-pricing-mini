@@ -92,7 +92,14 @@
             <h3>3. Carga</h3>
             <div class="grupo-campos">
               <div class="campo">
-                <label for="peso">Peso real (kg)</label>
+                <label for="unidad-peso">Unidad de peso y medidas</label>
+                <select class="select" id="unidad-peso">
+                  <option value="KG">Kilos y centímetros (KG)</option>
+                  <option value="LB">Libras y pulgadas (LB)</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="peso" id="etiqueta-peso">Peso real (kg)</label>
                 <input class="input cifra" id="peso" type="text" inputmode="decimal" placeholder="0.000">
               </div>
               <div class="campo" id="campo-cbm">
@@ -108,8 +115,12 @@
                 <input class="input cifra" id="valor" type="text" inputmode="decimal" placeholder="Para el seguro como % del valor">
               </div>
             </div>
+            <div class="campo">
+              <label for="descripcion-carga">Descripción de la mercancía (sale en el PDF)</label>
+              <textarea class="input" id="descripcion-carga" maxlength="2000" rows="2"></textarea>
+            </div>
             <div id="bloque-dimensiones">
-              <p class="ayuda">Dimensiones por bulto (cm). El peso volumétrico y el cobrable los calcula el sistema.</p>
+              <p class="ayuda" id="ayuda-dimensiones">Dimensiones por bulto (cm). El peso volumétrico y el cobrable los calcula el sistema.</p>
               <table class="tabla">
                 <thead><tr><th>Cantidad</th><th>Largo</th><th>Ancho</th><th>Alto</th><th></th></tr></thead>
                 <tbody id="tabla-dimensiones"></tbody>
@@ -135,6 +146,10 @@
               </div>
             </div>
             <p class="ayuda">FAS, FOB, CFR y CIF son solo marítimos. El sistema avisa si la combinación no se puede cotizar.</p>
+            <div class="campo">
+              <label for="transportista">Aerolínea / Naviera / Motonave (sale en el PDF)</label>
+              <input class="input" id="transportista" type="text" maxlength="200" placeholder="Se copia de la tarifa al proponer; puede editarlo en el borrador">
+            </div>
             <div class="campo">
               <label for="notas-cliente">Notas para el cliente (salen en el PDF)</label>
               <textarea class="input" id="notas-cliente" maxlength="2000" rows="2"></textarea>

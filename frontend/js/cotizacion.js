@@ -1,6 +1,7 @@
 /* P11 Detalle de cotización: líneas por bloque, ajuste con motivo, seguro, emitir, estados, duplicar y PDF.
  * Los montos y totales los calcula el backend; las columnas de costo y margen solo se dibujan si la
  * clave viene en el JSON (gating en el service, no en la pantalla).
+ * F4: envío por correo (C4–C6) con ventana de confirmación y sección "Envíos" (C7).
  */
 "use strict";
 
@@ -19,6 +20,7 @@
     ENTREGA_FINAL: "Entrega final",
   };
   const FISCAL = { RECIBO_CAJA: "Recibo de caja", FACTURA: "Factura" };
+  const UNIDADES = { PCT_VALOR: "% del valor", PCT_RECIBO: "% sobre recibo" };
   let yo = null;
   let cotizacion = null;
   let lineaEnAjuste = null;
@@ -34,7 +36,7 @@
   function pintarFicha() {
     const c = cotizacion;
     const carga = c.carga;
-    const partesCarga = [`${carga.peso_kg} kg`];
+    const partesCarga = [carga.unidad_peso === "LB" ? `${carga.peso_lb} lb (= ${carga.peso_kg} kg)` : `${carga.peso_kg} kg`];
     if (carga.cbm) partesCarga.push(`${carga.cbm} m³`);
     if (carga.bultos) partesCarga.push(`${carga.bultos} bultos`);
     for (const contenedor of carga.contenedores) partesCarga.push(`${contenedor.cantidad} × ${contenedor.codigo}`);
@@ -44,9 +46,11 @@
       dato("Ruta", `${c.origen.codigo} ${c.origen.nombre} → ${c.destino.codigo} ${c.destino.nombre}`),
       dato("Modo · Incoterm · Sentido", `${c.modo} · ${c.incoterm.codigo} · ${c.sentido === "IMPORTACION" ? "Importación" : "Exportación"}`),
       dato("Carga", partesCarga.join(" · ")),
+      dato(c.modo === "AEREO" ? "Aerolínea" : "Naviera / Motonave", c.transportista),
+      dato("Descripción de la mercancía", c.descripcion_carga),
       dato("Comercial", c.comercial.nombre),
     ];
-    if (carga.peso_cobrable_kg) elementos.push(dato("Peso cobrable", `${carga.peso_cobrable_kg} kg (volumétrico ${carga.peso_volumetrico_kg} kg)`));
+    if (carga.peso_cobrable_kg) elementos.push(dato("Peso cobrable", `${carga.peso_cobrable_kg} kg = ${carga.peso_cobrable_lb} lb (volumétrico ${carga.peso_volumetrico_kg} kg)`));
     if (carga.peso_medida) elementos.push(dato("Peso/medida (W/M)", carga.peso_medida));
     if (carga.valor_mercancia_usd) elementos.push(dato("Valor de la mercancía", `USD ${carga.valor_mercancia_usd}`));
     elementos.push(dato("Emisión", c.fecha_emision));
@@ -100,7 +104,7 @@
     const celdas = [
       UI.celda("Concepto", concepto),
       UI.celda("Cantidad", [UI.monto(linea.cantidad)]),
-      UI.celda("Unidad", [UI.texto(linea.rate_unit)]),
+      UI.celda("Unidad", [UI.texto(linea.rate_unit === "KG" ? (linea.unidad_peso || "KG") : (UNIDADES[linea.rate_unit] || linea.rate_unit))]),
       UI.celda("Precio USD", [UI.monto(linea.precio_venta_unit_usd)]),
       // Una línea opcional apagada no se cobra: no entra en los totales ni en el PDF.
       UI.celda("Subtotal USD", linea.incluida ? [UI.monto(linea.subtotal_venta_usd)] : [UI.texto("No incluida", "texto-suave")]),
@@ -210,15 +214,96 @@
       botones.push(UI.boton("Marcar aceptada", () => ejecutar(() => cambiarEstado({ estado: "ACEPTADA" })), "btn btn-primario"));
       botones.push(UI.boton("Marcar rechazada", () => document.getElementById("dialogo-rechazo").showModal(), "btn btn-secundario"));
     }
-    if (c.estado !== "BORRADOR" && puede("cotizacion.enviar")) {
-      const correo = crear("button", { clase: "btn btn-secundario", texto: "Enviar por correo · Disponible en F4", atributos: { type: "button", disabled: "disabled" } });
-      botones.push(correo);
+    // C4: botón real con cotizacion.enviar, en EMITIDA o ENVIADA y no vencida (gerencia no lo ve).
+    if (["EMITIDA", "ENVIADA"].includes(c.estado) && c.activo && !c.vencida && puede("cotizacion.enviar")) {
+      botones.push(UI.boton("Enviar por correo", () => ejecutar(abrirEnvio), "btn btn-primario"));
     }
     if (puede("cotizacion.crear")) {
       botones.push(UI.boton("Duplicar", () => ejecutar(duplicar), "btn btn-secundario"));
     }
     document.getElementById("botones").replaceChildren(...botones);
     document.getElementById("acciones").hidden = false;
+  }
+
+  // ---------- Envío por correo (C5–C7) ----------
+
+  function tamano(bytes) {
+    return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(2)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+  }
+
+  async function abrirEnvio() {
+    const datos = await XPS.api(`/cotizaciones/${id}/envio`);
+    const alertasEnvio = document.getElementById("alertas-enviar");
+    XPS.limpiarAlerta(alertasEnvio);
+    document.getElementById("enviar-para").textContent = datos.para ? `${datos.para.nombre} · ${datos.para.email || "sin email"}` : "Sin contacto";
+    document.getElementById("enviar-asunto").textContent = datos.asunto || "—";
+    document.getElementById("enviar-adjunto").textContent = `${datos.adjunto_nombre} · calculando tamaño…`;
+    document.getElementById("enviar-bcc").hidden = !datos.copia_oculta_interna;
+    const copias = datos.cc_posibles.map((contacto) => {
+      const casilla = crear("input", { atributos: { type: "checkbox", value: contacto.id } });
+      return crear("label", { clase: "campo-check" }, [casilla, crear("span", { texto: `${contacto.nombre} · ${contacto.email}` })]);
+    });
+    document.getElementById("enviar-cc").replaceChildren(
+      ...(copias.length ? copias : [crear("p", { clase: "ayuda", texto: "El cliente no tiene otros contactos activos con email." })]),
+    );
+    const boton = document.getElementById("btn-enviar");
+    boton.disabled = false;
+    boton.textContent = "Enviar";
+    if (datos.correo_estado !== "HABILITADO") {
+      XPS.mostrarAlerta(alertasEnvio, "aviso", "El envío de correos está deshabilitado o sin configurar. Avise al administrador.");
+    }
+    document.getElementById("dialogo-enviar").showModal();
+    try {
+      const { blob } = await XPS.archivo(`/cotizaciones/${id}/pdf`);
+      document.getElementById("enviar-adjunto").textContent = `${datos.adjunto_nombre} · ${tamano(blob.size)}`;
+    } catch {
+      document.getElementById("enviar-adjunto").textContent = datos.adjunto_nombre;
+    }
+  }
+
+  async function enviar(evento) {
+    evento.preventDefault();
+    const boton = document.getElementById("btn-enviar");
+    const alertasEnvio = document.getElementById("alertas-enviar");
+    const cc = [...document.querySelectorAll("#enviar-cc input:checked")].map((casilla) => Number(casilla.value));
+    boton.disabled = true;
+    boton.textContent = "Enviando…";
+    XPS.limpiarAlerta(alertasEnvio);
+    try {
+      const resultado = await XPS.api(`/cotizaciones/${id}/enviar`, { metodo: "POST", cuerpo: { cc_contacto_ids: cc } });
+      document.getElementById("dialogo-enviar").close();
+      cotizacion = resultado.cotizacion;
+      pintar();
+      XPS.mostrarAlerta(alertas, "exito", `Enviado a ${resultado.envio.destinatario} · estado ${cotizacion.estado}`);
+    } catch (error) {
+      boton.disabled = false;
+      boton.textContent = "Enviar";
+      XPS.mostrarError(alertasEnvio, error);
+      if (error.detalle && error.detalle.reintentable) {
+        alertasEnvio.append(crear("div", { clase: "alerta alerta-info", texto: "Puede reintentar el envío más tarde con el mismo botón." }));
+      }
+      await cargarEnvios();
+    }
+  }
+
+  async function cargarEnvios() {
+    const bloque = document.getElementById("bloque-envios");
+    if (cotizacion.estado === "BORRADOR") {
+      bloque.hidden = true;
+      return;
+    }
+    const envios = await XPS.api(`/cotizaciones/${id}/envios`);
+    const filas = envios.map((envio) => crear("tr", {}, [
+      UI.celda("Fecha", [UI.texto(XPS.formatearFecha(envio.fecha))]),
+      UI.celda("Enviado por", [UI.texto(envio.enviado_por)]),
+      UI.celda("Para", [UI.texto(envio.destinatario)]),
+      UI.celda("CC", [UI.texto(envio.cc.join(", "))]),
+      UI.celda("Estado", [crear("span", { clase: `badge badge-estado ${envio.estado === "ENVIADO" ? "badge-activo" : "badge-critico"}`, texto: envio.estado })]),
+      UI.celda("Mensaje", [UI.texto(envio.mensaje)]),
+      UI.celda("MessageId", [UI.texto(envio.message_id ? `${envio.message_id.slice(0, 12)}…` : null, "cifra")]),
+    ]));
+    document.getElementById("tabla-envios").replaceChildren(...(filas.length ? filas : [UI.filaVacia(7, "Sin envíos")]));
+    bloque.hidden = false;
   }
 
   async function modificarLinea(linea, cambios) {
@@ -320,6 +405,7 @@
     pintarFicha();
     pintarLineas();
     pintarTotales();
+    cargarEnvios().catch((error) => XPS.mostrarError(alertas, error));
   }
 
   async function iniciar() {
@@ -333,6 +419,7 @@
     document.getElementById("form-ajuste").addEventListener("submit", guardarAjuste);
     document.getElementById("form-emitir").addEventListener("submit", emitir);
     document.getElementById("form-rechazo").addEventListener("submit", rechazar);
+    document.getElementById("form-enviar").addEventListener("submit", enviar);
     await ejecutar(async () => {
       cotizacion = await XPS.api(`/cotizaciones/${id}`);
       pintar();

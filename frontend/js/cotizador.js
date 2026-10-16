@@ -77,12 +77,29 @@
     return crear("input", { clase: "input cifra", atributos: { type: "text", inputmode: "decimal", value: valor ?? "", ...atributos } });
   }
 
+  // D2: la carga se captura en kg y cm, o en lb y pulgadas; el backend convierte (constantes exactas, Decimal).
+  const unidad = () => campo("unidad-peso").value;
+  const sufijoMedida = () => (unidad() === "LB" ? "in" : "cm");
+
+  function actualizarUnidad() {
+    const lb = unidad() === "LB";
+    campo("etiqueta-peso").textContent = lb ? "Peso real (lb)" : "Peso real (kg)";
+    campo("ayuda-dimensiones").textContent = `Dimensiones por bulto (${lb ? "pulgadas" : "cm"}). El peso volumétrico y el cobrable los calcula el sistema.`;
+    for (const control of campo("tabla-dimensiones").querySelectorAll("[data-medida]")) {
+      control.setAttribute("aria-label", `${control.dataset.medida} en ${lb ? "pulgadas" : "cm"}`);
+    }
+  }
+
   function agregarDimension(bulto = {}) {
+    const sufijo = sufijoMedida();
+    const medida = (nombre, etiqueta) => entradaNumero(bulto[`${nombre}_${sufijo}`], {
+      "data-campo": nombre, "data-medida": etiqueta, "aria-label": `${etiqueta} en ${sufijo === "in" ? "pulgadas" : "cm"}`,
+    });
     const fila = crear("tr", {}, [
       UI.celda("Cantidad", [entradaNumero(bulto.cantidad ?? "1", { "data-campo": "cantidad", "aria-label": "Cantidad" })]),
-      UI.celda("Largo", [entradaNumero(bulto.largo_cm, { "data-campo": "largo_cm", "aria-label": "Largo en cm" })]),
-      UI.celda("Ancho", [entradaNumero(bulto.ancho_cm, { "data-campo": "ancho_cm", "aria-label": "Ancho en cm" })]),
-      UI.celda("Alto", [entradaNumero(bulto.alto_cm, { "data-campo": "alto_cm", "aria-label": "Alto en cm" })]),
+      UI.celda("Largo", [medida("largo", "Largo")]),
+      UI.celda("Ancho", [medida("ancho", "Ancho")]),
+      UI.celda("Alto", [medida("alto", "Alto")]),
     ]);
     fila.append(UI.celda("", [UI.boton("Quitar", () => fila.remove())]));
     campo("tabla-dimensiones").append(fila);
@@ -127,15 +144,24 @@
       modo,
       origen_puerto_id: Number(campo("origen").value) || null,
       destino_puerto_id: Number(campo("destino").value) || null,
-      peso_kg: textoONulo("peso") || "0",
+      unidad_peso: unidad(),
       cbm: textoONulo("cbm"),
       bultos: textoONulo("bultos") === null ? null : Number(campo("bultos").value),
       valor_mercancia_usd: textoONulo("valor"),
       notas_cliente: textoONulo("notas-cliente"),
       notas_internas: textoONulo("notas-internas"),
+      transportista: textoONulo("transportista"),
+      descripcion_carga: textoONulo("descripcion-carga"),
     };
-    const dimensiones = filas("tabla-dimensiones").filter((b) => b.largo_cm || b.ancho_cm || b.alto_cm);
-    datos.dimensiones = modo === "FCL" || !dimensiones.length ? null : dimensiones.map((b) => ({ ...b, cantidad: Number(b.cantidad) }));
+    datos[unidad() === "LB" ? "peso_lb" : "peso_kg"] = textoONulo("peso") || "0";
+    const sufijo = sufijoMedida();
+    const dimensiones = filas("tabla-dimensiones").filter((b) => b.largo || b.ancho || b.alto);
+    datos.dimensiones = modo === "FCL" || !dimensiones.length ? null : dimensiones.map((b) => ({
+      cantidad: Number(b.cantidad),
+      [`largo_${sufijo}`]: b.largo,
+      [`ancho_${sufijo}`]: b.ancho,
+      [`alto_${sufijo}`]: b.alto,
+    }));
     datos.contenedores = modo === "FCL" ? filas("tabla-contenedores").map((c) => ({ tipo_equipo_id: Number(c.tipo_equipo_id), cantidad: Number(c.cantidad) })) : [];
     return datos;
   }
@@ -251,7 +277,11 @@
     campo("origen").value = String(cotizacion.origen.id);
     campo("destino").value = String(cotizacion.destino.id);
     campo("incoterm").value = String(cotizacion.incoterm.id);
-    campo("peso").value = cotizacion.carga.peso_kg ?? "";
+    campo("unidad-peso").value = cotizacion.carga.unidad_peso || "KG";
+    actualizarUnidad();
+    campo("peso").value = (cotizacion.carga.unidad_peso === "LB" ? cotizacion.carga.peso_lb : cotizacion.carga.peso_kg) ?? "";
+    campo("transportista").value = cotizacion.transportista ?? "";
+    campo("descripcion-carga").value = cotizacion.descripcion_carga ?? "";
     campo("cbm").value = cotizacion.carga.cbm ?? "";
     campo("bultos").value = cotizacion.carga.bultos ?? "";
     campo("valor").value = cotizacion.carga.valor_mercancia_usd ?? "";
@@ -294,6 +324,7 @@
       campo("cliente").addEventListener("change", () => cargarContactos().catch((error) => XPS.mostrarError(alertas, error)));
       campo("modo").addEventListener("change", () => cargarPuertos().catch((error) => XPS.mostrarError(alertas, error)));
       campo("btn-dimension").addEventListener("click", () => agregarDimension());
+      campo("unidad-peso").addEventListener("change", actualizarUnidad);
       campo("btn-contenedor").addEventListener("click", () => agregarContenedor());
       campo("btn-proponer").addEventListener("click", proponer);
       form.addEventListener("submit", guardar);

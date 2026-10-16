@@ -88,3 +88,22 @@ class AuditoriaPagina(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class EmpresaDatos(Entrada):
+    """A4 de F4: datos de la empresa para el PDF; todos admiten vacío (H-F4-8)."""
+
+    empresa_departamento: str | None = Field(default=None, max_length=2000)
+    empresa_ciudad: str | None = Field(default=None, max_length=2000)
+    empresa_telefono: str | None = Field(default=None, max_length=2000)
+    empresa_celular: str | None = Field(default=None, max_length=2000)
+    empresa_whatsapp: str | None = Field(default=None, max_length=2000)
+    empresa_horario: str | None = Field(default=None, max_length=2000)
+    empresa_direccion_matriz: str | None = Field(default=None, max_length=2000)
+    pago_banco: str | None = Field(default=None, max_length=2000)
+    pago_titular: str | None = Field(default=None, max_length=2000)
+    pago_tipo_cuenta: str | None = Field(default=None, max_length=2000)
+    pago_numero_cuenta: str | None = Field(default=None, max_length=2000)
+    pago_ruc: str | None = Field(default=None, max_length=2000)
+    clausula_fundamental: str | None = Field(default=None, max_length=2000)
+    texto_legal_pie: str | None = Field(default=None, max_length=2000)

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import get_settings
 from app.core import fechas
 from app.core.errors import ErrorNegocio, confirmar
+from app.core.unidades import in_a_cm, kg_a_lb, lb_a_kg
 from app.models import (
     Cliente,
     ContactoCliente,
@@ -35,6 +36,7 @@ from app.models import (
 )
 from app.models.cotizaciones import BLOQUES_LINEA
 from app.services import auditoria, clientes, cotizador, pdf, precio_venta
+from app.services.empresa import datos_empresa
 from app.services.configuracion import leer_config, leer_iva_tasa
 from app.services.cotizador import Bulto, Carga
 from app.services.incoterms import bloques_incluidos, validar_incoterm_modo
@@ -54,6 +56,8 @@ CAMPOS_QUE_BORRAN_LINEAS = (
     "bultos",
     "dimensiones",
     "contenedores",
+    "unidad_peso",
+    "peso_lb",
 )
 CAMPOS_CABECERA = (
     "cliente_id",
@@ -71,7 +75,12 @@ CAMPOS_CABECERA = (
     "valor_mercancia_usd",
     "notas_cliente",
     "notas_internas",
+    "unidad_peso",
+    "peso_lb",
+    "transportista",
+    "descripcion_carga",
 )
+MEDIDAS = ("largo", "ancho", "alto")
 # Claves de línea y cabecera que solo existen con costo.ver (y las de margen, con margen.ver).
 CLAVES_COSTO_LINEA = ("costo_unit_original", "minimo_original", "costo_usd", "precio_calculado_unit_usd", "bajo_costo")
 MOTIVO_MINIMO = 5
@@ -187,21 +196,10 @@ def _validar(db: Session, actor: Usuario, datos: dict[str, Any], contenedores: l
     if datos.get("proveedor_recargos_id") is not None:
         _activo(db, Proveedor, datos["proveedor_recargos_id"], "el proveedor")
 
-    datos["peso_kg"] = _decimal(datos.get("peso_kg") or 0, "El peso", 3, positivo=datos["modo"] == "AEREO")
+    _validar_peso_y_dimensiones(datos)
     datos["cbm"] = _decimal(datos.get("cbm"), "El CBM", 4)
     datos["valor_mercancia_usd"] = _decimal(datos.get("valor_mercancia_usd"), "El valor de la mercancía", 2)
-    dimensiones = []
-    for bulto in datos.get("dimensiones") or []:
-        dimensiones.append(
-            {
-                "cantidad": int(bulto["cantidad"]),
-                **{
-                    medida: str(_decimal(bulto[medida], "Cada medida", 2, positivo=True))
-                    for medida in ("largo_cm", "ancho_cm", "alto_cm")
-                },
-            }
-        )
-    datos["dimensiones"] = dimensiones or None
+    dimensiones = datos["dimensiones"] or []
     if datos["modo"] == "LCL" and datos["cbm"] is None and not dimensiones:
         raise cotizador.carga_incompleta("Indique el CBM o las dimensiones de los bultos")
     if datos["modo"] == "FCL":
@@ -214,10 +212,46 @@ def _validar(db: Session, actor: Usuario, datos: dict[str, Any], contenedores: l
             _activo(db, TipoEquipo, tipo, "el tipo de equipo")
     elif contenedores:
         raise ErrorNegocio(422, "CONTENEDORES_NO_PERMITIDOS", "Solo las cotizaciones FCL llevan contenedores")
-    for campo in ("notas_cliente", "notas_internas"):
+    for campo in ("notas_cliente", "notas_internas", "transportista", "descripcion_carga"):
         if datos.get(campo) is not None:
             datos[campo] = datos[campo].strip() or None
     return datos
+
+
+def _medida(bulto: dict[str, Any], clave: str) -> Decimal:
+    if bulto.get(clave) is None:
+        unidad = "pulgadas" if clave.endswith("_in") else "centímetros"
+        raise ErrorNegocio(422, "CARGA_INVALIDA", f"Indique largo, ancho y alto de cada bulto en {unidad}")
+    return _decimal(bulto[clave], "Cada medida", 2, positivo=True)
+
+
+def _validar_peso_y_dimensiones(datos: dict[str, Any]) -> None:
+    """KG: igual que en F3. LB (H-F4-1): se guarda lo capturado (lb, pulgadas) y se derivan kg y cm."""
+    unidad = datos.get("unidad_peso") or "KG"
+    if unidad not in ("KG", "LB"):
+        raise ErrorNegocio(422, "CARGA_INVALIDA", "La unidad de peso debe ser KG o LB")
+    datos["unidad_peso"] = unidad
+    positivo = datos["modo"] == "AEREO"
+    if unidad == "LB":
+        datos["peso_lb"] = _decimal(datos.get("peso_lb") or 0, "El peso", 3, positivo=positivo)
+        datos["peso_kg"] = lb_a_kg(datos["peso_lb"])
+        if positivo and datos["peso_kg"] == 0:
+            raise ErrorNegocio(422, "CARGA_INVALIDA", "El peso debe ser mayor que 0")
+    else:
+        datos["peso_lb"] = None
+        datos["peso_kg"] = _decimal(datos.get("peso_kg") or 0, "El peso", 3, positivo=positivo)
+    dimensiones = []
+    for bulto in datos.get("dimensiones") or []:
+        fila: dict[str, Any] = {"cantidad": int(bulto["cantidad"])}
+        if unidad == "LB":
+            for medida in MEDIDAS:
+                pulgadas = _medida(bulto, f"{medida}_in")
+                fila[f"{medida}_in"] = str(pulgadas)
+                fila[f"{medida}_cm"] = str(in_a_cm(pulgadas))
+        else:
+            fila |= {f"{medida}_cm": str(_medida(bulto, f"{medida}_cm")) for medida in MEDIDAS}
+        dimensiones.append(fila)
+    datos["dimensiones"] = dimensiones or None
 
 
 def carga_de(cotizacion: Cotizacion) -> Carga:
@@ -231,6 +265,7 @@ def carga_de(cotizacion: Cotizacion) -> Carga:
         ),
         contenedores={c.tipo_equipo_id: c.cantidad for c in cotizacion.contenedores},
         valor_mercancia_usd=cotizacion.valor_mercancia_usd,
+        peso_lb=cotizacion.peso_lb,
     )
 
 
@@ -240,7 +275,7 @@ def carga_de(cotizacion: Cotizacion) -> Carga:
 def _precios(objeto, carga: Carga) -> cotizador.Precios:
     """Tarifa con tramos: el tramo del peso cobrable (D-F2-2). Si no, el costo de la tarifa o del recargo."""
     if isinstance(objeto, Tarifa) and objeto.tramos:
-        tramo = cotizador.tramo_aplicable(objeto.tramos, cotizador.peso_cobrable(carga))
+        tramo = cotizador.tramo_aplicable(objeto.tramos, cotizador.peso_cobrable_en(carga, objeto.unidad_peso))
         return cotizador.precios_de_objeto(objeto, costo_unit=tramo.costo_kg, venta_unit=precio_venta_kg(objeto, tramo))
     return cotizador.precios_de_objeto(objeto)
 
@@ -316,6 +351,7 @@ def _linea_dict(linea: LineaCotizacion, calculo, nivel: str) -> dict[str, Any]:
         "tipo_equipo": linea.tipo_equipo.codigo if linea.tipo_equipo else None,
         "cantidad": _d(calculo.cantidad),
         "rate_unit": linea.rate_unit,
+        "unidad_peso": linea.unidad_peso,
         "moneda_original": linea.moneda_original.codigo,
         "tasa_aplicada": _d(calculo.tasa),
         "precio_venta_unit_usd": _d(calculo.precio_venta_unit_usd),
@@ -364,7 +400,9 @@ def _totales_dict(totales: cotizador.Totales | None, nivel: str) -> dict[str, An
 def _carga_dict(cotizacion: Cotizacion) -> dict[str, Any]:
     carga = carga_de(cotizacion)
     datos: dict[str, Any] = {
+        "unidad_peso": cotizacion.unidad_peso,
         "peso_kg": _d(cotizacion.peso_kg),
+        "peso_lb": _d(cotizacion.peso_lb),
         "cbm": _d(cotizacion.cbm),
         "bultos": cotizacion.bultos,
         "dimensiones": cotizacion.dimensiones,
@@ -378,6 +416,10 @@ def _carga_dict(cotizacion: Cotizacion) -> dict[str, Any]:
         if cotizacion.modo == "AEREO":
             datos["peso_volumetrico_kg"] = _d(cotizador.peso_volumetrico(carga))
             datos["peso_cobrable_kg"] = _d(cotizador.peso_cobrable(carga))
+            datos["peso_cobrable_lb"] = _d(cotizador.peso_cobrable_en(carga, "LB"))
+            datos["base_cobro"] = (
+                "VOLUMETRICO" if cotizador.peso_volumetrico(carga) > cotizador.a_3(carga.peso_kg) else "REAL"
+            )
         elif cotizacion.modo == "LCL":
             datos["peso_medida"] = _d(cotizador.peso_medida(carga))
     except ErrorNegocio:
@@ -385,14 +427,20 @@ def _carga_dict(cotizacion: Cotizacion) -> dict[str, Any]:
     return datos
 
 
-def _vivo(db: Session, cotizacion: Cotizacion, hoy: date) -> tuple[list, list[str]]:
-    """BORRADOR: cada línea recalculada en memoria con las tasas y precios de hoy (no se guarda)."""
+def _calcular(db: Session, cotizacion: Cotizacion, hoy: date, *, guardar: bool) -> tuple[list, list[str]]:
+    """Todas las líneas con las tasas y precios de hoy; los PCT_RECIBO al final, sobre la base ya calculada (D3).
+
+    guardar=False (vista en vivo del BORRADOR): no guarda; un error queda como aviso con el cálculo guardado.
+    guardar=True (emisión): guarda cada línea y los errores se propagan.
+    """
     carga = carga_de(cotizacion)
     tasas: dict[str, Decimal] = {}
-    resultado, avisos = [], []
-    for linea in cotizacion.lineas:
+    calculos: dict[int, Any] = {}
+    avisos: list[str] = []
+
+    def una(linea: LineaCotizacion, base: Decimal | None):
         objeto = linea.tarifa or linea.recargo
-        if not _vigente(objeto, hoy):
+        if not guardar and not _vigente(objeto, hoy):
             avisos.append(f"{linea.concepto}: la tarifa o el recargo ya no está vigente; vuelva a proponer las líneas")
         try:
             precios = _precios(objeto, carga)
@@ -400,12 +448,45 @@ def _vivo(db: Session, cotizacion: Cotizacion, hoy: date) -> tuple[list, list[st
             if codigo not in tasas:
                 tasas[codigo] = cotizador.tasa_vigente(db, codigo, hoy)
             ajuste = linea.precio_venta_unit_usd if linea.ajuste_manual else None
-            calculo = cotizador.calcular_linea(_cantidad_linea(linea, carga), precios, tasas[codigo], ajuste)
+            if base is None:
+                calculo = cotizador.calcular_linea(_cantidad_linea(linea, carga), precios, tasas[codigo], ajuste)
+            else:
+                calculo = cotizador.calcular_pct_recibo(base, precios, tasas[codigo], ajuste)
         except ErrorNegocio as error:
+            if guardar:
+                raise
             avisos.append(f"{linea.concepto}: {error.mensaje}")
-            calculo = _calculo_guardado(linea)
-        resultado.append((linea, calculo))
-    return resultado, avisos
+            return _calculo_guardado(linea)
+        if guardar:
+            _guardar_calculo(linea, precios, calculo)
+        return calculo
+
+    normales = [linea for linea in cotizacion.lineas if linea.rate_unit != "PCT_RECIBO"]
+    sobre_recibo = [linea for linea in cotizacion.lineas if linea.rate_unit == "PCT_RECIBO"]
+    for linea in normales:
+        calculos[id(linea)] = una(linea, None)
+    if sobre_recibo:
+        base = cotizador.base_pct_recibo([_Fila(linea, calculos[id(linea)]) for linea in normales])
+        for linea in sobre_recibo:
+            calculos[id(linea)] = una(linea, base)
+        if base <= 0 and any(linea.incluida for linea in sobre_recibo):
+            avisos.append(cotizador.AVISO_SIN_BASE)
+    return [(linea, calculos[id(linea)]) for linea in cotizacion.lineas], avisos
+
+
+def _vivo(db: Session, cotizacion: Cotizacion, hoy: date) -> tuple[list, list[str]]:
+    """BORRADOR: cada línea recalculada en memoria con las tasas y precios de hoy (no se guarda)."""
+    return _calcular(db, cotizacion, hoy, guardar=False)
+
+
+def _guardar_pct_recibo(db: Session, cotizacion: Cotizacion, hoy: date) -> None:
+    """Tras ajustar o activar una línea, los PCT_RECIBO se recalculan sobre la nueva base y se guardan."""
+    if not any(linea.rate_unit == "PCT_RECIBO" for linea in cotizacion.lineas):
+        return
+    filas, _ = _vivo(db, cotizacion, hoy)
+    for linea, calculo in filas:
+        if linea.rate_unit == "PCT_RECIBO":
+            _guardar_calculo(linea, None, calculo)
 
 
 def _calculo_guardado(linea: LineaCotizacion) -> cotizador.Calculo:
@@ -430,6 +511,8 @@ class _Fila:
         self.costo_usd = calculo.costo_usd
         self.bloque_fiscal = linea.bloque_fiscal
         self.aplica_iva = linea.aplica_iva
+        self.rate_unit = linea.rate_unit
+        self.incluida = linea.incluida
 
 
 def presentar_cotizacion(db: Session, usuario: Usuario, cotizacion: Cotizacion, avisos: list[str] | None = None) -> dict:
@@ -485,6 +568,8 @@ def presentar_cotizacion(db: Session, usuario: Usuario, cotizacion: Cotizacion, 
         "moneda_cotizacion": cotizacion.moneda_cotizacion,
         "notas_cliente": cotizacion.notas_cliente,
         "notas_internas": cotizacion.notas_internas,
+        "transportista": cotizacion.transportista,
+        "descripcion_carga": cotizacion.descripcion_carga,
         "motivo_rechazo": cotizacion.motivo_rechazo,
         "detalle_rechazo": cotizacion.detalle_rechazo,
         "cotizacion_origen_id": cotizacion.cotizacion_origen_id,
@@ -682,7 +767,19 @@ def _tarifas_elegibles(db: Session, cotizacion: Cotizacion, tipo_equipo_id: int 
 
 
 def _cantidad_tarifa(tarifa: Tarifa, carga: Carga) -> Decimal:
-    return cotizador.cantidad_por_unidad(tarifa.rate_unit, carga, tipo_equipo_id=tarifa.tipo_equipo_id)
+    return cotizador.cantidad_por_unidad(
+        tarifa.rate_unit, carga, tipo_equipo_id=tarifa.tipo_equipo_id, unidad_peso=tarifa.unidad_peso
+    )
+
+
+def _transportista(tarifas: list[Tarifa]) -> str | None:
+    """H-F4-5: los transportistas distintos de las tarifas elegidas, en orden, unidos con " / "."""
+    nombres: list[str] = []
+    for tarifa in tarifas:
+        nombre = (tarifa.transportista or "").strip()
+        if nombre and nombre not in nombres:
+            nombres.append(nombre)
+    return " / ".join(nombres) or None
 
 
 def opciones_flete(db: Session, usuario: Usuario, cotizacion_id: int) -> dict:
@@ -700,6 +797,8 @@ def opciones_flete(db: Session, usuario: Usuario, cotizacion_id: int) -> dict:
                 "tarifa_id": tarifa.id,
                 "proveedor": {"id": tarifa.proveedor.id, "nombre": tarifa.proveedor.nombre},
                 "rate_unit": tarifa.rate_unit,
+                "unidad_peso": tarifa.unidad_peso,
+                "transportista": tarifa.transportista,
                 "moneda": tarifa.moneda.codigo,
                 "transit_time_dias": tarifa.transit_time_dias,
                 "dias_libres": tarifa.dias_libres,
@@ -791,7 +890,11 @@ def _recargos_vigentes(db: Session, puerto: Puerto, bloque: str, lado: str | Non
 def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
                  *, fiscal: str, aplica_iva: bool, rol: str, opcional: bool, incluida: bool,
                  tipo_equipo_id: int | None) -> LineaCotizacion:
+    unidad_peso = None
+    if objeto.rate_unit == "KG":
+        unidad_peso = objeto.unidad_peso if isinstance(objeto, Tarifa) else "KG"
     return LineaCotizacion(
+        unidad_peso=unidad_peso,
         concepto=concepto,
         bloque_incoterm=bloque,
         tarifa_id=objeto.id if isinstance(objeto, Tarifa) else None,
@@ -820,7 +923,7 @@ def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
 
 
 def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], proveedor_id: int | None,
-              hoy: date) -> tuple[list[LineaCotizacion], list[str]]:
+              hoy: date) -> tuple[list[LineaCotizacion], list[str], str | None]:
     """Calcula las líneas sin tocar la cotización: si algo falla, no queda nada a medias."""
     validar_incoterm_modo(cotizacion.incoterm, cotizacion.modo)
     bloques, advertencia = bloques_incluidos(cotizacion.incoterm, cotizacion.sentido)
@@ -840,8 +943,11 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
     tipos = [c.tipo_equipo_id for c in cotizacion.contenedores]
     codigos_tipo = {c.tipo_equipo_id: c.tipo_equipo.codigo for c in cotizacion.contenedores}
 
+    transportista = None
+    sobre_recibo: list[tuple] = []
     if "flete_principal" in bloques:
         tarifas = _elegir_tarifas(db, cotizacion, elegidas, hoy)
+        transportista = _transportista(tarifas)
         proveedor_flete = tarifas[0].proveedor_id
         for tarifa in tarifas:
             precios = _precios(tarifa, carga)
@@ -873,6 +979,9 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
             avisos.append(f"Sin recargo cargado para {bloque} en {puerto.codigo}")
             continue
         for recargo, cubre in elegidos:
+            if recargo.rate_unit == "PCT_RECIBO":
+                sobre_recibo.append((recargo, bloque, puerto))  # D3: se calcula al final, sobre la base
+                continue
             try:
                 if recargo.rate_unit == "PCT_VALOR" and carga.valor_mercancia_usd is None:
                     cantidad = Decimal(0)
@@ -898,11 +1007,26 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
                     tipo_equipo_id=tipo_linea,
                 )
             )
+    if sobre_recibo:
+        base = cotizador.base_pct_recibo(lineas)
+        for recargo, bloque, puerto in sobre_recibo:
+            precios = _precios(recargo, carga)
+            calculo = cotizador.calcular_pct_recibo(base, precios, tasa(recargo))
+            lineas.append(
+                _nueva_linea(
+                    recargo, recargo.concepto, bloque, precios, calculo,
+                    fiscal=cotizador.bloque_fiscal(bloque, puerto.pais.iso2),
+                    aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso, opcional=False, incluida=True,
+                    tipo_equipo_id=recargo.tipo_equipo_id,
+                )
+            )
+        if base <= 0:
+            avisos.append(cotizador.AVISO_SIN_BASE)
     orden_bloque = {bloque: posicion for posicion, bloque in enumerate(BLOQUES_LINEA)}
     lineas.sort(key=lambda l: (orden_bloque[l.bloque_incoterm], cotizador.concepto_clave(l.concepto)))
     for posicion, linea in enumerate(lineas, start=1):
         linea.orden = posicion
-    return lineas, avisos
+    return lineas, avisos, transportista
 
 
 def _reemplazar_lineas(db: Session, cotizacion: Cotizacion, lineas: list[LineaCotizacion]) -> None:
@@ -921,9 +1045,11 @@ def proponer_lineas(db: Session, actor: Usuario, cotizacion_id: int, datos: dict
         proveedor_id = cotizacion.proveedor_recargos_id
     hoy = fechas.hoy_ecuador()
     with db.no_autoflush:
-        lineas, avisos = _proponer(db, cotizacion, datos.get("tarifas") or {}, proveedor_id, hoy)
+        lineas, avisos, transportista = _proponer(db, cotizacion, datos.get("tarifas") or {}, proveedor_id, hoy)
         antes = {"lineas": len(cotizacion.lineas), "proveedor_recargos_id": cotizacion.proveedor_recargos_id}
         cotizacion.proveedor_recargos_id = proveedor_id
+        if transportista is not None:
+            cotizacion.transportista = transportista  # H-F4-5: proponer vuelve a copiar el de la tarifa
         _reemplazar_lineas(db, cotizacion, lineas)
         auditoria.registrar(
             db, actor, "cotizacion", cotizacion.id, "EDITAR", antes=antes,
@@ -984,7 +1110,10 @@ def actualizar_linea(db: Session, actor: Usuario, cotizacion_id: int, linea_id: 
             notas.append(f"LINEA {linea.orden} {'INCLUIDA' if linea.incluida else 'EXCLUIDA'}")
         if not notas:
             raise ErrorNegocio(422, "SIN_CAMBIOS", "Indique un precio con motivo, quitar_ajuste o incluida")
-        _recalcular(db, linea, carga_de(cotizacion), fechas.hoy_ecuador(), {})
+        hoy = fechas.hoy_ecuador()
+        if linea.rate_unit != "PCT_RECIBO":
+            _recalcular(db, linea, carga_de(cotizacion), hoy, {})
+        _guardar_pct_recibo(db, cotizacion, hoy)
         auditoria.registrar(
             db, actor, "cotizacion", cotizacion.id, "EDITAR", antes=antes, despues=_foto_linea(linea),
             nota="; ".join(notas)[:300],
@@ -1017,8 +1146,21 @@ def _texto_dias(valores: list[int | None]) -> str:
     return f"{dias[0]}–{dias[-1]} días"
 
 
-def _snapshot(cotizacion: Cotizacion, condiciones: str, totales: cotizador.Totales, filas: list) -> dict[str, Any]:
-    """Textos y montos de venta congelados (D-F3-13). Nunca lleva costo, margen, proveedor ni tasa."""
+def _cobro_minimo(linea: LineaCotizacion, calculo) -> bool:
+    """Se cobró el mínimo de venta: sin ajuste manual y cantidad × precio quedó por debajo del mínimo."""
+    if linea.ajuste_manual or calculo.minimo_venta_usd <= 0:
+        return False
+    bruto = cotizador.a_4(calculo.cantidad * calculo.precio_venta_unit_usd)
+    return bruto < calculo.minimo_venta_usd and calculo.subtotal_venta_usd == calculo.minimo_venta_usd
+
+
+def _snapshot(cotizacion: Cotizacion, condiciones: str, totales: cotizador.Totales, filas: list,
+              empresa: dict[str, str]) -> dict[str, Any]:
+    """Textos y montos de venta congelados (D-F3-13). Nunca lleva costo, margen, proveedor ni tasa.
+
+    F4: también los datos de la empresa (A4), el transportista, la descripción de la carga y, por línea, el
+    mínimo de venta, la unidad de peso aplicada y si se cobró el mínimo.
+    """
     cliente = cotizacion.cliente
     contacto = cotizacion.contacto
     fletes = [l.tarifa for l, _ in filas if l.tarifa is not None]
@@ -1033,6 +1175,10 @@ def _snapshot(cotizacion: Cotizacion, condiciones: str, totales: cotizador.Total
             "precio_venta_unit_usd": str(c.precio_venta_unit_usd),
             "subtotal_venta_usd": str(c.subtotal_venta_usd),
             "aplica_iva": l.aplica_iva,
+            "minimo_venta_usd": str(c.minimo_venta_usd),
+            "cobro_minimo": _cobro_minimo(l, c),
+            "unidad_peso": l.unidad_peso,
+            "tipo_equipo": l.tipo_equipo.codigo if l.tipo_equipo else None,
         }
         for l, c in filas
     ]
@@ -1069,6 +1215,9 @@ def _snapshot(cotizacion: Cotizacion, condiciones: str, totales: cotizador.Total
         "dias_libres": _texto_dias([t.dias_libres for t in fletes]),
         "condiciones": condiciones,
         "notas_cliente": cotizacion.notas_cliente,
+        "transportista": cotizacion.transportista,
+        "descripcion_carga": cotizacion.descripcion_carga,
+        "datos_empresa": empresa,
         "lineas": lineas,
         "totales": {
             "subtotal_recibo_caja": str(totales.subtotal_recibo_caja),
@@ -1117,10 +1266,9 @@ def emitir_cotizacion(db: Session, actor: Usuario, cotizacion_id: int, valida_ha
             )
         if valida_hasta < hoy:
             raise ErrorNegocio(422, "VALIDEZ_INVALIDA", "La validez no puede ser anterior a la fecha de emisión")
-    carga = carga_de(cotizacion)
-    tasas: dict[str, Decimal] = {}
     with db.no_autoflush:
-        calculos = {linea.id: _recalcular(db, linea, carga, hoy, tasas) for linea in cotizacion.lineas}
+        filas, _ = _calcular(db, cotizacion, hoy, guardar=True)
+        calculos = {linea.id: calculo for linea, calculo in filas}
         iva_tasa = leer_iva_tasa(db)
         totales = cotizador.totales([_Fila(l, calculos[l.id]) for l in incluidas], iva_tasa)
         cotizacion.numero = siguiente_numero(db, hoy.year)
@@ -1135,7 +1283,9 @@ def emitir_cotizacion(db: Session, actor: Usuario, cotizacion_id: int, valida_ha
         cotizacion.margen_total = totales.margen_total
         cotizacion.margen_pct = totales.margen_pct
         cotizacion.iva_tasa_aplicada = iva_tasa
-        cotizacion.snapshot_emision = _snapshot(cotizacion, condiciones, totales, [(l, calculos[l.id]) for l in incluidas])
+        cotizacion.snapshot_emision = _snapshot(
+            cotizacion, condiciones, totales, [(l, calculos[l.id]) for l in incluidas], datos_empresa(db)
+        )
         auditoria.registrar(
             db, actor, "cotizacion", cotizacion.id, "EDITAR",
             antes={"estado": "BORRADOR"},
@@ -1228,8 +1378,12 @@ def duplicar_cotizacion(db: Session, actor: Usuario, cotizacion_id: int) -> dict
         db.flush()
         db.refresh(nueva)
         try:
-            lineas, avisos = _proponer(db, nueva, elegidas, nueva.proveedor_recargos_id, fechas.hoy_ecuador())
+            lineas, avisos, transportista = _proponer(
+                db, nueva, elegidas, nueva.proveedor_recargos_id, fechas.hoy_ecuador()
+            )
             nueva.lineas.extend(lineas)
+            if transportista is not None:
+                nueva.transportista = transportista
         except ErrorNegocio as error:
             avisos = [f"No se pudieron proponer las líneas: {error.mensaje}"]
         auditoria.registrar(
@@ -1250,12 +1404,15 @@ def pdf_cotizacion(db: Session, usuario: Usuario, cotizacion_id: int) -> tuple[b
         filas, _ = _vivo(db, cotizacion, hoy)
         incluidas = [(linea, calculo) for linea, calculo in filas if linea.incluida]
         totales = cotizador.totales([_Fila(l, c) for l, c in incluidas], leer_iva_tasa(db))
-        datos = _snapshot(cotizacion, leer_config(db, "condiciones_generales_pdf").strip(), totales, incluidas)
+        datos = _snapshot(
+            cotizacion, leer_config(db, "condiciones_generales_pdf").strip(), totales, incluidas, datos_empresa(db)
+        )
         datos["valida_hasta"] = min((l.valido_hasta_origen for l, _ in incluidas), default=None)
         datos["valida_hasta"] = datos["valida_hasta"].isoformat() if datos["valida_hasta"] else None
         borrador = True
     else:
         datos = cotizacion.snapshot_emision
         borrador = False
-    html = pdf.renderizar_html(datos, borrador)
-    return pdf.generar_pdf(html), pdf.nombre_archivo(cotizacion.numero, cotizacion.id, cotizacion.cliente.razon_social)
+    return pdf.generar_pdf_de(datos, borrador), pdf.nombre_archivo(
+        cotizacion.numero, cotizacion.id, cotizacion.cliente.razon_social
+    )

@@ -5,6 +5,8 @@
   tipo_equipo o null); el concepto se compara sin distinguir mayúsculas.
 - Unidad según el modo (A1, D-F2-10); sin modo, según el tipo de puerto.
 - Seguro por envío o como % del valor de la mercancía (PCT_VALOR, solo en USD; D-F3-3).
+- % sobre el Recibo de Caja (PCT_RECIBO, D3 de F4): costo = porcentaje, mínimo en USD; solo USD y en cualquier
+  bloque menos el seguro (el flete principal no es un recargo).
 """
 from datetime import date
 from typing import Any
@@ -115,6 +117,10 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
         if moneda.codigo != "USD":
             raise ErrorNegocio(422, "PCT_VALOR_SOLO_USD", "El seguro como % del valor se registra en USD")
         permitidas = UNIDADES_SEGURO
+    elif datos["rate_unit"] == "PCT_RECIBO":
+        if moneda.codigo != "USD":
+            raise ErrorNegocio(422, "PCT_RECIBO_SOLO_USD", "El % sobre el Recibo de Caja se registra en USD")
+        permitidas = {"PCT_RECIBO"}
     else:
         permitidas = UNIDADES_POR_MODO[modo] if modo is not None else UNIDADES_POR_PUERTO[puerto.tipo]
     if datos["rate_unit"] not in permitidas:

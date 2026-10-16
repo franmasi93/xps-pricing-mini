@@ -1252,3 +1252,23 @@ a {
     flex: 1 1 100%;
   }
 }
+
+/* ---------- F4: salud del correo (Configuración) ---------- */
+
+.salud-correo {
+  margin-bottom: var(--esp-4);
+  padding: var(--esp-3);
+  border-radius: var(--radio-md);
+  background: var(--superficie-2);
+}
+
+.salud-fila {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}

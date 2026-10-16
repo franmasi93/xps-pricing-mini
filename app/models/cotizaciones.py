@@ -77,6 +77,10 @@ class Cotizacion(CatalogoMixin, Base):
     motivo_rechazo: Mapped[str | None] = mapped_column(String(11))
     detalle_rechazo: Mapped[str | None] = mapped_column(Text)
     cotizacion_origen_id: Mapped[int | None] = mapped_column(ForeignKey("cotizacion.id", ondelete="RESTRICT"))
+    transportista: Mapped[str | None] = mapped_column(Text)
+    descripcion_carga: Mapped[str | None] = mapped_column(Text)
+    unidad_peso: Mapped[str] = mapped_column(String(2), default="KG", server_default="KG")
+    peso_lb: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
 
     cliente: Mapped[Cliente] = relationship()
     contacto: Mapped[ContactoCliente | None] = relationship()
@@ -135,6 +139,7 @@ class LineaCotizacion(Base):
     ajuste_manual: Mapped[bool] = mapped_column(default=False)
     motivo_ajuste: Mapped[str | None] = mapped_column(String(300))
     valido_hasta_origen: Mapped[date] = mapped_column(Date)
+    unidad_peso: Mapped[str | None] = mapped_column(String(2))
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

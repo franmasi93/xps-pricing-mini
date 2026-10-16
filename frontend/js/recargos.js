@@ -61,7 +61,7 @@
         UI.celda("Lado y bloque", [UI.texto(`${recargo.lado === "ORIGEN" ? "Origen" : "Destino"} · ${BLOQUES[recargo.bloque_incoterm]}`)]),
         UI.celda("Concepto", [UI.texto(recargo.proveedor ? `${recargo.concepto} (${recargo.proveedor.nombre})` : recargo.concepto)]),
         UI.celda("Modo", [UI.texto(modo)]),
-        UI.celda("Unidad", [UI.texto(recargo.rate_unit)]),
+        UI.celda("Unidad", [UI.texto({ PCT_VALOR: "% del valor", PCT_RECIBO: "% sobre Recibo de Caja" }[recargo.rate_unit] || recargo.rate_unit)]),
         UI.celda("Venta", [UI.monto(recargo.precio_venta, recargo.moneda)]),
       ];
       if (conCosto) celdas.push(UI.celda("Costo", [UI.monto(recargo.costo, recargo.moneda)]));

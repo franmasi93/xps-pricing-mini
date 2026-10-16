@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorNegocio
+from app.core.unidades import kg_a_lb
 from app.services import precio_venta, tasas
 
 CERO = Decimal("0")
@@ -66,6 +67,7 @@ class Carga:
     dimensiones: tuple[Bulto, ...] = ()
     contenedores: dict[int, int] = field(default_factory=dict)  # tipo_equipo_id → cantidad
     valor_mercancia_usd: Decimal | None = None
+    peso_lb: Decimal | None = None  # lo capturado en libras (H-F4-1); None si la carga se capturó en kg
 
 
 def carga_incompleta(mensaje: str) -> ErrorNegocio:
@@ -80,6 +82,19 @@ def peso_volumetrico(carga: Carga) -> Decimal:
 def peso_cobrable(carga: Carga) -> Decimal:
     """max(peso real, volumétrico), a 3 decimales."""
     return max(a_3(carga.peso_kg), peso_volumetrico(carga))
+
+
+def peso_cobrable_en(carga: Carga, unidad: str) -> Decimal:
+    """Peso cobrable en kg o en lb (D2). En lb: si gana el peso real y se capturó en libras, se usa lo capturado
+    tal cual (H-F4-1, evita 224.999 por la ida y vuelta); si no, el cobrable en kg convertido a 3 decimales.
+    """
+    if unidad != "LB":
+        return peso_cobrable(carga)
+    real = a_3(carga.peso_kg)
+    volumetrico = peso_volumetrico(carga)
+    if carga.peso_lb is not None and real >= volumetrico:
+        return a_3(carga.peso_lb)
+    return kg_a_lb(max(real, volumetrico))
 
 
 def cbm_de(carga: Carga) -> Decimal:
@@ -110,15 +125,21 @@ def cantidad_cobrable(carga: Carga) -> Decimal:
 
 
 def cantidad_por_unidad(
-    rate_unit: str, carga: Carga, tipo_equipo_id: int | None = None, tipos: Iterable[int] | None = None
+    rate_unit: str,
+    carga: Carga,
+    tipo_equipo_id: int | None = None,
+    tipos: Iterable[int] | None = None,
+    unidad_peso: str = "KG",
 ) -> Decimal:
     """Cantidad que se cobra según la unidad de la tarifa o del recargo.
 
+    KG: el peso cobrable en la unidad de peso de la tarifa (kg o lb, D2).
     CONTENEDOR: los del tipo indicado; si no hay tipo, los de `tipos` (H6: un genérico que gana en
     varios tipos) o, sin `tipos`, el total.
+    PCT_RECIBO no pasa por aquí: depende de las demás líneas (cantidad_pct_recibo).
     """
     if rate_unit == "KG":
-        return peso_cobrable(carga)
+        return peso_cobrable_en(carga, unidad_peso)
     if rate_unit == "CBM":
         return cbm_de(carga)
     if rate_unit == "WM":
@@ -141,7 +162,8 @@ def cantidad_por_unidad(
 
 
 def tramo_aplicable(tramos: Iterable[Any], peso: Decimal):
-    """El tramo de mayor desde_kg que no supera el peso cobrable (el tramo 0 siempre existe)."""
+    """El tramo de mayor desde_kg que no supera el peso cobrable, ambos en la unidad de la tarifa (el tramo 0
+    siempre existe)."""
     candidatos = [tramo for tramo in tramos if Decimal(tramo.desde_kg) <= peso]
     if not candidatos:
         raise ErrorNegocio(422, "TRAMO_CERO_REQUERIDO", "La tarifa no tiene tramo para ese peso")
@@ -243,6 +265,47 @@ def calcular_linea(cantidad: Decimal, precios: Precios, tasa: Decimal, ajuste_un
         bajo_minimo_venta=ajuste_unit_usd is not None and subtotal < minimo_venta_usd,
         bajo_costo=subtotal < costo_usd,
     )
+
+
+# ---------- Recargo porcentual sobre el Recibo de Caja (D3, H-F4-4) ----------
+
+
+def base_pct_recibo(filas: Iterable[Any]) -> Decimal:
+    """Subtotal de las líneas de Recibo de Caja incluidas, sin ningún PCT_RECIBO ni opcionales apagadas.
+
+    Cada fila trae rate_unit, bloque_fiscal, incluida y subtotal_venta_usd (ya calculado).
+    """
+    return sum(
+        (
+            fila.subtotal_venta_usd
+            for fila in filas
+            if fila.incluida and fila.bloque_fiscal == "RECIBO_CAJA" and fila.rate_unit != "PCT_RECIBO"
+        ),
+        CERO,
+    )
+
+
+def calcular_pct_recibo(base: Decimal, precios: Precios, tasa: Decimal, ajuste_unit_usd: Decimal | None = None) -> Calculo:
+    """Cantidad = base / 100 y precio = porcentaje, como PCT_VALOR. Con base 0 la línea vale 0 y no se cobra el
+    mínimo (H-F4-4); con base mayor que 0, el mínimo como en cualquier recargo."""
+    if base <= 0:
+        cero = a_4(CERO)
+        calculo = calcular_linea(cero, precios, tasa, ajuste_unit_usd)
+        return Calculo(
+            cantidad=cero,
+            tasa=calculo.tasa,
+            costo_usd=cero,
+            precio_calculado_unit_usd=calculo.precio_calculado_unit_usd,
+            precio_venta_unit_usd=calculo.precio_venta_unit_usd,
+            minimo_venta_usd=calculo.minimo_venta_usd,
+            subtotal_venta_usd=cero,
+            bajo_minimo_venta=False,
+            bajo_costo=False,
+        )
+    return calcular_linea(a_4(base / CIEN), precios, tasa, ajuste_unit_usd)
+
+
+AVISO_SIN_BASE = "Manejo sobre recibo sin base"
 
 
 # ---------- Fiscal (D-F3-4, D-F3-14) ----------

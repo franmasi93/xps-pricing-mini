@@ -146,6 +146,17 @@
           <label for="tarifa-unidad">Unidad</label>
           <select class="select" id="tarifa-unidad" name="rate_unit" required></select>
         </div>
+        <div class="campo" id="campo-unidad-peso">
+          <label for="tarifa-unidad-peso">Unidad de peso (precio y tramos)</label>
+          <select class="select" id="tarifa-unidad-peso" name="unidad_peso">
+            <option value="KG">Kilos (KG)</option>
+            <option value="LB">Libras (LB)</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="tarifa-transportista">Transportista (aerolínea / naviera / motonave)</label>
+          <input class="input" id="tarifa-transportista" name="transportista" type="text" maxlength="200">
+        </div>
         <div class="campo">
           <label for="tarifa-moneda">Moneda</label>
           <select class="select" id="tarifa-moneda" name="moneda_id" required></select>
@@ -232,7 +243,7 @@
   <!-- Tramos -->
   <dialog class="dialogo dialogo-ancho" id="dialogo-tramos" aria-labelledby="titulo-tramos">
     <h2 id="titulo-tramos">Editar tramos</h2>
-    <p class="ayuda">El tramo desde 0 kg (−45) es obligatorio. Deje en blanco los tramos que no use. El costo de la tarifa pasa a ser el del tramo 0.</p>
+    <p class="ayuda">El tramo desde 0 es obligatorio. Deje en blanco los tramos que no use. El costo de la tarifa pasa a ser el del tramo 0.</p>
     <div id="alertas-tramos" hidden></div>
     <form id="form-tramos" novalidate>
       <div id="filas-tramos"></div>

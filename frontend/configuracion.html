@@ -36,6 +36,54 @@
       <main class="contenido contenido-angosto">
         <div id="alertas" hidden></div>
         <section class="tarjeta" id="lista-config" hidden></section>
+
+        <!-- A4 / C8: datos de la empresa para el PDF (config.editar) -->
+        <section class="tarjeta" id="bloque-empresa" hidden>
+          <h3>Datos de la empresa para el PDF</h3>
+          <p class="ayuda">Se copian a la cotización al emitir: un PDF emitido no cambia aunque luego se editen. Un grupo vacío no aparece en el PDF.</p>
+          <div id="alertas-empresa" hidden></div>
+          <form id="form-empresa" novalidate>
+            <div class="grupo-campos" id="campos-empresa"></div>
+            <div class="config-acciones">
+              <button class="btn btn-primario btn-chico" type="submit">Guardar datos de la empresa</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- B / C8: correo Tencent (usuario.admin). Las llaves nunca se muestran: solo enmascaradas. -->
+        <section class="tarjeta" id="bloque-correo" hidden>
+          <h3>Correo Tencent</h3>
+          <div id="alertas-correo" hidden></div>
+          <div class="salud-correo" id="salud-correo"></div>
+          <form id="form-correo" novalidate>
+            <label class="campo-check"><input type="checkbox" id="correo-habilitado"> Envío de cotizaciones habilitado</label>
+            <div class="grupo-campos">
+              <div class="campo"><label for="correo-region">Región</label><input class="input" id="correo-region" type="text" maxlength="40"></div>
+              <div class="campo"><label for="correo-endpoint">Endpoint</label><input class="input" id="correo-endpoint" type="text" maxlength="200"></div>
+              <div class="campo"><label for="correo-remitente">Remitente</label><input class="input" id="correo-remitente" type="text" maxlength="300"></div>
+              <div class="campo"><label for="correo-reply-to">Responder a</label><input class="input" id="correo-reply-to" type="email" maxlength="254"></div>
+              <div class="campo"><label for="correo-bcc">Copia oculta interna</label><input class="input" id="correo-bcc" type="email" maxlength="254"></div>
+              <div class="campo"><label for="correo-plantilla">Plantilla de cotización</label><select class="select" id="correo-plantilla"></select></div>
+              <div class="campo"><label for="correo-timeout">Timeout (segundos)</label><input class="input cifra" id="correo-timeout" type="text" inputmode="numeric"></div>
+              <div class="campo"><label for="correo-adjunto">Tamaño máximo del adjunto (bytes)</label><input class="input cifra" id="correo-adjunto" type="text" inputmode="numeric"></div>
+              <div class="campo"><label for="correo-secret-id">SecretId (solo escritura)</label><input class="input" id="correo-secret-id" type="password" autocomplete="new-password" maxlength="200"></div>
+              <div class="campo"><label for="correo-secret-key">SecretKey (solo escritura)</label><input class="input" id="correo-secret-key" type="password" autocomplete="new-password" maxlength="200"></div>
+            </div>
+            <p class="ayuda" id="correo-llaves"></p>
+            <div class="config-acciones">
+              <button class="btn btn-secundario btn-chico" id="btn-probar" type="button">Probar conexión</button>
+              <button class="btn btn-primario btn-chico" type="submit">Guardar configuración de correo</button>
+            </div>
+          </form>
+          <form id="form-prueba" novalidate>
+            <div class="grupo-campos">
+              <div class="campo"><label for="prueba-email">Enviar correo de prueba a</label><input class="input" id="prueba-email" type="email" maxlength="254" placeholder="su-correo@dominio.com"></div>
+            </div>
+            <div class="config-acciones">
+              <button class="btn btn-secundario btn-chico" id="btn-prueba" type="submit">Enviar correo de prueba</button>
+            </div>
+          </form>
+        </section>
       </main>
     </div>
   </div>

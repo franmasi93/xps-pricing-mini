@@ -46,14 +46,10 @@ class Settings(BaseSettings):
     # Navegador para el PDF (H12 de F3): chromium de Playwright o el Edge instalado (msedge).
     PDF_NAVEGADOR: Literal["chromium", "msedge"] = "chromium"
 
-    # Opcionales hasta F4 (correo Tencent SES)
-    TENCENT_SECRET_ID: SecretStr | None = None
-    TENCENT_SECRET_KEY: SecretStr | None = None
-    TENCENT_SES_REGION: str | None = None
-    SES_FROM: str | None = None
-    SES_REPLY_TO: str | None = None
-    SES_TEMPLATE_ID: str | None = None
-    SES_MAX_ADJUNTO_MB: Decimal | None = None
+    # F4: llave Fernet que cifra las llaves de Tencent en config_correo. Opcional: sin ella (o si no
+    # descifra) el sistema arranca igual y el correo queda "No configurado". Ninguna otra configuración de
+    # Tencent vive en el .env: se administra desde la pantalla (bloque B).
+    CONFIG_CIFRADO_KEY: SecretStr | None = None
 
     @field_validator("DATABASE_URL", "DATABASE_URL_TEST")
     @classmethod

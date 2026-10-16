@@ -16,7 +16,7 @@ from app.core import fechas
 from app.core.errors import ErrorNegocio, confirmar, enviar
 from app.core.rbac import permisos_de
 from app.models import Moneda, Proveedor, Puerto, Tarifa, TipoEquipo, TramoAereo, Usuario
-from app.models.tarifas import DESDE_KG_PERMITIDOS
+from app.models.tarifas import DESDE_PERMITIDOS
 from app.schemas.tarifas import (
     PuertoRef,
     Referencia,
@@ -55,6 +55,8 @@ CAMPOS_TARIFA = (
     "transit_time_dias",
     "dias_libres",
     "notas",
+    "transportista",
+    "unidad_peso",
     "activo",
 )
 MONTOS = ("costo", "minimo", "parametro_venta", "precio_venta_manual", "minimo_venta_manual")
@@ -220,6 +222,12 @@ def _validar_tarifa(db: Session, datos: dict[str, Any], excluir_id: int | None =
     if datos["rate_unit"] not in UNIDADES_TARIFA[modo]:
         permitidas = ", ".join(sorted(UNIDADES_TARIFA[modo]))
         raise ErrorNegocio(422, "RATE_UNIT_INCOMPATIBLE", f"Con {modo} la unidad debe ser una de: {permitidas}")
+    datos["unidad_peso"] = datos.get("unidad_peso") or "KG"
+    if datos["unidad_peso"] == "LB" and (modo != "AEREO" or datos["rate_unit"] != "KG"):
+        raise ErrorNegocio(
+            422, "UNIDAD_PESO_INCOMPATIBLE", "La tarifa por libra solo existe en AEREO con precio por peso"
+        )
+    datos["transportista"] = (datos.get("transportista") or "").strip() or None
     validar_venta(datos)
     if activa:
         conflicto = superpuesta(
@@ -251,6 +259,8 @@ def presentar_tarifa(tarifa: Tarifa, nivel: str, hoy: date, dias: int):
         "destino": PuertoRef.model_validate(tarifa.destino),
         "tipo_equipo": TipoEquipoRef.model_validate(tarifa.tipo_equipo) if tarifa.tipo_equipo else None,
         "rate_unit": tarifa.rate_unit,
+        "unidad_peso": tarifa.unidad_peso,
+        "transportista": tarifa.transportista,
         "moneda": tarifa.moneda.codigo,
         "precio_venta": venta,
         "precio_venta_minimo": venta_minima,
@@ -340,7 +350,7 @@ def actualizar_tarifa(db: Session, actor: Usuario, tarifa_id: int, cambios: dict
             raise ErrorNegocio(
                 422, "PRECIO_DESDE_TRAMOS", "Con tramos, el precio de venta se edita desde los tramos"
             )
-        for campo in ("modo", "rate_unit", "metodo_venta"):
+        for campo in ("modo", "rate_unit", "metodo_venta", "unidad_peso"):
             if campo in cambios and cambios[campo] != getattr(tarifa, campo):
                 raise ErrorNegocio(
                     409, "TIENE_DEPENDIENTES", "La tarifa tiene tramos: reemplace o quite los tramos antes de ese cambio"
@@ -427,9 +437,12 @@ def _validar_tramos(tarifa: Tarifa, tramos: list[dict[str, Any]]) -> list[dict[s
     if tarifa.modo != "AEREO" or tarifa.rate_unit != "KG":
         raise ErrorNegocio(422, "TRAMOS_NO_PERMITIDOS", "Solo las tarifas AEREO por KG llevan tramos")
     desdes = [tramo["desde_kg"] for tramo in tramos]
-    if any(desde not in DESDE_KG_PERMITIDOS for desde in desdes):
-        permitidos = ", ".join(str(d) for d in DESDE_KG_PERMITIDOS)
-        raise ErrorNegocio(422, "TRAMOS_INVALIDOS", f"Los tramos permitidos desde kg son: {permitidos}")
+    # H-F4-2: en una tarifa por libra, desde_kg es "desde, en libras" (0, 100, 220, 660, 1100, 2200).
+    permitidos_unidad = DESDE_PERMITIDOS[tarifa.unidad_peso]
+    if any(desde not in permitidos_unidad for desde in desdes):
+        permitidos = ", ".join(str(d) for d in permitidos_unidad)
+        unidad = tarifa.unidad_peso.lower()
+        raise ErrorNegocio(422, "TRAMOS_INVALIDOS", f"Los tramos permitidos desde {unidad} son: {permitidos}")
     if len(set(desdes)) != len(desdes):
         raise ErrorNegocio(422, "TRAMOS_INVALIDOS", "Hay tramos repetidos")
     if tramos and 0 not in desdes:

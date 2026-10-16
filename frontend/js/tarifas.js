@@ -8,8 +8,9 @@
   const { crear } = XPS;
   const MODOS = { AEREO: "Aéreo", LCL: "LCL", FCL: "FCL" };
   const UNIDADES = { AEREO: ["KG", "ENVIO"], LCL: ["WM", "CBM", "ENVIO"], FCL: ["CONTENEDOR"] };
-  const DESDE_KG = [0, 45, 100, 300, 500, 1000];
-  const OPCIONALES = ["parametro_venta", "precio_venta_manual", "minimo_venta_manual", "transit_time_dias", "dias_libres", "notas", "tipo_equipo_id"];
+  // H-F4-2: tramos según la unidad de peso de la tarifa (desde_kg = "desde, en la unidad de la tarifa").
+  const DESDE = { KG: [0, 45, 100, 300, 500, 1000], LB: [0, 100, 220, 660, 1100, 2200] };
+  const OPCIONALES = ["parametro_venta", "precio_venta_manual", "minimo_venta_manual", "transit_time_dias", "dias_libres", "notas", "tipo_equipo_id", "transportista"];
 
   const alertas = document.getElementById("alertas");
   const herramientas = document.getElementById("herramientas");
@@ -129,7 +130,8 @@
     const datos = [
       par("Proveedor", tarifa.proveedor.nombre),
       par("Modo", tarifa.tipo_equipo ? `${MODOS[tarifa.modo]} ${tarifa.tipo_equipo.codigo}` : MODOS[tarifa.modo]),
-      par("Unidad", tarifa.rate_unit),
+      par("Unidad", tarifa.rate_unit === "KG" ? `${tarifa.rate_unit} · por ${tarifa.unidad_peso === "LB" ? "libra" : "kilo"}` : tarifa.rate_unit),
+      par("Transportista", tarifa.transportista),
       par("Moneda", tarifa.moneda),
       par("Venta", UI.monto(tarifa.precio_venta, tarifa.moneda)),
       par("Venta mínima", UI.monto(tarifa.precio_venta_minimo, tarifa.moneda)),
@@ -157,7 +159,7 @@
     document.getElementById("btn-editar-tramos").hidden = !(puedeEditar && tarifa.modo === "AEREO" && tarifa.rate_unit === "KG");
     if (tarifa.tiene_tramos) {
       try {
-        pintarTramos(await XPS.api(`/tarifas/${tarifa.id}/tramos`), tarifa.moneda);
+        pintarTramos(await XPS.api(`/tarifas/${tarifa.id}/tramos`), tarifa.moneda, tarifa.unidad_peso);
       } catch (error) {
         XPS.mostrarError(alertas, error);
       }
@@ -165,21 +167,27 @@
     dialogoFicha.showModal();
   }
 
-  function pintarTramos(tramos, moneda) {
+  function pintarTramos(tramos, moneda, unidadPeso = "KG") {
+    const u = unidadPeso === "LB" ? "lb" : "kg";
+    const primero = DESDE[unidadPeso === "LB" ? "LB" : "KG"][1];
     const conCosto = tramos.some((t) => "costo_kg" in t);
-    const columnas = ["Desde kg", "Venta por kg"];
-    if (conCosto) columnas.push("Costo por kg");
+    const columnas = [`Desde (${u})`, `Venta por ${u}`];
+    if (conCosto) columnas.push(`Costo por ${u}`);
     document.getElementById("cabecera-tramos").replaceChildren(crear("tr", {}, columnas.map((c) => crear("th", { texto: c }))));
     document.getElementById("tabla-tramos").replaceChildren(
       ...tramos.map((tramo) => {
         const celdas = [
-          UI.celda("Desde kg", [UI.texto(tramo.desde_kg === 0 ? "−45" : `+${tramo.desde_kg}`, "cifra")]),
-          UI.celda("Venta por kg", [UI.monto(tramo.precio_venta_kg, moneda)]),
+          UI.celda(`Desde (${u})`, [UI.texto(tramo.desde_kg === 0 ? `−${primero}` : `+${tramo.desde_kg}`, "cifra")]),
+          UI.celda(`Venta por ${u}`, [UI.monto(tramo.precio_venta_kg, moneda)]),
         ];
-        if (conCosto) celdas.push(UI.celda("Costo por kg", [UI.monto(tramo.costo_kg, moneda)]));
+        if (conCosto) celdas.push(UI.celda(`Costo por ${u}`, [UI.monto(tramo.costo_kg, moneda)]));
         return crear("tr", {}, celdas);
       })
     );
+  }
+
+  function desdesDe(tarifa) {
+    return DESDE[tarifa.unidad_peso === "LB" ? "LB" : "KG"];
   }
 
   async function abrirTramos() {
@@ -188,17 +196,19 @@
     const actuales = tarifa.tiene_tramos ? await XPS.api(`/tarifas/${tarifa.id}/tramos`) : [];
     const porDesde = new Map(actuales.map((t) => [t.desde_kg, t]));
     const manual = tarifa.metodo_venta === "MANUAL";
-    const filas = DESDE_KG.map((desde) => {
+    const lista = desdesDe(tarifa);
+    const u = tarifa.unidad_peso === "LB" ? "lb" : "kg";
+    const filas = lista.map((desde) => {
       const actual = porDesde.get(desde);
-      const costo = crear("input", { clase: "input cifra", atributos: { type: "text", inputmode: "decimal", "data-desde": desde, "data-campo": "costo_kg", "aria-label": `Costo por kg desde ${desde}` } });
+      const costo = crear("input", { clase: "input cifra", atributos: { type: "text", inputmode: "decimal", "data-desde": desde, "data-campo": "costo_kg", "aria-label": `Costo por ${u} desde ${desde}` } });
       costo.value = actual && actual.costo_kg ? actual.costo_kg : "";
       const campos = [
-        crear("div", { clase: "campo" }, [crear("span", { clase: "etiqueta", texto: desde === 0 ? "Desde 0 kg (−45)" : `Desde ${desde} kg` }), costo]),
+        crear("div", { clase: "campo" }, [crear("span", { clase: "etiqueta", texto: desde === 0 ? `Desde 0 ${u} (−${lista[1]})` : `Desde ${desde} ${u}` }), costo]),
       ];
       if (manual) {
-        const venta = crear("input", { clase: "input cifra", atributos: { type: "text", inputmode: "decimal", "data-desde": desde, "data-campo": "precio_venta_kg", "aria-label": `Venta por kg desde ${desde}` } });
+        const venta = crear("input", { clase: "input cifra", atributos: { type: "text", inputmode: "decimal", "data-desde": desde, "data-campo": "precio_venta_kg", "aria-label": `Venta por ${u} desde ${desde}` } });
         venta.value = actual ? actual.precio_venta_kg : "";
-        campos.push(crear("div", { clase: "campo" }, [crear("span", { clase: "etiqueta", texto: "Venta por kg" }), venta]));
+        campos.push(crear("div", { clase: "campo" }, [crear("span", { clase: "etiqueta", texto: `Venta por ${u}` }), venta]));
       }
       return crear("div", { clase: "grupo-campos" }, campos);
     });
@@ -211,7 +221,7 @@
     evento.preventDefault();
     XPS.limpiarAlerta(alertasTramos);
     const tramos = [];
-    for (const desde of DESDE_KG) {
+    for (const desde of desdesDe(enFicha)) {
       const costo = formTramos.querySelector(`[data-desde="${desde}"][data-campo="costo_kg"]`).value.trim().replace(",", ".");
       const ventaCampo = formTramos.querySelector(`[data-desde="${desde}"][data-campo="precio_venta_kg"]`);
       if (!costo) continue;
@@ -240,6 +250,8 @@
     }
     UI.opciones(formTarifa.elements.rate_unit, UNIDADES[modo].map((u) => ({ u })), { valor: (x) => x.u, texto: (x) => x.u });
     document.getElementById("campo-equipo").hidden = modo !== "FCL";
+    // D2: la unidad de peso (kg o lb) solo existe en AEREO con precio por peso.
+    document.getElementById("campo-unidad-peso").hidden = !(modo === "AEREO" && formTarifa.elements.rate_unit.value === "KG");
     const manual = formTarifa.elements.metodo_venta.value === "MANUAL";
     document.getElementById("campo-parametro").hidden = manual;
     document.getElementById("campo-precio-manual").hidden = !manual;
@@ -279,6 +291,8 @@
         valido_desde: tarifa.valido_desde,
         valido_hasta: tarifa.valido_hasta,
         notas: tarifa.notas,
+        unidad_peso: tarifa.unidad_peso,
+        transportista: tarifa.transportista,
       };
       for (const [campo, valor] of Object.entries(valores)) {
         formTarifa.elements[campo].value = valor === null || valor === undefined ? "" : String(valor);
@@ -286,7 +300,8 @@
     }
     const conTramos = Boolean(tarifa && tarifa.tiene_tramos);
     document.getElementById("nota-tramos").hidden = !conTramos;
-    for (const campo of ["modo", "rate_unit", "metodo_venta", "costo"]) {
+    ajustarFormulario();
+    for (const campo of ["modo", "rate_unit", "metodo_venta", "costo", "unidad_peso"]) {
       formTarifa.elements[campo].disabled = conTramos;
     }
     formTarifa.elements.precio_venta_manual.disabled = conTramos;
@@ -303,6 +318,7 @@
     for (const campo of ["proveedor_id", "origen_puerto_id", "destino_puerto_id", "moneda_id", "tipo_equipo_id", "transit_time_dias", "dias_libres"]) {
       if (datos[campo] !== null && datos[campo] !== undefined) datos[campo] = Number(datos[campo]);
     }
+    if (document.getElementById("campo-unidad-peso").hidden) datos.unidad_peso = "KG";
     const metodo = datos.metodo_venta || (enEdicion && enEdicion.metodo_venta);
     // Campos que no corresponden al modo o al método van vacíos, como exige el backend.
     if ((datos.modo || (enEdicion && enEdicion.modo)) !== "FCL") datos.tipo_equipo_id = null;
@@ -316,6 +332,7 @@
 
   formTarifa.elements.modo.addEventListener("change", ajustarFormulario);
   formTarifa.elements.metodo_venta.addEventListener("change", ajustarFormulario);
+  formTarifa.elements.rate_unit.addEventListener("change", ajustarFormulario);
 
   formTarifa.addEventListener("submit", async (evento) => {
     evento.preventDefault();

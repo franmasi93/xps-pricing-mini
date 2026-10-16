@@ -131,17 +131,26 @@ class Datos:
     puertos: dict = field(default_factory=dict)
 
 
+def _existente(db, modelo, **filtro):
+    """Las pruebas de regresión (F4) reutilizan los catálogos si ya existen; el script, en base virgen, los crea."""
+    return db.scalars(select(modelo).filter_by(**filtro)).one_or_none()
+
+
 def _pais(db, iso2, nombre, region) -> Pais:
-    pais = Pais(iso2=iso2, nombre=nombre, region_id=region.id)
-    db.add(pais)
-    db.flush()
+    pais = _existente(db, Pais, iso2=iso2)
+    if pais is None:
+        pais = Pais(iso2=iso2, nombre=nombre, region_id=region.id)
+        db.add(pais)
+        db.flush()
     return pais
 
 
 def _puerto(db, codigo, nombre, pais, tipo) -> Puerto:
-    puerto = Puerto(codigo=codigo, nombre=nombre, pais_id=pais.id, tipo=tipo)
-    db.add(puerto)
-    db.flush()
+    puerto = _existente(db, Puerto, codigo=codigo)
+    if puerto is None:
+        puerto = Puerto(codigo=codigo, nombre=nombre, pais_id=pais.id, tipo=tipo)
+        db.add(puerto)
+        db.flush()
     return puerto
 
 
@@ -166,13 +175,13 @@ def conflictos(db: Session) -> list[str]:
     return encontrados
 
 
-def preparar(db: Session, hoy) -> dict:
+def preparar(db: Session, hoy, ruc: str = RUC_CLIENTE) -> dict:
     desde, hasta, hasta_recargos = hoy - timedelta(days=30), hoy + timedelta(days=60), hoy + timedelta(days=45)
     rol = db.scalars(select(Rol).where(Rol.codigo == "comercial")).one()
     comercial = Usuario(email=f"comercial.f3.{uuid4().hex[:6]}@prueba.xps", nombre="Comercial Prueba F3",
                         hash_password=hashear_password("ClavePrueba2026"), rol=rol)
     db.add(comercial)
-    region = Region(codigo="T_F3", nombre="Región de prueba F3")
+    region = _existente(db, Region, codigo="T_F3") or Region(codigo="T_F3", nombre="Región de prueba F3")
     db.add(region)
     db.flush()
     ec, cn, de = _pais(db, "EC", "Ecuador", region), _pais(db, "CN", "China", region), _pais(db, "DE", "Alemania", region)
@@ -183,12 +192,14 @@ def preparar(db: Session, hoy) -> dict:
         "ECGYE": _puerto(db, "ECGYE", "Guayaquil", ec, "MARITIMO"),
     }
     usd = db.scalars(select(Moneda).where(Moneda.codigo == "USD")).one()
-    eur = Moneda(codigo="EUR", nombre="Euro", simbolo="€")
+    eur = _existente(db, Moneda, codigo="EUR") or Moneda(codigo="EUR", nombre="Euro", simbolo="€")
     db.add(eur)
     db.flush()
-    db.add(TasaCambio(moneda_id=eur.id, tasa_a_usd=TASA_EUR, fecha_vigencia=hoy - timedelta(days=1), registrado_por=comercial.id))
-    aerolinea = Proveedor(nombre=PROVEEDORES[0], pais_id=de.id)
-    naviera = Proveedor(nombre=PROVEEDORES[1], pais_id=cn.id)
+    if _existente(db, TasaCambio, moneda_id=eur.id, fecha_vigencia=hoy - timedelta(days=1)) is None:
+        db.add(TasaCambio(moneda_id=eur.id, tasa_a_usd=TASA_EUR, fecha_vigencia=hoy - timedelta(days=1),
+                          registrado_por=comercial.id))
+    aerolinea = _existente(db, Proveedor, nombre=PROVEEDORES[0]) or Proveedor(nombre=PROVEEDORES[0], pais_id=de.id)
+    naviera = _existente(db, Proveedor, nombre=PROVEEDORES[1]) or Proveedor(nombre=PROVEEDORES[1], pais_id=cn.id)
     db.add_all([aerolinea, naviera])
     db.flush()
     hc = db.scalars(select(TipoEquipo).where(TipoEquipo.codigo == "40HC")).one()
@@ -241,7 +252,7 @@ def preparar(db: Session, hoy) -> dict:
             parametro_venta=D("20"))
     recargo("CNSHA", "ORIGEN", "GASTOS_ORIGEN", "THC origen", "CONTENEDOR", "150", aplica_iva=False, modo="FCL")
 
-    cliente = Cliente(razon_social="Importadora de Prueba F3 S.A.", tipo_id="RUC", ruc_o_id=RUC_CLIENTE,
+    cliente = Cliente(razon_social="Importadora de Prueba F3 S.A.", tipo_id="RUC", ruc_o_id=ruc,
                       pais_id=ec.id, ciudad="Guayaquil", comercial_asignado_id=comercial.id)
     db.add(cliente)
     db.flush()

@@ -4,118 +4,220 @@
 <meta charset="utf-8">
 <title>{{ d.numero or "Borrador" }}</title>
 <style>
+  /* Formato oficial de F4 (modelo: docs/referencias/plantilla_cotizacion_xpress.html). Sin alto fijo ni
+     overflow oculto: el contenido fluye a las hojas necesarias. Márgenes y pie los pone Chromium. */
   @font-face { font-family: "Inter"; src: url(data:font/ttf;base64,{{ fuente_inter }}) format("truetype"); font-weight: 100 900; }
   @font-face { font-family: "JetBrains Mono"; src: url(data:font/ttf;base64,{{ fuente_mono }}) format("truetype"); font-weight: 100 900; }
-  :root { --navy: #000771; --naranja: #ED4C01; --gris: #5B6075; --linea: #D9DBE5; --suave: #F4F5FA; }
-  * { box-sizing: border-box; }
-  body { font-family: "Inter", sans-serif; color: #14172B; font-size: 9.5pt; margin: 0; line-height: 1.4; }
-  .cifra { font-family: "JetBrains Mono", monospace; text-align: right; white-space: nowrap; }
-  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--navy); padding-bottom: 10px; }
-  header img { height: 34px; }
-  .titulo { text-align: right; }
-  .titulo h1 { margin: 0; color: var(--navy); font-size: 16pt; font-weight: 800; }
-  .titulo .numero { font-family: "JetBrains Mono", monospace; color: var(--naranja); font-size: 12pt; font-weight: 600; }
-  .titulo p { margin: 2px 0 0; color: var(--gris); }
+  :root {
+    --navy-800: #000771; --navy-700: #14209A;
+    --orange: #ED4C01; --orange-600: #C63F01; --orange-50: #FEF0E8;
+    --ink-900: #131235; --ink-700: #3a3960; --ink-500: #6b6a8c; --ink-400: #9997b6;
+    --line: #e7e7f1; --line-2: #dcdceb; --surface: #ffffff; --surface-2: #f6f6fb; --bg: #eef0f8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  /* Sin formas contextuales: Inter cambia "(" y ")" junto a mayúsculas por glifos que el texto del PDF no mapea. */
+  body { font-family: "Inter", sans-serif; color: var(--ink-900); font-size: 8.6pt; line-height: 1.35;
+         font-feature-settings: "calt" 0, "case" 0; font-variant-ligatures: no-contextual; }
+  .m { font-family: "JetBrains Mono", monospace; }
+
+  .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #e0e1ee;
+         padding-bottom: 7px; position: relative; }
+  .hdr:after { content: ""; position: absolute; left: 0; bottom: -1.5px; width: 88px; height: 3px; background: var(--orange); }
+  .hdr img { height: 30px; margin-top: 4px; }
+  .hr { text-align: right; line-height: 1.5; }
+  .hr b { color: var(--navy-800); font-size: 10.5pt; }
+  .hr span { color: var(--ink-500); display: block; }
+  .hr2 span { letter-spacing: .12em; text-transform: uppercase; font-size: 7.6pt; }
+
+  .chip { display: table; margin: 9px auto 8px; background: var(--orange-50); border: 1px solid #f7cdb6; color: var(--orange);
+          border-radius: 20px; padding: 6px 18px; font-weight: 600; font-size: 9pt; }
+  .intro { color: var(--ink-700); margin-bottom: 8px; }
+
+  .grid { display: grid; grid-template-columns: 1.05fr 1fr 1fr; gap: 8px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px;
+          break-inside: avoid; }
+  .ct { font-size: 7.2pt; letter-spacing: .14em; font-weight: 700; color: var(--ink-400); text-transform: uppercase;
+        margin-bottom: 6px; display: flex; align-items: center; gap: 7px; }
+  .ct i { width: 7px; height: 7px; border-radius: 2px; background: var(--orange); }
+  .ct i.n { background: var(--navy-700); }
+  .kv { display: grid; grid-template-columns: 44% 56%; padding: 1.3px 0; }
+  .kv span { color: var(--ink-700); }
+  .kv b { font-weight: 400; word-break: break-word; }
+  .kv small { display: block; color: var(--ink-500); }
+
+  h2 { color: var(--navy-800); font-size: 12pt; margin: 12px 0 4px; display: flex; align-items: center; gap: 9px;
+       break-after: avoid; }
+  h2 i { width: 9px; height: 9px; border-radius: 2px; background: var(--orange); }
+  .pill { display: inline-block; background: var(--navy-800); color: #fff; font-weight: 600; border-radius: 8px;
+          padding: 5px 13px; margin: 6px 0 4px; font-size: 8.6pt; break-after: avoid; }
+  .pill.w { background: var(--surface); color: var(--navy-800); border: 1px solid var(--line); border-left: 3px solid var(--orange); }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  thead { display: table-header-group; }   /* el encabezado se repite en cada hoja */
+  tr { break-inside: avoid; page-break-inside: avoid; }   /* ninguna fila se parte */
+  col.desc { width: 37%; } col.cant { width: 11%; } col.base { width: 11%; } col.pu { width: 13%; }
+  col.min { width: 12%; } col.tot { width: 16%; }
+  th { background: var(--surface-2); color: var(--ink-400); font-size: 7pt; letter-spacing: .08em; text-transform: uppercase;
+       font-weight: 600; text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line-2); }
+  td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; word-break: break-word; }
+  .n { text-align: right; font-family: "JetBrains Mono", monospace; white-space: nowrap; }
+  th.n { font-family: "Inter", sans-serif; }
+  tr.t td { font-weight: 700; color: var(--navy-800); }
+  tr.iva td { color: var(--ink-500); }
+  tr.tf td { background: var(--orange-50); font-weight: 700; color: var(--navy-800); }
+
+  .total { background: var(--navy-800); border-radius: 12px; border-left: 5px solid var(--orange); color: #fff; display: flex;
+           justify-content: space-between; align-items: center; padding: 10px 22px; margin: 10px 0 7px; break-inside: avoid; }
+  .total span { font-weight: 500; font-size: 10.5pt; }
+  .total b { font-family: "JetBrains Mono", monospace; color: #ff8a4c; font-size: 17pt; }
+
+  .notas { background: var(--surface-2); border-radius: 10px; padding: 7px 12px; color: var(--ink-700); break-inside: avoid; }
+
+  .final { break-before: page; }
+  .tt { margin: 14px 0 5px; font-size: 7.2pt; letter-spacing: .14em; font-weight: 700; color: var(--ink-400); }
+  .condiciones { color: var(--ink-700); font-size: 7.6pt; line-height: 1.45; }
+  .clause { background: var(--orange-50); border: 1px solid #f7cdb6; border-radius: 12px; padding: 6px 13px; margin-top: 8px;
+            font-size: 7.6pt; break-inside: avoid; }
+  .clause b { color: var(--orange-600); }
+  .acc { border: 1.5px dashed var(--line-2); border-radius: 14px; padding: 12px 16px; margin-top: 10px; break-inside: avoid; }
+  .acc p { color: var(--ink-700); margin-bottom: 14px; }
+  .sig { color: var(--ink-400); display: flex; gap: 28px; }
+  .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .g3 .card div { line-height: 1.7; }
+  .pay { background: var(--navy-800); color: #fff; border-radius: 12px; padding: 12px 16px; margin-top: 10px; line-height: 1.6;
+         break-inside: avoid; }
+  .pay .ct { color: #c9cbf0; margin-bottom: 4px; }
+  .legal { text-align: center; color: var(--ink-400); font-size: 7.4pt; margin-top: 12px; line-height: 1.6; }
+
   .marca-agua { position: fixed; top: 42%; left: 0; right: 0; text-align: center; transform: rotate(-30deg);
-                font-size: 44pt; font-weight: 900; color: rgba(237, 76, 1, 0.16); z-index: 10; }
-  h2 { color: var(--navy); font-size: 10.5pt; margin: 16px 0 6px; letter-spacing: 0.02em; }
-  .grilla { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .caja { background: var(--suave); border-radius: 6px; padding: 8px 10px; }
-  .caja b { color: var(--navy); }
-  .caja p { margin: 1px 0; }
-  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-  table.lineas { table-layout: fixed; }
-  table.lineas col.concepto { width: 46%; }
-  table.lineas col.cantidad, table.lineas col.unidad { width: 12%; }
-  table.lineas col.precio, table.lineas col.subtotal { width: 15%; }
-  th { background: var(--navy); color: #fff; font-weight: 600; font-size: 8.5pt; text-align: left; padding: 5px 6px; }
-  th.cifra { text-align: right; }
-  td { border-bottom: 1px solid var(--linea); padding: 5px 6px; vertical-align: top; }
-  tr.subtotal td { font-weight: 700; border-bottom: 2px solid var(--navy); }
-  .totales { margin-left: auto; width: 46%; margin-top: 12px; }
-  .totales td { border: none; padding: 3px 6px; }
-  .totales tr.total td { border-top: 2px solid var(--naranja); font-size: 11.5pt; font-weight: 800; color: var(--navy); }
-  .condiciones { white-space: pre-wrap; font-size: 8.5pt; color: #2B2F45; }
-  .firma { margin-top: 26px; width: 48%; border-top: 1px solid var(--gris); padding-top: 4px; }
-  footer { margin-top: 18px; border-top: 1px solid var(--linea); padding-top: 6px; text-align: center; color: var(--gris); font-size: 8pt; }
-  .vacio { color: var(--gris); font-style: italic; }
+                font-size: 40pt; font-weight: 900; color: rgba(237, 76, 1, 0.16); z-index: 10; }
 </style>
 </head>
 <body>
-{% if borrador %}<div class="marca-agua">BORRADOR — SIN VALIDEZ</div>{% endif %}
-<header>
+{% if marca %}<div class="marca-agua">{{ marca }}</div>{% endif %}
+
+<!-- ############ HOJA 1 ############ -->
+<div class="hdr">
   <img src="data:image/png;base64,{{ logo }}" alt="XPRESS">
-  <div class="titulo">
-    <h1>Cotización</h1>
-    <div class="numero">{{ d.numero or "BORRADOR" }}</div>
-    <p>Emisión: {{ d.fecha_emision or "—" }} · Válida hasta: {{ d.valida_hasta or "—" }}</p>
-    <p>Le atiende: {{ d.comercial.nombre }}{% if d.comercial.email %} · {{ d.comercial.email }}{% endif %}</p>
-  </div>
-</header>
-
-<h2>Cliente</h2>
-<div class="grilla">
-  <div class="caja">
-    <p><b>{{ d.cliente.razon_social }}</b></p>
-    <p>{{ d.cliente.tipo_id }} {{ d.cliente.ruc_o_id }}</p>
-    {% if d.cliente.direccion %}<p>{{ d.cliente.direccion }}</p>{% endif %}
-    <p>{% if d.cliente.ciudad %}{{ d.cliente.ciudad }}, {% endif %}{{ d.cliente.pais }}</p>
-  </div>
-  <div class="caja">
-    {% if d.contacto %}
-    <p><b>{{ d.contacto.nombre }}</b>{% if d.contacto.cargo %} · {{ d.contacto.cargo }}{% endif %}</p>
-    {% if d.contacto.email %}<p>{{ d.contacto.email }}</p>{% endif %}
-    {% if d.contacto.telefono %}<p>{{ d.contacto.telefono }}</p>{% endif %}
-    {% else %}<p class="vacio">Sin contacto</p>{% endif %}
+  <div class="hr">
+    <b>{{ razon_social }}</b>
+    {% if e.empresa_departamento or e.empresa_ciudad %}<span>{{ [e.empresa_departamento, e.empresa_ciudad] | select | join(" · ") }}</span>{% endif %}
+    <span class="m" style="color:var(--ink-700)">{{ d.fecha_emision | fecha }}</span>
   </div>
 </div>
 
-<h2>Servicio</h2>
-<div class="grilla">
-  <div class="caja">
-    <p><b>Ruta:</b> {{ d.origen.codigo }} {{ d.origen.nombre }} ({{ d.origen.pais }}) → {{ d.destino.codigo }} {{ d.destino.nombre }} ({{ d.destino.pais }})</p>
-    <p><b>Modo:</b> {{ d.modo }} · <b>Incoterm:</b> {{ d.incoterm.codigo }} · <b>Sentido:</b> {{ "Importación" if d.sentido == "IMPORTACION" else "Exportación" }}</p>
-    <p><b>Transit time:</b> {{ d.transit_time }} · <b>Días libres:</b> {{ d.dias_libres }}</p>
+<div class="chip">Cotización válida hasta <span class="m" style="font-weight:700">{{ d.valida_hasta | fecha }}</span></div>
+<p class="intro">Por medio de la presente, sometemos a su consideración la siguiente cotización de servicios logísticos ({{ modo_texto }}):</p>
+
+<div class="grid">
+  <div class="card">
+    <div class="ct"><i></i>Referencia</div>
+    <div class="kv"><span>Cotización N°</span><b class="m">{{ d.numero or "BORRADOR" }}</b></div>
+    <div class="kv"><span>Cliente</span><b>{{ d.cliente.razon_social }}</b></div>
+    <div class="kv"><span>RUC / ID</span><b class="m">{{ d.cliente.ruc_o_id }}</b></div>
+    <div class="kv"><span>Email</span><b>{{ (d.contacto.email if d.contacto else None) | texto }}</b></div>
+    <div class="kv"><span>Servicio</span><b>{{ "Importación" if d.sentido == "IMPORTACION" else "Exportación" }}</b></div>
+    <div class="kv"><span>Incoterm</span><b>{{ d.incoterm.codigo }} · {{ lugar_incoterm }}</b></div>
   </div>
-  <div class="caja">
-    <p><b>Peso:</b> <span class="cifra">{{ d.carga.peso_kg }}</span> kg{% if d.carga.cbm %} · <b>Volumen:</b> <span class="cifra">{{ d.carga.cbm }}</span> m³{% endif %}{% if d.carga.bultos %} · <b>Bultos:</b> {{ d.carga.bultos }}{% endif %}</p>
-    {% if d.carga.peso_cobrable_kg %}<p><b>Peso cobrable:</b> <span class="cifra">{{ d.carga.peso_cobrable_kg }}</span> kg (volumétrico <span class="cifra">{{ d.carga.peso_volumetrico_kg }}</span> kg)</p>{% endif %}
-    {% if d.carga.peso_medida %}<p><b>Peso/medida (W/M):</b> <span class="cifra">{{ d.carga.peso_medida }}</span></p>{% endif %}
-    {% for c in d.carga.contenedores %}<p><b>Contenedor:</b> {{ c.cantidad }} × {{ c.codigo }}</p>{% endfor %}
-    {% if d.carga.valor_mercancia_usd %}<p><b>Valor de la mercancía:</b> USD <span class="cifra">{{ d.carga.valor_mercancia_usd | dinero }}</span></p>{% endif %}
+
+  <div class="card">
+    <div class="ct"><i class="n"></i>Transporte</div>
+    <div class="kv"><span>{{ etiqueta_transportista }}</span><b>{{ d.transportista | texto }}</b></div>
+    <div class="kv"><span>Ruta</span><b>{{ d.origen.nombre }} ({{ d.origen.codigo }}) → {{ d.destino.nombre }} ({{ d.destino.codigo }})</b></div>
+    <div class="kv"><span>Modo</span><b>{{ d.modo }}</b></div>
+    <div class="kv"><span>Tránsito estimado</span><b>{{ d.transit_time | texto }}</b></div>
+    <div class="kv"><span>Días libres</span><b>{{ d.dias_libres | texto }}</b></div>
+  </div>
+
+  <div class="card">
+    <div class="ct"><i></i>Mercancía / Carga</div>
+    <div class="kv"><span>Descripción</span><b>{{ d.descripcion_carga | texto }}</b></div>
+    <div class="kv"><span>Bultos</span><b class="m">{{ d.carga.bultos | texto }}</b></div>
+    {% if carga.medidas %}<div class="kv"><span>Medidas</span><b class="m">{% for m in carga.medidas %}{{ m }}{% if not loop.last %}<br>{% endif %}{% endfor %}</b></div>{% endif %}
+    <div class="kv"><span>Peso real</span><b class="m">{{ carga.peso_real }}{% if carga.peso_real_eq %}<small>= {{ carga.peso_real_eq }}</small>{% endif %}</b></div>
+    {% if carga.volumen %}<div class="kv"><span>Volumen</span><b class="m">{{ carga.volumen }}</b></div>{% endif %}
+    {% if carga.cobrable %}
+    <div class="kv"><span>Peso cobrable</span><b class="m">{{ carga.cobrable }}<small>= {{ carga.cobrable_eq }}</small></b></div>
+    <div class="kv"><span>Base de cobro</span><b>{{ carga.base_cobro }}</b></div>
+    {% endif %}
+    {% if carga.peso_medida %}<div class="kv"><span>Peso / medida</span><b class="m">{{ carga.peso_medida }} W/M</b></div>{% endif %}
+    {% if carga.contenedores %}<div class="kv"><span>Contenedores</span><b class="m">{{ carga.contenedores | join(", ") }}</b></div>{% endif %}
   </div>
 </div>
 
+<h2><i></i>Liquidación de Cargos</h2>
 {% for bloque in bloques %}
-<h2>{{ bloque.titulo }}</h2>
-<table class="lineas">
-  <colgroup><col class="concepto"><col class="cantidad"><col class="unidad"><col class="precio"><col class="subtotal"></colgroup>
-  <thead><tr><th>Concepto</th><th class="cifra">Cantidad</th><th>Unidad</th><th class="cifra">Precio USD</th><th class="cifra">Subtotal USD</th></tr></thead>
+<div class="pill{% if bloque.codigo == 'FACTURA' %} w{% endif %}">{{ bloque.titulo }}</div>
+<table>
+  <colgroup><col class="desc"><col class="cant"><col class="base"><col class="pu"><col class="min"><col class="tot"></colgroup>
+  <thead><tr><th>Descripción</th><th class="n">Cant.</th><th>Base</th><th class="n">P. Unit. (USD)</th><th class="n">Mínimo</th><th class="n">Total (USD)</th></tr></thead>
   <tbody>
-  {% for l in bloque.lineas %}
-    <tr><td>{{ l.concepto }}</td><td class="cifra">{{ l.cantidad | cantidad }}</td><td>{{ l.rate_unit | unidad }}</td><td class="cifra">{{ l.precio_venta_unit_usd | unitario }}</td><td class="cifra">{{ l.subtotal_venta_usd | dinero }}</td></tr>
+  {% for f in bloque.filas %}
+    <tr><td>{{ f.concepto }}</td><td class="n">{{ f.cant }}</td><td>{{ f.base }}</td><td class="n">{{ f.unitario }}</td><td class="n">{{ f.minimo }}</td><td class="n">{{ f.total }}</td></tr>
   {% else %}
-    <tr><td colspan="5" class="vacio">Sin conceptos en este bloque</td></tr>
+    <tr><td colspan="6" style="color:var(--ink-500);font-style:italic">Sin conceptos en este bloque</td></tr>
   {% endfor %}
-    <tr class="subtotal"><td colspan="4">Subtotal</td><td class="cifra">{{ bloque.subtotal | dinero }}</td></tr>
+  {% if bloque.codigo == "RECIBO_CAJA" %}
+    <tr class="t"><td colspan="5">TOTAL RECIBO DE CAJA</td><td class="n">$ {{ d.totales.subtotal_recibo_caja | dinero }}</td></tr>
+  {% else %}
+    <tr class="t"><td colspan="5">SUBTOTAL FACTURA</td><td class="n">$ {{ d.totales.subtotal_factura | dinero }}</td></tr>
+    <tr class="iva"><td colspan="5">IVA ({{ d.totales.iva_tasa | porcentaje }}%)</td><td class="n">$ {{ d.totales.iva | dinero }}</td></tr>
+    <tr class="tf"><td colspan="5">TOTAL FACTURA (con IVA)</td><td class="n">$ {{ total_factura | dinero }}</td></tr>
+  {% endif %}
   </tbody>
 </table>
 {% endfor %}
 
-<table class="totales">
-  <tr><td>Recibo de Caja (IVA 0%)</td><td class="cifra">{{ d.totales.subtotal_recibo_caja | dinero }}</td></tr>
-  <tr><td>Factura</td><td class="cifra">{{ d.totales.subtotal_factura | dinero }}</td></tr>
-  <tr><td>IVA {{ d.totales.iva_tasa | porcentaje }}%</td><td class="cifra">{{ d.totales.iva | dinero }}</td></tr>
-  <tr class="total"><td>Total USD</td><td class="cifra">{{ d.totales.total_general | dinero }}</td></tr>
-</table>
+<div class="total">
+  <span>TOTAL GENERAL DE LA COTIZACIÓN (USD)</span>
+  <b>$ {{ d.totales.total_general | dinero }}</b>
+</div>
 
-{% if d.notas_cliente %}<h2>Notas</h2><p class="condiciones">{{ d.notas_cliente }}</p>{% endif %}
+{% if d.notas_cliente %}<div class="tt">NOTAS</div><div class="notas">{{ d.notas_cliente | parrafos }}</div>{% endif %}
 
-<h2>Condiciones generales</h2>
-{% if d.condiciones %}<p class="condiciones">{{ d.condiciones }}</p>{% else %}<p class="vacio">Condiciones generales pendientes de cargar.</p>{% endif %}
+<!-- ############ HOJA FINAL ############ -->
+<div class="final">
+  <div class="hdr">
+    <img src="data:image/png;base64,{{ logo }}" alt="XPRESS">
+    <div class="hr hr2">
+      <span>Cotización · Continuación</span>
+      <span class="m" style="color:var(--ink-700);letter-spacing:0;font-size:8.6pt">{{ d.numero or "BORRADOR" }}</span>
+    </div>
+  </div>
 
-<div class="firma">{{ d.comercial.nombre }}<br>{{ d.empresa }}</div>
+  <div class="tt">TÉRMINOS Y CONDICIONES GENERALES</div>
+  {% if d.condiciones %}<div class="condiciones">{{ d.condiciones | parrafos }}</div>{% else %}<div class="condiciones">Condiciones generales pendientes de cargar.</div>{% endif %}
 
-<footer>XPRESS LOGISTICS XPS S.A. · Sistema de importaciones y exportaciones</footer>
+  {% if e.clausula_fundamental %}<div class="clause"><b>Cláusula fundamental:</b> {{ e.clausula_fundamental | parrafos }}</div>{% endif %}
+
+  <div class="acc">
+    <div class="ct">Aceptación de la cotización</div>
+    <p>Yo, en representación de la empresa, acepto los términos y condiciones aquí establecidos y confirmo la presente cotización.</p>
+    <div class="sig"><span>Fecha: _______________</span><span>Firma: _____________________</span><span>Sello (opcional)</span></div>
+  </div>
+
+  {% set contacto = e.empresa_telefono or e.empresa_celular or e.empresa_whatsapp %}
+  {% if contacto or e.empresa_horario or e.empresa_direccion_matriz %}
+  <div class="g3">
+    {% if contacto %}<div class="card"><div class="ct">Para aceptar esta cotización</div>
+      {% if e.empresa_telefono %}<div>Tel: <span class="m">{{ e.empresa_telefono }}</span></div>{% endif %}
+      {% if e.empresa_celular %}<div class="m">{{ e.empresa_celular }}</div>{% endif %}
+      {% if e.empresa_whatsapp %}<div>WhatsApp <span class="m">{{ e.empresa_whatsapp }}</span></div>{% endif %}
+    </div>{% endif %}
+    {% if e.empresa_horario %}<div class="card"><div class="ct">Horario de atención</div><div class="m">{{ e.empresa_horario | parrafos }}</div></div>{% endif %}
+    {% if e.empresa_direccion_matriz %}<div class="card"><div class="ct">Matriz</div><div>{{ e.empresa_direccion_matriz | parrafos }}</div></div>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if e.pago_banco or e.pago_numero_cuenta %}
+  <div class="pay">
+    <div class="ct">Datos para pago · Transferencia o depósito</div>
+    <div>{{ [e.pago_banco, e.pago_titular] | select | join(" — ") }}</div>
+    <div class="m">{{ [e.pago_tipo_cuenta, e.pago_numero_cuenta] | select | join(" ") }}{% if e.pago_ruc %} · RUC {{ e.pago_ruc }}{% endif %}</div>
+  </div>
+  {% endif %}
+
+  {% if e.texto_legal_pie %}<div class="legal">{{ e.texto_legal_pie | parrafos }}</div>{% endif %}
+</div>
 </body>
 </html>

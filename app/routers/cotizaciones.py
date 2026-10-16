@@ -1,5 +1,6 @@
 """M7 Cotizaciones. Leer: token válido + alcance (sin ver_todas solo las propias; ajena → 404).
 Crear, editar, proponer, ajustar y duplicar: cotizacion.crear. Emitir, estado y descartar: cotizacion.emitir.
+Enviar por correo (F4): cotizacion.enviar + alcance. Los envíos se leen con el permiso de ver la cotización.
 Rutas fijas antes de /{id}. Sin DELETE (405). El router solo recibe y responde (response_model=None:
 el service arma el JSON con el gating de costos).
 """
@@ -15,16 +16,19 @@ from app.schemas.cotizaciones import (
     CotizacionActualizar,
     CotizacionCrear,
     EmitirEntrada,
+    EnviarEntrada,
     EstadoEntrada,
     LineaActualizar,
     ProponerEntrada,
 )
+from app.services import correo as servicio_correo
 from app.services import cotizaciones as servicio
 
 router = APIRouter(prefix="/cotizaciones", tags=["cotizaciones"])
 
 creador = require_permiso("cotizacion.crear")
 emisor = require_permiso("cotizacion.emitir")
+remitente = require_permiso("cotizacion.enviar")
 LIMITE_MAXIMO = 200
 
 
@@ -104,6 +108,24 @@ def descargar_pdf(cotizacion_id: int, db: Session = Depends(get_db), usuario: Us
     return Response(
         content=contenido, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{nombre}"'}
     )
+
+
+@router.get("/{cotizacion_id}/envio", response_model=None)
+def preparar_envio(cotizacion_id: int, db: Session = Depends(get_db), actor: Usuario = Depends(remitente)):
+    """Datos de la ventana de confirmación (C5)."""
+    return servicio_correo.preparar_envio(db, actor, cotizacion_id)
+
+
+@router.post("/{cotizacion_id}/enviar", response_model=None)
+def enviar(cotizacion_id: int, datos: EnviarEntrada, db: Session = Depends(get_db), actor: Usuario = Depends(remitente)):
+    """B6: síncrono ("def", threadpool), con SELECT … FOR UPDATE sobre la cotización durante el envío."""
+    return servicio_correo.enviar_cotizacion(db, actor, cotizacion_id, datos.cc_contacto_ids)
+
+
+@router.get("/{cotizacion_id}/envios", response_model=None)
+def listar_envios(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_habilitado)):
+    """B7: bitácora de solo lectura (otros métodos → 405)."""
+    return servicio_correo.listar_envios(db, usuario, cotizacion_id)
 
 
 @router.get("/{cotizacion_id}", response_model=None)

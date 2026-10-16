@@ -14,6 +14,9 @@ from app.models.monedas import Moneda
 from app.models.proveedores import Proveedor
 
 DESDE_KG_PERMITIDOS = (0, 45, 100, 300, 500, 1000)
+# H-F4-2: en una tarifa por libra, "desde_kg" significa "desde, en libras".
+DESDE_LB_PERMITIDOS = (0, 100, 220, 660, 1100, 2200)
+DESDE_PERMITIDOS = {"KG": DESDE_KG_PERMITIDOS, "LB": DESDE_LB_PERMITIDOS}
 
 
 class TipoEquipo(CatalogoMixin, Base):
@@ -51,6 +54,8 @@ class Tarifa(VentaMixin, CatalogoMixin, Base):
     transit_time_dias: Mapped[int | None] = mapped_column(SmallInteger)
     dias_libres: Mapped[int | None] = mapped_column(SmallInteger)
     notas: Mapped[str | None] = mapped_column(Text)
+    transportista: Mapped[str | None] = mapped_column(Text)
+    unidad_peso: Mapped[str] = mapped_column(String(2), default="KG", server_default="KG")
 
     proveedor: Mapped[Proveedor] = relationship()
     moneda: Mapped[Moneda] = relationship()

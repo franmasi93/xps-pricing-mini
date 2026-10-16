@@ -17,8 +17,10 @@ from app.schemas.catalogos import (
     IncotermActualizar,
     IncotermSalida,
 )
+from app.schemas.catalogos import EmpresaDatos
 from app.services import auditoria as servicio_auditoria
 from app.services import configuracion as servicio_config
+from app.services import empresa as servicio_empresa
 from app.services import incoterms as servicio_incoterms
 
 router = APIRouter()
@@ -78,6 +80,19 @@ def actualizar_incoterm(
 @router.get("/configuracion", response_model=list[ConfiguracionSalida], tags=["configuracion"])
 def listar_configuracion(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_habilitado)):
     return [_config_salida(c, editable) for c, editable in servicio_config.listar_config(db, usuario)]
+
+
+@router.get("/configuracion/empresa", response_model=EmpresaDatos, tags=["configuracion"])
+def leer_empresa(db: Session = Depends(get_db), actor: Usuario = Depends(get_usuario_habilitado)):
+    """A4: datos de la empresa para el PDF (config.editar)."""
+    return servicio_empresa.leer_empresa(db, actor)
+
+
+@router.put("/configuracion/empresa", response_model=EmpresaDatos, tags=["configuracion"])
+def actualizar_empresa(
+    datos: EmpresaDatos, db: Session = Depends(get_db), actor: Usuario = Depends(get_usuario_habilitado)
+):
+    return servicio_empresa.actualizar_empresa(db, actor, datos.model_dump(exclude_unset=True))
 
 
 @router.patch("/configuracion/{clave}", response_model=ConfiguracionSalida, tags=["configuracion"])
