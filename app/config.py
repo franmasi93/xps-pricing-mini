@@ -33,7 +33,8 @@ class Settings(BaseSettings):
     # Obligatorias
     APP_ENV: Literal["dev", "test", "prod"]
     DATABASE_URL: SecretStr
-    DATABASE_URL_TEST: SecretStr
+    # F5: obligatoria en dev y test; en prod (Cloud Run) no hay base de pruebas.
+    DATABASE_URL_TEST: SecretStr | None = None
     JWT_SECRET: SecretStr
     JWT_EXPIRA_MIN: int
 
@@ -53,7 +54,9 @@ class Settings(BaseSettings):
 
     @field_validator("DATABASE_URL", "DATABASE_URL_TEST")
     @classmethod
-    def _validar_url_bd(cls, valor: SecretStr) -> SecretStr:
+    def _validar_url_bd(cls, valor: SecretStr | None) -> SecretStr | None:
+        if valor is None:
+            return valor
         crudo = valor.get_secret_value()
         if not crudo.startswith(PREFIJO_URL_BD):
             raise ValueError(f"debe comenzar con {PREFIJO_URL_BD} (driver psycopg v3)")
@@ -62,7 +65,9 @@ class Settings(BaseSettings):
                 "tiene más de un '@': la contraseña contiene caracteres sin codificar (use %40 para '@')"
             )
         try:
-            host = make_url(crudo).host
+            url = make_url(crudo)
+            # F5: en Cloud Run el host es el socket de Cloud SQL: ...@/xps_pricing?host=/cloudsql/<conexión>
+            host = url.host or url.query.get("host")
         except ArgumentError:
             host = None
         if not host:
@@ -85,6 +90,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _bases_distintas(self) -> "Settings":
+        if self.DATABASE_URL_TEST is None:
+            if self.APP_ENV != "prod":
+                raise ValueError("DATABASE_URL_TEST es obligatoria con APP_ENV=dev o test (solo prod puede omitirla)")
+            return self
         if self.DATABASE_URL.get_secret_value() == self.DATABASE_URL_TEST.get_secret_value():
             raise ValueError("DATABASE_URL y DATABASE_URL_TEST deben apuntar a bases distintas")
         return self

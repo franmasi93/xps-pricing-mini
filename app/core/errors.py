@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -95,6 +95,32 @@ def enviar(db: Session) -> None:
         raise traducir_integrity_error(exc) from None
 
 
+# D-AUT-7: la base se apaga fuera del horario (L–V 07:00–20:00). Una falla de CONEXIÓN no es un 500.
+HORARIO_SISTEMA = "lunes a viernes de 07:00 a 20:00 (hora de Ecuador)"
+SQLSTATE_CONEXION = ("08", "57P01", "57P02", "57P03")  # clase 08 y apagado o arranque del servidor
+
+
+def es_falla_de_conexion(exc: DBAPIError) -> bool:
+    """Solo fallas de conexión: sin conexión, conexión rota o servidor apagándose. Un deadlock u otro error
+    operativo de una consulta sigue siendo un error del sistema."""
+    if exc.connection_invalidated:
+        return True
+    estado = getattr(exc.orig, "sqlstate", None)
+    if estado is None:
+        return isinstance(exc, OperationalError)
+    return estado.startswith(SQLSTATE_CONEXION[0]) or estado in SQLSTATE_CONEXION[1:]
+
+
+def fuera_de_horario() -> "ErrorNegocio":
+    return ErrorNegocio(
+        503,
+        "SISTEMA_FUERA_DE_HORARIO",
+        f"Sistema fuera de horario: atiende {HORARIO_SISTEMA}. Si es horario de atención, intente de nuevo en unos minutos.",
+        headers={"Retry-After": "300"},
+        extra={"horario": HORARIO_SISTEMA},
+    )
+
+
 def _respuesta(error: ErrorNegocio) -> JSONResponse:
     return JSONResponse(
         status_code=error.status_code,
@@ -111,6 +137,12 @@ def registrar_manejadores(app: FastAPI) -> None:
     @app.exception_handler(IntegrityError)
     async def _manejar_integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
         return _respuesta(traducir_integrity_error(exc))
+
+    @app.exception_handler(DBAPIError)
+    async def _manejar_falla_bd(request: Request, exc: DBAPIError) -> JSONResponse:
+        if es_falla_de_conexion(exc):
+            return _respuesta(fuera_de_horario())
+        raise exc
 
     @app.exception_handler(StarletteHTTPException)
     async def _manejar_http(request: Request, exc: StarletteHTTPException):

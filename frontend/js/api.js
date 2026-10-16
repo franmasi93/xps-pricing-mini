@@ -82,7 +82,8 @@ const XPS = (() => {
 
   // ---------- Llamada a la API ----------
 
-  async function api(ruta, { metodo = "GET", cuerpo, manejar401 = true } = {}) {
+  /** Con conTotal: true devuelve {datos, total}; el total sale del encabezado X-Total-Count (F5-A2). */
+  async function api(ruta, { metodo = "GET", cuerpo, manejar401 = true, conTotal = false } = {}) {
     const headers = { Accept: "application/json" };
     const token = obtenerToken();
     if (token) {
@@ -110,6 +111,10 @@ const XPS = (() => {
       datos = null;
     }
     if (respuesta.ok) {
+      if (conTotal) {
+        const encabezado = respuesta.headers.get("X-Total-Count");
+        return { datos, total: encabezado !== null ? Number(encabezado) : (Array.isArray(datos) ? datos.length : 0) };
+      }
       return datos;
     }
 

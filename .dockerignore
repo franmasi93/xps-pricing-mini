@@ -1,0 +1,22 @@
+# F5-B1: nada de secretos, entornos locales ni salidas dentro de la imagen.
+.env
+.env.*
+!.env.example
+.venv/
+.git/
+.gitignore
+.pytest_cache/
+**/__pycache__/
+*.pyc
+tests/
+salidas/
+docs/
+start.txt
+*.json.key
+*credentials*.json
+*service-account*.json
+*.pem
+*.key
+frontend/image.png
+Dockerfile
+.dockerignore

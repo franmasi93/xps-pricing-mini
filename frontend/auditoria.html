@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Auditoría · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Auditoría</h1>
+          <p class="topbar-subtitulo">Quién cambió qué y cuándo; las llaves del correo siempre aparecen enmascaradas</p>
+        </div>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo">
+              <label for="filtro-entidad">Entidad</label>
+              <input class="input" id="filtro-entidad" type="text" list="entidades" placeholder="Todas">
+              <datalist id="entidades">
+                <option value="cotizacion"></option>
+                <option value="tarifa"></option>
+                <option value="recargo"></option>
+                <option value="cliente"></option>
+                <option value="contacto_cliente"></option>
+                <option value="moneda"></option>
+                <option value="tasa_cambio"></option>
+                <option value="incoterm"></option>
+                <option value="configuracion"></option>
+                <option value="config_empresa"></option>
+                <option value="config_correo"></option>
+                <option value="usuario"></option>
+              </datalist>
+            </div>
+            <div class="campo">
+              <label for="filtro-usuario">Usuario</label>
+              <select class="select" id="filtro-usuario"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-desde">Desde</label>
+              <input class="input" id="filtro-desde" type="date">
+            </div>
+            <div class="campo">
+              <label for="filtro-hasta">Hasta</label>
+              <input class="input" id="filtro-hasta" type="date">
+            </div>
+          </div>
+          <table class="tabla">
+            <thead>
+              <tr><th>Fecha</th><th>Usuario</th><th>Entidad</th><th>Acción</th><th>Detalle (antes → después)</th></tr>
+            </thead>
+            <tbody id="tabla-auditoria"></tbody>
+          </table>
+          <div class="paginador" id="paginador-auditoria" hidden></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/auditoria.js"></script>
+</body>
+</html>

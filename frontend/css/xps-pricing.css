@@ -1272,3 +1272,19 @@ a {
   font-size: 0.85rem;
   overflow-wrap: anywhere;
 }
+
+/* ---------- F5-A2: paginador ---------- */
+
+.paginador {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-3);
+}
+
+.auditoria-cambio {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}

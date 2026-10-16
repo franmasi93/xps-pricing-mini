@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core import fechas
@@ -311,7 +311,11 @@ def listar_tarifas(
     vigente_en: date | None = None,
     por_vencer: bool | None = None,
     activo: bool | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+    total: list[int] | None = None,
 ):
+    """F5-A2: con limit/offset pagina en SQL (mismos filtros); `total`, si se pasa, recibe el conteo sin paginar."""
     hoy, dias = fechas.hoy_ecuador(), dias_alerta(db)
     filtros = filtros_vigencia(Tarifa, vigente_en, por_vencer, hoy, dias)
     for columna, valor in (
@@ -325,7 +329,12 @@ def listar_tarifas(
             filtros.append(columna == valor)
     if activo is not None:
         filtros.append(Tarifa.activo.is_(activo))
-    tarifas = db.scalars(_consulta_tarifas().where(*filtros).order_by(Tarifa.valido_hasta, Tarifa.id))
+    if total is not None:
+        total.append(db.scalar(select(func.count()).select_from(Tarifa).where(*filtros)))
+    consulta = _consulta_tarifas().where(*filtros).order_by(Tarifa.valido_hasta, Tarifa.id)
+    if limit is not None:
+        consulta = consulta.limit(limit).offset(offset)
+    tarifas = db.scalars(consulta)
     nivel = nivel_de(usuario)
     return [presentar_tarifa(t, nivel, hoy, dias) for t in tarifas]
 

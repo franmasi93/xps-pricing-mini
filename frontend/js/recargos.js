@@ -90,12 +90,27 @@
     }
   }
 
+  // F5-A2: paginado en el servidor, con los mismos filtros.
+  const POR_PAGINA = 25;
+  let pagina = 0;
+  const pintarPaginador = UI.paginador(document.getElementById("paginador-recargos"), POR_PAGINA, (nueva) => {
+    pagina = Math.max(0, nueva);
+    seguro(cargar);
+  });
+
   async function cargar() {
-    const parametros = {};
+    const parametros = { limit: POR_PAGINA, offset: pagina * POR_PAGINA };
     for (const [clave, control] of Object.entries(filtros)) {
       parametros[clave] = control.value;
     }
-    pintar(await XPS.api(UI.consulta("/recargos", parametros)));
+    const { datos, total } = await XPS.api(UI.consulta("/recargos", parametros), { conTotal: true });
+    if (!datos.length && pagina > 0) {
+      pagina -= 1;
+      await cargar();
+      return;
+    }
+    pintar(datos);
+    pintarPaginador(total, pagina);
   }
 
   async function seguro(funcion) {
@@ -248,7 +263,10 @@
   UI.prepararDialogo(dialogo);
   botonNuevo.addEventListener("click", () => abrir());
   for (const control of Object.values(filtros)) {
-    control.addEventListener("change", () => seguro(cargar));
+    control.addEventListener("change", () => {
+      pagina = 0;
+      seguro(cargar);
+    });
   }
 
   try {

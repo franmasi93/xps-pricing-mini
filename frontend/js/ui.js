@@ -121,8 +121,23 @@ const UI = (() => {
     return etiquetas;
   }
 
+  /** Paginador "Anterior · x–y de N · Siguiente" (F5-A2). alCambiar(nuevaPagina) recarga la lista. */
+  function paginador(contenedor, porPagina, alCambiar) {
+    return function pintarPaginador(total, pagina) {
+      const desde = total ? pagina * porPagina + 1 : 0;
+      const hasta = Math.min(total, (pagina + 1) * porPagina);
+      const anterior = boton("Anterior", () => alCambiar(pagina - 1));
+      const siguiente = boton("Siguiente", () => alCambiar(pagina + 1));
+      anterior.disabled = pagina === 0;
+      siguiente.disabled = hasta >= total;
+      contenedor.replaceChildren(anterior, crear("span", { clase: "texto-suave", texto: `${desde}–${hasta} de ${total}` }), siguiente);
+      contenedor.hidden = total <= porPagina && pagina === 0;
+    };
+  }
+
   return {
     SIN_PERMISO,
+    paginador,
     badgesCotizacion,
     tieneAlguno,
     exigirAlguno,

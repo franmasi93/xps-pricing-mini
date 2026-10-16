@@ -109,6 +109,13 @@ def actualizar_configuracion(
 # ---------- Auditoría ----------
 
 
+@router.get("/auditoria/usuarios", response_model=None, tags=["auditoria"],
+            dependencies=[Depends(require_permiso("auditoria.ver"))])
+def usuarios_auditados(db: Session = Depends(get_db)):
+    """F5-A1: usuarios con registros, para el filtro de la pantalla de auditoría."""
+    return servicio_auditoria.usuarios_auditados(db)
+
+
 @router.get(
     "/auditoria",
     response_model=AuditoriaPagina,
@@ -122,9 +129,10 @@ def listar_auditoria(
     hasta: date | None = None,
     limit: int = Query(default=50, ge=1, le=servicio_auditoria.LIMITE_MAXIMO),
     offset: int = Query(default=0, ge=0),
+    usuario_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    filas, total = servicio_auditoria.listar(db, entidad, entidad_id, desde, hasta, limit, offset)
+    filas, total = servicio_auditoria.listar(db, entidad, entidad_id, desde, hasta, limit, offset, usuario_id)
     items = [
         AuditoriaItem(
             id=registro.id,

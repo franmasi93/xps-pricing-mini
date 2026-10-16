@@ -7,7 +7,7 @@ Sin DELETE (405). Rutas fijas antes de /{id}.
 """
 from datetime import date
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.rbac import get_usuario_habilitado, require_permiso
@@ -60,6 +60,8 @@ def detalle_tipo_equipo(tipo_id: int, db: Session = Depends(get_db)):
 def actualizar_tipo_equipo(tipo_id: int, datos: TipoEquipoActualizar, db: Session = Depends(get_db)):
     return servicio_tipos.actualizar_tipo_equipo(db, tipo_id, datos.model_dump(exclude_unset=True))
 
+LIMITE_MAXIMO = 200
+
 
 # ---------- Tarifas ----------
 
@@ -74,12 +76,20 @@ def listar_tarifas(
     vigente_en: date | None = None,
     por_vencer: bool | None = None,
     activo: bool | None = None,
+    limit: int | None = Query(default=None, ge=1, le=LIMITE_MAXIMO),
+    offset: int = Query(default=0, ge=0),
+    respuesta: Response = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(lector),
 ):
-    return servicio_tarifas.listar_tarifas(
-        db, usuario, modo, origen, destino, proveedor, tipo_equipo, vigente_en, por_vencer, activo
+    """F5-A2: sin limit, la lista completa (como en F2); con limit/offset, una página. El total va en X-Total-Count."""
+    total: list[int] = []
+    items = servicio_tarifas.listar_tarifas(
+        db, usuario, modo, origen, destino, proveedor, tipo_equipo, vigente_en, por_vencer, activo,
+        limit=limit, offset=offset, total=total,
     )
+    respuesta.headers["X-Total-Count"] = str(total[0])
+    return items
 
 
 @router.post("/tarifas", response_model=None, status_code=status.HTTP_201_CREATED, tags=["tarifas"])
@@ -131,12 +141,20 @@ def listar_recargos(
     vigente_en: date | None = None,
     por_vencer: bool | None = None,
     activo: bool | None = None,
+    limit: int | None = Query(default=None, ge=1, le=LIMITE_MAXIMO),
+    offset: int = Query(default=0, ge=0),
+    respuesta: Response = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(lector),
 ):
-    return servicio_recargos.listar_recargos(
-        db, usuario, puerto, lado, bloque, proveedor, modo, vigente_en, por_vencer, activo
+    """F5-A2: sin limit, la lista completa (como en F2); con limit/offset, una página. El total va en X-Total-Count."""
+    total: list[int] = []
+    items = servicio_recargos.listar_recargos(
+        db, usuario, puerto, lado, bloque, proveedor, modo, vigente_en, por_vencer, activo,
+        limit=limit, offset=offset, total=total,
     )
+    respuesta.headers["X-Total-Count"] = str(total[0])
+    return items
 
 
 @router.post("/recargos", response_model=None, status_code=status.HTTP_201_CREATED, tags=["recargos"])

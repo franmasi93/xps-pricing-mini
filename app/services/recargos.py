@@ -211,7 +211,11 @@ def listar_recargos(
     vigente_en: date | None = None,
     por_vencer: bool | None = None,
     activo: bool | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+    total: list[int] | None = None,
 ):
+    """F5-A2: con limit/offset pagina en SQL (mismos filtros); `total`, si se pasa, recibe el conteo sin paginar."""
     hoy, dias = fechas.hoy_ecuador(), dias_alerta(db)
     filtros = filtros_vigencia(Recargo, vigente_en, por_vencer, hoy, dias)
     for columna, valor in (
@@ -225,7 +229,12 @@ def listar_recargos(
             filtros.append(columna == valor)
     if activo is not None:
         filtros.append(Recargo.activo.is_(activo))
-    recargos = db.scalars(_consulta_recargos().where(*filtros).order_by(Recargo.puerto_id, Recargo.lado, Recargo.id))
+    if total is not None:
+        total.append(db.scalar(select(func.count()).select_from(Recargo).where(*filtros)))
+    consulta = _consulta_recargos().where(*filtros).order_by(Recargo.puerto_id, Recargo.lado, Recargo.id)
+    if limit is not None:
+        consulta = consulta.limit(limit).offset(offset)
+    recargos = db.scalars(consulta)
     nivel = nivel_de(usuario)
     return [presentar_recargo(r, nivel, hoy, dias) for r in recargos]
 

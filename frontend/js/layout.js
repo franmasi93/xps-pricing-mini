@@ -37,6 +37,7 @@ const GRUPOS_MENU = [
     opciones: [
       { texto: "Configuración", archivo: "configuracion.html", permisos: ["config.editar", "tarifa.editar"] },
       { texto: "Usuarios", archivo: "usuarios.html", permisos: ["usuario.admin"] },
+      { texto: "Auditoría", archivo: "auditoria.html", permisos: ["auditoria.ver"] },
     ],
   },
 ];

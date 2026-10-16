@@ -75,9 +75,12 @@ def listar(
     hasta: date | None = None,
     limit: int = 50,
     offset: int = 0,
+    usuario_id: int | None = None,
 ) -> tuple[list[tuple[Auditoria, str | None]], int]:
     """Devuelve (registros con el nombre del usuario, total). Fechas inclusivas, en UTC."""
     filtros = []
+    if usuario_id is not None:
+        filtros.append(Auditoria.usuario_id == usuario_id)
     if entidad is not None:
         filtros.append(Auditoria.entidad == entidad)
     if entidad_id is not None:
@@ -97,3 +100,13 @@ def listar(
         .offset(offset)
     ).all()
     return [(fila[0], fila[1]) for fila in filas], total
+
+
+def usuarios_auditados(db: Session) -> list[dict[str, Any]]:
+    """F5-A1: los usuarios que tienen registros, para el filtro de la pantalla (sin exigir usuario.admin)."""
+    filas = db.execute(
+        select(Usuario.id, Usuario.nombre)
+        .where(Usuario.id.in_(select(Auditoria.usuario_id).where(Auditoria.usuario_id.is_not(None)).distinct()))
+        .order_by(Usuario.nombre)
+    ).all()
+    return [{"id": ident, "nombre": nombre} for ident, nombre in filas]
