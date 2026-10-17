@@ -1,6 +1,6 @@
 /* P7 Recargos. Entra quien tenga tarifa.editar o costo.ver (el comercial recibe "No tiene permiso",
  * igual que Geografía en F1). tarifa.editar edita; gerencia lee. Las columnas de costo solo se
- * dibujan si el backend envió esas claves.
+ * dibujan si el backend envió esas claves. E0: servicios, tipos de ubicación y tipos de equipo salen del catálogo.
  */
 "use strict";
 
@@ -41,13 +41,17 @@
 
   let puedeEditar = false;
   let diasAlerta = "7";
-  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [] };
+  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [], servicios: [], ubicaciones: [] };
   let enEdicion = null;
+
+  const servicioDe = (codigo) => catalogos.servicios.find((s) => s.codigo === codigo) || null;
+  const nombreServicio = (codigo) => (servicioDe(codigo) || { nombre: codigo }).nombre;
+  const nombreUbicacion = (codigo) => (catalogos.ubicaciones.find((u) => u.codigo === codigo) || { nombre: codigo }).nombre;
 
   function pintar(lista) {
     const conCosto = lista.some((r) => "costo" in r);
     const conMargen = lista.some((r) => "margen_pct" in r);
-    const columnas = ["Puerto", "Lado y bloque", "Concepto", "Modo", "Unidad", "Venta"];
+    const columnas = ["Puerto", "Lado y bloque", "Concepto", "Servicio", "Unidad", "Venta"];
     if (conCosto) columnas.push("Costo");
     if (conMargen) columnas.push("Margen");
     columnas.push("IVA / rol", "Vigencia", "Estado");
@@ -55,12 +59,13 @@
     cabecera.replaceChildren(crear("tr", {}, columnas.map((c) => crear("th", { texto: c }))));
     cuerpo.replaceChildren(...(lista.length ? [] : [UI.filaVacia(columnas.length, "No hay recargos con estos filtros.")]));
     for (const recargo of lista) {
-      const modo = recargo.modo ? (recargo.tipo_equipo ? `${recargo.modo} ${recargo.tipo_equipo.codigo}` : recargo.modo) : "Todos";
+      const servicio = recargo.modo ? nombreServicio(recargo.modo) : "Todos";
+      const modo = recargo.tipo_equipo ? `${servicio} ${recargo.tipo_equipo.codigo}` : servicio;
       const celdas = [
         UI.celda("Puerto", [UI.texto(recargo.puerto.codigo, "cifra")]),
         UI.celda("Lado y bloque", [UI.texto(`${recargo.lado === "ORIGEN" ? "Origen" : "Destino"} · ${BLOQUES[recargo.bloque_incoterm]}`)]),
         UI.celda("Concepto", [UI.texto(recargo.proveedor ? `${recargo.concepto} (${recargo.proveedor.nombre})` : recargo.concepto)]),
-        UI.celda("Modo", [UI.texto(modo)]),
+        UI.celda("Servicio", [UI.texto(modo)]),
         UI.celda("Unidad", [UI.texto({ PCT_VALOR: "% del valor", PCT_RECIBO: "% sobre Recibo de Caja" }[recargo.rate_unit] || recargo.rate_unit)]),
         UI.celda("Venta", [UI.monto(recargo.precio_venta, recargo.moneda)]),
       ];
@@ -128,7 +133,11 @@
     const actual = form.elements.bloque_incoterm.value;
     UI.opciones(form.elements.bloque_incoterm, BLOQUES_POR_LADO[lado].map((b) => ({ b })), { valor: (x) => x.b, texto: (x) => BLOQUES[x.b] });
     if (BLOQUES_POR_LADO[lado].includes(actual)) form.elements.bloque_incoterm.value = actual;
-    document.getElementById("campo-equipo").hidden = form.elements.modo.value !== "FCL";
+    const servicio = servicioDe(form.elements.modo.value);
+    document.getElementById("campo-equipo").hidden = !(servicio && servicio.usa_tipo_equipo);
+    const enUso = enEdicion && enEdicion.tipo_equipo ? enEdicion.tipo_equipo.id : null;
+    const tipos = catalogos.tipos.filter((t) => servicio && t.servicio_id === servicio.id && (t.activo || t.id === enUso));
+    UI.opciones(form.elements.tipo_equipo_id, tipos, { valor: (t) => t.id, texto: (t) => t.codigo, todos: "Cualquiera" });
     const manual = form.elements.metodo_venta.value === "MANUAL";
     document.getElementById("campo-parametro").hidden = manual;
     document.getElementById("campo-precio-manual").hidden = !manual;
@@ -142,11 +151,13 @@
     document.getElementById("titulo-recargo").textContent = recargo ? `Editar recargo #${recargo.id}` : "Nuevo recargo";
     UI.opciones(form.elements.puerto_id, catalogos.puertos.filter((p) => p.activo || (recargo && p.id === recargo.puerto.id)), {
       valor: (p) => p.id,
-      texto: (p) => `${p.codigo} · ${p.nombre} (${p.tipo === "AEREO" ? "aeropuerto" : "marítimo"})`,
+      texto: (p) => `${p.codigo} · ${p.nombre} (${nombreUbicacion(p.tipo).toLowerCase()})`,
     });
+    // Solo servicios activos para recargos nuevos; al editar, también el del recargo aunque esté inactivo.
+    const ofrecidos = catalogos.servicios.filter((s) => s.activo || (recargo && s.codigo === recargo.modo));
+    UI.opciones(form.elements.modo, ofrecidos, { valor: (s) => s.codigo, texto: (s) => (s.activo ? s.nombre : `${s.nombre} (inactivo)`), todos: "Todos los compatibles" });
     UI.opciones(form.elements.proveedor_id, catalogos.proveedores.filter((p) => p.activo), { valor: (p) => p.id, texto: (p) => p.nombre, todos: "Cargo propio de XPRESS" });
     UI.opciones(form.elements.moneda_id, catalogos.monedas.filter((m) => m.activo), { valor: (m) => m.id, texto: (m) => m.codigo });
-    UI.opciones(form.elements.tipo_equipo_id, catalogos.tipos.filter((t) => t.activo), { valor: (t) => t.id, texto: (t) => t.codigo, todos: "Cualquiera" });
     if (recargo) {
       form.elements.lado.value = recargo.lado;
       form.elements.metodo_venta.value = recargo.metodo_venta;
@@ -190,7 +201,8 @@
     for (const campo of ["puerto_id", "proveedor_id", "moneda_id", "tipo_equipo_id"]) {
       if (datos[campo] !== null && datos[campo] !== undefined) datos[campo] = Number(datos[campo]);
     }
-    if (datos.modo !== "FCL") datos.tipo_equipo_id = null;
+    const servicio = servicioDe(datos.modo);
+    if (!(servicio && servicio.usa_tipo_equipo)) datos.tipo_equipo_id = null;
     if (datos.aplica_iva !== null) datos.aplica_iva = datos.aplica_iva === "true";
     if (datos.metodo_venta === "MANUAL") datos.parametro_venta = null;
     else {
@@ -271,14 +283,17 @@
 
   try {
     diasAlerta = await UI.diasAlerta();
-    const [todos, puertos, proveedores, monedas, tipos] = await Promise.all([
+    const [todos, puertos, proveedores, monedas, tipos, servicios, ubicaciones] = await Promise.all([
       XPS.api("/recargos"),
       XPS.api("/puertos"),
       XPS.api("/proveedores"),
       XPS.api("/monedas"),
       XPS.api("/tipos-equipo"),
+      XPS.api("/servicios"),
+      XPS.api("/tipos-ubicacion"),
     ]);
-    catalogos = { puertos, proveedores, monedas, tipos };
+    catalogos = { puertos, proveedores, monedas, tipos, servicios, ubicaciones };
+    UI.opciones(filtros.modo, servicios, { valor: (s) => s.codigo, texto: (s) => s.nombre, todos: "Todos" });
     const conRecargos = new Set(todos.map((r) => r.puerto.id));
     UI.opciones(filtros.puerto, puertos.filter((p) => conRecargos.has(p.id)), { valor: (p) => p.id, texto: (p) => `${p.codigo} · ${p.nombre}`, todos: "Todos" });
     UI.opciones(filtros.bloque, Object.keys(BLOQUES).map((b) => ({ b })), { valor: (x) => x.b, texto: (x) => BLOQUES[x.b], todos: "Todos" });

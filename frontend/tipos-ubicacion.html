@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tipos de ubicación · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Tipos de ubicación</h1>
+          <p class="topbar-subtitulo">Puerto marítimo, aeropuerto, terminal terrestre… y la regla del código de cada uno</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo tipo</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <p class="nota-lectura" id="nota-lectura" hidden>Vista de solo lectura: solo el administrador edita los tipos de ubicación.</p>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <table class="tabla">
+            <thead><tr><th>Código</th><th>Nombre</th><th>Regla del código</th><th>Prefijo del país</th><th>Estado</th><th id="th-acciones">Acciones</th></tr></thead>
+            <tbody id="tabla-tipos"></tbody>
+          </table>
+          <p class="ayuda">Los puertos de Geografía y los servicios usan estos tipos. No se desactiva un tipo con puertos o servicios activos.</p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-tipo" aria-labelledby="titulo-tipo">
+    <h2 id="titulo-tipo">Tipo de ubicación</h2>
+    <div id="alertas-tipo" hidden></div>
+    <form id="form-tipo" novalidate>
+      <div class="campo">
+        <label for="tipo-codigo">Código</label>
+        <input class="input cifra" id="tipo-codigo" name="codigo" type="text" maxlength="10" autocomplete="off" required>
+      </div>
+      <div class="campo">
+        <label for="tipo-nombre">Nombre</label>
+        <input class="input" id="tipo-nombre" name="nombre" type="text" maxlength="60" required>
+      </div>
+      <div class="campo">
+        <label for="tipo-regex">Regla del código (expresión regular, opcional)</label>
+        <input class="input cifra" id="tipo-regex" name="regex_codigo" type="text" maxlength="500" autocomplete="off" aria-describedby="ayuda-regex">
+        <p class="ayuda" id="ayuda-regex">Por ejemplo ^[A-Z]{3}$ para 3 letras. Vacía: de 2 a 10 letras o números.</p>
+      </div>
+      <div class="campo">
+        <label for="tipo-ayuda">Mensaje si el código no cumple</label>
+        <input class="input" id="tipo-ayuda" name="ayuda_codigo" type="text" maxlength="200">
+      </div>
+      <label class="campo-check" for="tipo-prefijo">
+        <input id="tipo-prefijo" name="prefijo_pais" type="checkbox">
+        El código empieza con el ISO del país (como ECGYE)
+      </label>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/tipos-ubicacion.js"></script>
+</body>
+</html>

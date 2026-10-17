@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tipos de equipo · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Tipos de equipo</h1>
+          <p class="topbar-subtitulo">Contenedores, camiones y otros equipos de los servicios que cobran por unidad de equipo</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo tipo de equipo</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <p class="nota-lectura" id="nota-lectura" hidden>Vista de solo lectura: su rol puede consultar los tipos de equipo, pero no editarlos.</p>
+
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo">
+              <label for="filtro-servicio">Servicio</label>
+              <select class="select" id="filtro-servicio"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-activo">Estado</label>
+              <select class="select" id="filtro-activo">
+                <option value="">Todos</option>
+                <option value="true">Activos</option>
+                <option value="false">Inactivos</option>
+              </select>
+            </div>
+          </div>
+          <table class="tabla">
+            <thead><tr><th>Código</th><th>Nombre</th><th>Servicio</th><th>Estado</th><th id="th-acciones">Acciones</th></tr></thead>
+            <tbody id="tabla-tipos"></tbody>
+          </table>
+          <p class="ayuda">Un tipo de equipo que ya se usó en tarifas, recargos o cotizaciones no cambia de servicio.</p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-tipo" aria-labelledby="titulo-tipo">
+    <h2 id="titulo-tipo">Tipo de equipo</h2>
+    <div id="alertas-tipo" hidden></div>
+    <form id="form-tipo" novalidate>
+      <div class="campo">
+        <label for="tipo-codigo">Código</label>
+        <input class="input cifra" id="tipo-codigo" name="codigo" type="text" maxlength="4" autocomplete="off" required aria-describedby="ayuda-codigo">
+        <p class="ayuda" id="ayuda-codigo">2 dígitos y 2 letras, como 40HC o 53TR.</p>
+      </div>
+      <div class="campo">
+        <label for="tipo-nombre">Nombre</label>
+        <input class="input" id="tipo-nombre" name="nombre" type="text" maxlength="80" required>
+      </div>
+      <div class="campo">
+        <label for="tipo-servicio">Servicio</label>
+        <select class="select" id="tipo-servicio" name="servicio_id" required></select>
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/tipos-equipo.js"></script>
+</body>
+</html>

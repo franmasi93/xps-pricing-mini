@@ -29,7 +29,7 @@
       <header class="topbar">
         <div>
           <h1>Tarifas</h1>
-          <p class="topbar-subtitulo">Fletes aéreos, LCL y FCL por ruta, proveedor y vigencia</p>
+          <p class="topbar-subtitulo">Fletes por servicio, ruta, proveedor y vigencia</p>
         </div>
         <button class="btn btn-primario" id="btn-nueva" type="button" hidden>Nueva tarifa</button>
       </header>
@@ -41,13 +41,8 @@
         <section class="tarjeta" id="herramientas" hidden>
           <div class="filtros">
             <div class="campo">
-              <label for="filtro-modo">Modo</label>
-              <select class="select" id="filtro-modo">
-                <option value="">Todos</option>
-                <option value="AEREO">Aéreo</option>
-                <option value="LCL">LCL</option>
-                <option value="FCL">FCL</option>
-              </select>
+              <label for="filtro-modo">Servicio</label>
+              <select class="select" id="filtro-modo"></select>
             </div>
             <div class="campo">
               <label for="filtro-origen">Origen</label>
@@ -116,7 +111,7 @@
   <dialog class="dialogo dialogo-ancho" id="dialogo-tarifa" aria-labelledby="titulo-tarifa">
     <h2 id="titulo-tarifa">Nueva tarifa</h2>
     <div id="alertas-tarifa" hidden></div>
-    <p class="nota-lectura" id="nota-tramos" hidden>Esta tarifa tiene tramos: el costo, el modo, la unidad y el método se cambian desde los tramos.</p>
+    <p class="nota-lectura" id="nota-tramos" hidden>Esta tarifa tiene tramos: el costo, el servicio, la unidad y el método se cambian desde los tramos.</p>
     <form id="form-tarifa" novalidate>
       <div class="grupo-campos">
         <div class="campo">
@@ -124,12 +119,9 @@
           <select class="select" id="tarifa-proveedor" name="proveedor_id" required></select>
         </div>
         <div class="campo">
-          <label for="tarifa-modo">Modo</label>
-          <select class="select" id="tarifa-modo" name="modo" required>
-            <option value="AEREO">Aéreo</option>
-            <option value="LCL">LCL</option>
-            <option value="FCL">FCL</option>
-          </select>
+          <label for="tarifa-modo">Servicio</label>
+          <select class="select" id="tarifa-modo" name="modo" required aria-describedby="ayuda-servicio"></select>
+          <p class="ayuda" id="ayuda-servicio"></p>
         </div>
         <div class="campo">
           <label for="tarifa-origen">Origen</label>

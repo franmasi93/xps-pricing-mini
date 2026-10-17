@@ -93,11 +93,7 @@
               </div>
               <div class="campo">
                 <label for="filtro-puerto-tipo">Tipo</label>
-                <select class="select" id="filtro-puerto-tipo">
-                  <option value="">Todos</option>
-                  <option value="MARITIMO">Marítimo</option>
-                  <option value="AEREO">Aéreo</option>
-                </select>
+                <select class="select" id="filtro-puerto-tipo"></select>
               </div>
               <div class="campo">
                 <label for="filtro-puerto-pais">País</label>
@@ -174,14 +170,12 @@
     <form id="form-puerto" novalidate>
       <div class="campo">
         <label for="puerto-tipo">Tipo</label>
-        <select class="select" id="puerto-tipo" name="tipo" required>
-          <option value="MARITIMO">Marítimo</option>
-          <option value="AEREO">Aéreo</option>
-        </select>
+        <select class="select" id="puerto-tipo" name="tipo" required></select>
       </div>
       <div class="campo">
         <label for="puerto-codigo">Código</label>
-        <input class="input cifra" id="puerto-codigo" name="codigo" type="text" maxlength="5" autocomplete="off" required>
+        <input class="input cifra" id="puerto-codigo" name="codigo" type="text" maxlength="10" autocomplete="off" required aria-describedby="ayuda-puerto-codigo">
+        <p class="ayuda" id="ayuda-puerto-codigo"></p>
         <span class="ayuda">Marítimo: UN/LOCODE de 5 (ECGYE) · Aéreo: IATA de 3 (GYE)</span>
       </div>
       <div class="campo">

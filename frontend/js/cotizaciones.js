@@ -29,7 +29,7 @@
       UI.celda("Cotización", [enlace]),
       UI.celda("Cliente", [UI.texto(cotizacion.cliente.razon_social)]),
       UI.celda("Ruta", [ruta(cotizacion)]),
-      UI.celda("Modo", [UI.texto(cotizacion.modo)]),
+      UI.celda("Servicio", [UI.texto(cotizacion.modo)]),
       UI.celda("Incoterm", [UI.texto(cotizacion.incoterm)]),
       UI.celda("Estado", UI.badgesCotizacion(cotizacion.estado, cotizacion.vencida)),
       UI.celda("Válida hasta", [UI.texto(cotizacion.valida_hasta)]),

@@ -44,9 +44,9 @@
       dato("Cliente", c.cliente.razon_social),
       dato("Contacto", c.contacto ? `${c.contacto.nombre}${c.contacto.email ? ` · ${c.contacto.email}` : ""}` : "Sin contacto"),
       dato("Ruta", `${c.origen.codigo} ${c.origen.nombre} → ${c.destino.codigo} ${c.destino.nombre}`),
-      dato("Modo · Incoterm · Sentido", `${c.modo} · ${c.incoterm.codigo} · ${c.sentido === "IMPORTACION" ? "Importación" : "Exportación"}`),
+      dato("Servicio · Incoterm · Sentido", `${c.servicio.nombre} · ${c.incoterm.codigo} · ${c.sentido === "IMPORTACION" ? "Importación" : "Exportación"}`),
       dato("Carga", partesCarga.join(" · ")),
-      dato(c.modo === "AEREO" ? "Aerolínea" : "Naviera / Motonave", c.transportista),
+      dato(c.servicio.etiqueta_transportista, c.transportista),
       dato("Descripción de la mercancía", c.descripcion_carga),
       dato("Comercial", c.comercial.nombre),
     ];

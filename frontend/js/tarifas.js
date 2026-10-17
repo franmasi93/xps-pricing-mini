@@ -1,15 +1,13 @@
 /* P6 Tarifas. tarifa.ver lee; tarifa.editar crea, edita, duplica, desactiva y edita tramos.
  * Gating (D-F2-5): el backend decide qué claves envía. Esta pantalla solo dibuja las columnas de
  * costo y margen si esas claves existen en el JSON; nunca las oculta con CSS ni calcula precios.
+ * E0: los servicios, sus unidades, sus tipos de ubicación y sus tramos salen del catálogo (/servicios y
+ * /formas-cobro); aquí no hay modos fijos.
  */
 "use strict";
 
 (async () => {
   const { crear } = XPS;
-  const MODOS = { AEREO: "Aéreo", LCL: "LCL", FCL: "FCL" };
-  const UNIDADES = { AEREO: ["KG", "ENVIO"], LCL: ["WM", "CBM", "ENVIO"], FCL: ["CONTENEDOR"] };
-  // H-F4-2: tramos según la unidad de peso de la tarifa (desde_kg = "desde, en la unidad de la tarifa").
-  const DESDE = { KG: [0, 45, 100, 300, 500, 1000], LB: [0, 100, 220, 660, 1100, 2200] };
   const OPCIONALES = ["parametro_venta", "precio_venta_manual", "minimo_venta_manual", "transit_time_dias", "dias_libres", "notas", "tipo_equipo_id", "transportista"];
 
   const alertas = document.getElementById("alertas");
@@ -41,11 +39,28 @@
 
   let puedeEditar = false;
   let diasAlerta = "7";
-  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [] };
+  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [], servicios: [], formas: [] };
   let enEdicion = null;
   let enFicha = null;
 
   const ruta = (t) => `${t.origen.codigo} → ${t.destino.codigo}`;
+
+  // ---------- Servicios (E0) ----------
+
+  const servicioDe = (codigo) => catalogos.servicios.find((s) => s.codigo === codigo) || null;
+  const formaDe = (servicio) => (servicio && catalogos.formas.find((f) => f.codigo === servicio.forma_cobro)) || null;
+  const nombreServicio = (codigo) => (servicioDe(codigo) || { nombre: codigo }).nombre;
+  const etiquetaServicio = (t) => (t.tipo_equipo ? `${nombreServicio(t.modo)} ${t.tipo_equipo.codigo}` : nombreServicio(t.modo));
+
+  /** H-F4-2 + E0: los "desde" activos del servicio en la unidad de peso de la tarifa. */
+  function desdesDe(tarifa) {
+    const servicio = servicioDe(tarifa.modo);
+    const unidad = tarifa.unidad_peso === "LB" ? "LB" : "KG";
+    return (servicio ? servicio.tramos : [])
+      .filter((t) => t.activo && t.unidad_peso === unidad)
+      .map((t) => t.desde)
+      .sort((a, b) => a - b);
+  }
 
   // ---------- Listado ----------
 
@@ -61,7 +76,7 @@
     // Las columnas de costo existen solo si el backend envió esas claves.
     const conCosto = lista.some((t) => "costo" in t);
     const conMargen = lista.some((t) => "margen_pct" in t);
-    const columnas = ["Ruta", "Modo", "Proveedor", "Unidad", "Venta", "Venta mínima"];
+    const columnas = ["Ruta", "Servicio", "Proveedor", "Unidad", "Venta", "Venta mínima"];
     if (conCosto) columnas.push("Costo");
     if (conMargen) columnas.push("Margen");
     columnas.push("Vigencia", "Estado", "Acciones");
@@ -69,10 +84,9 @@
 
     cuerpo.replaceChildren(...(lista.length ? [] : [UI.filaVacia(columnas.length, "No hay tarifas con estos filtros.")]));
     for (const tarifa of lista) {
-      const modo = tarifa.tipo_equipo ? `${MODOS[tarifa.modo]} ${tarifa.tipo_equipo.codigo}` : MODOS[tarifa.modo];
       const celdas = [
         UI.celda("Ruta", [UI.texto(ruta(tarifa), "cifra")]),
-        UI.celda("Modo", [UI.texto(modo)]),
+        UI.celda("Servicio", [UI.texto(etiquetaServicio(tarifa))]),
         UI.celda("Proveedor", [UI.texto(tarifa.proveedor.nombre)]),
         UI.celda("Unidad", [UI.texto(tarifa.tiene_tramos ? `${tarifa.rate_unit} (tramos)` : tarifa.rate_unit)]),
         UI.celda("Venta", [UI.monto(tarifa.precio_venta, tarifa.moneda)]),
@@ -144,7 +158,7 @@
     document.getElementById("titulo-ficha").textContent = `Tarifa #${tarifa.id} · ${ruta(tarifa)}`;
     const datos = [
       par("Proveedor", tarifa.proveedor.nombre),
-      par("Modo", tarifa.tipo_equipo ? `${MODOS[tarifa.modo]} ${tarifa.tipo_equipo.codigo}` : MODOS[tarifa.modo]),
+      par("Servicio", etiquetaServicio(tarifa)),
       par("Unidad", tarifa.rate_unit === "KG" ? `${tarifa.rate_unit} · por ${tarifa.unidad_peso === "LB" ? "libra" : "kilo"}` : tarifa.rate_unit),
       par("Transportista", tarifa.transportista),
       par("Moneda", tarifa.moneda),
@@ -171,10 +185,11 @@
 
     const bloqueTramos = document.getElementById("bloque-tramos");
     bloqueTramos.hidden = !tarifa.tiene_tramos;
-    document.getElementById("btn-editar-tramos").hidden = !(puedeEditar && tarifa.modo === "AEREO" && tarifa.rate_unit === "KG");
+    const forma = formaDe(servicioDe(tarifa.modo));
+    document.getElementById("btn-editar-tramos").hidden = !(puedeEditar && forma && forma.usa_tramos && tarifa.rate_unit === "KG");
     if (tarifa.tiene_tramos) {
       try {
-        pintarTramos(await XPS.api(`/tarifas/${tarifa.id}/tramos`), tarifa.moneda, tarifa.unidad_peso);
+        pintarTramos(await XPS.api(`/tarifas/${tarifa.id}/tramos`), tarifa.moneda, tarifa.unidad_peso, desdesDe(tarifa));
       } catch (error) {
         XPS.mostrarError(alertas, error);
       }
@@ -182,9 +197,10 @@
     dialogoFicha.showModal();
   }
 
-  function pintarTramos(tramos, moneda, unidadPeso = "KG") {
+  function pintarTramos(tramos, moneda, unidadPeso = "KG", permitidos = []) {
     const u = unidadPeso === "LB" ? "lb" : "kg";
-    const primero = DESDE[unidadPeso === "LB" ? "LB" : "KG"][1];
+    // El tramo 0 se lee "hasta el siguiente" (−45 en el aéreo): el siguiente "desde" del servicio o de la tarifa.
+    const primero = permitidos[1] ?? (tramos[1] ? tramos[1].desde_kg : "");
     const conCosto = tramos.some((t) => "costo_kg" in t);
     const columnas = [`Desde (${u})`, `Venta por ${u}`];
     if (conCosto) columnas.push(`Costo por ${u}`);
@@ -201,24 +217,25 @@
     );
   }
 
-  function desdesDe(tarifa) {
-    return DESDE[tarifa.unidad_peso === "LB" ? "LB" : "KG"];
-  }
-
   async function abrirTramos() {
     const tarifa = enFicha;
     XPS.limpiarAlerta(alertasTramos);
     const actuales = tarifa.tiene_tramos ? await XPS.api(`/tarifas/${tarifa.id}/tramos`) : [];
     const porDesde = new Map(actuales.map((t) => [t.desde_kg, t]));
     const manual = tarifa.metodo_venta === "MANUAL";
-    const lista = desdesDe(tarifa);
+    // Los activos del servicio y, para no perderlos de vista, los que la tarifa ya tiene (aunque estén inactivos).
+    const lista = [...new Set([...desdesDe(tarifa), ...actuales.map((t) => t.desde_kg)])].sort((a, b) => a - b);
+    if (!lista.length) {
+      XPS.mostrarAlerta(alertas, "error", "El servicio no tiene tramos activos en esta unidad; cárguelos en Administración → Servicios.");
+      return;
+    }
     const u = tarifa.unidad_peso === "LB" ? "lb" : "kg";
     const filas = lista.map((desde) => {
       const actual = porDesde.get(desde);
       const costo = crear("input", { clase: "input cifra", atributos: { type: "text", inputmode: "decimal", "data-desde": desde, "data-campo": "costo_kg", "aria-label": `Costo por ${u} desde ${desde}` } });
       costo.value = actual && actual.costo_kg ? actual.costo_kg : "";
       const campos = [
-        crear("div", { clase: "campo" }, [crear("span", { clase: "etiqueta", texto: desde === 0 ? `Desde 0 ${u} (−${lista[1]})` : `Desde ${desde} ${u}` }), costo]),
+        crear("div", { clase: "campo" }, [crear("span", { clase: "etiqueta", texto: desde === 0 && lista.length > 1 ? `Desde 0 ${u} (−${lista[1]})` : `Desde ${desde} ${u}` }), costo]),
       ];
       if (manual) {
         const venta = crear("input", { clase: "input cifra", atributos: { type: "text", inputmode: "decimal", "data-desde": desde, "data-campo": "precio_venta_kg", "aria-label": `Venta por ${u} desde ${desde}` } });
@@ -236,11 +253,12 @@
     evento.preventDefault();
     XPS.limpiarAlerta(alertasTramos);
     const tramos = [];
-    for (const desde of desdesDe(enFicha)) {
+    const desdes = [...formTramos.querySelectorAll('[data-campo="costo_kg"]')].map((campo) => campo.dataset.desde);
+    for (const desde of desdes) {
       const costo = formTramos.querySelector(`[data-desde="${desde}"][data-campo="costo_kg"]`).value.trim().replace(",", ".");
       const ventaCampo = formTramos.querySelector(`[data-desde="${desde}"][data-campo="precio_venta_kg"]`);
       if (!costo) continue;
-      const tramo = { desde_kg: desde, costo_kg: costo };
+      const tramo = { desde_kg: Number(desde), costo_kg: costo };
       if (ventaCampo) tramo.precio_venta_kg = ventaCampo.value.trim().replace(",", ".") || null;
       tramos.push(tramo);
     }
@@ -257,16 +275,21 @@
   // ---------- Alta y edición ----------
 
   function ajustarFormulario() {
-    const modo = formTarifa.elements.modo.value;
-    const tipoPuerto = modo === "AEREO" ? "AEREO" : "MARITIMO";
-    const puertos = catalogos.puertos.filter((p) => p.tipo === tipoPuerto && (p.activo || (enEdicion && [enEdicion.origen.id, enEdicion.destino.id].includes(p.id))));
-    for (const campo of ["origen_puerto_id", "destino_puerto_id"]) {
+    const servicio = servicioDe(formTarifa.elements.modo.value);
+    const forma = formaDe(servicio);
+    const usados = enEdicion ? [enEdicion.origen.id, enEdicion.destino.id] : [];
+    for (const [campo, tipo] of [["origen_puerto_id", servicio && servicio.tipo_ubicacion_origen], ["destino_puerto_id", servicio && servicio.tipo_ubicacion_destino]]) {
+      const puertos = catalogos.puertos.filter((p) => p.tipo === tipo && (p.activo || usados.includes(p.id)));
       UI.opciones(formTarifa.elements[campo], puertos, { valor: (p) => p.id, texto: (p) => `${p.codigo} · ${p.nombre}` });
     }
-    UI.opciones(formTarifa.elements.rate_unit, UNIDADES[modo].map((u) => ({ u })), { valor: (x) => x.u, texto: (x) => x.u });
-    document.getElementById("campo-equipo").hidden = modo !== "FCL";
-    // D2: la unidad de peso (kg o lb) solo existe en AEREO con precio por peso.
-    document.getElementById("campo-unidad-peso").hidden = !(modo === "AEREO" && formTarifa.elements.rate_unit.value === "KG");
+    UI.opciones(formTarifa.elements.rate_unit, (forma ? forma.unidades_tarifa : []).map((u) => ({ u })), { valor: (x) => x.u, texto: (x) => x.u });
+    document.getElementById("ayuda-servicio").textContent = forma ? `${forma.nombre}: ${forma.descripcion}` : "";
+    document.getElementById("campo-equipo").hidden = !(servicio && servicio.usa_tipo_equipo);
+    const enUso = enEdicion && enEdicion.tipo_equipo ? enEdicion.tipo_equipo.id : null;
+    const tipos = catalogos.tipos.filter((t) => servicio && t.servicio_id === servicio.id && (t.activo || t.id === enUso));
+    UI.opciones(formTarifa.elements.tipo_equipo_id, tipos, { valor: (t) => t.id, texto: (t) => `${t.codigo} · ${t.nombre}` });
+    // D2 + E0: la unidad de peso (kg o lb) solo existe si el servicio admite libras y el precio es por peso.
+    document.getElementById("campo-unidad-peso").hidden = !(servicio && servicio.permite_libras && formTarifa.elements.rate_unit.value === "KG");
     const manual = formTarifa.elements.metodo_venta.value === "MANUAL";
     document.getElementById("campo-parametro").hidden = manual;
     document.getElementById("campo-precio-manual").hidden = !manual;
@@ -281,7 +304,9 @@
     const proveedores = catalogos.proveedores.filter((p) => p.activo || (tarifa && p.id === tarifa.proveedor.id));
     UI.opciones(formTarifa.elements.proveedor_id, proveedores, { valor: (p) => p.id, texto: (p) => p.nombre });
     UI.opciones(formTarifa.elements.moneda_id, catalogos.monedas.filter((m) => m.activo), { valor: (m) => m.id, texto: (m) => m.codigo });
-    UI.opciones(formTarifa.elements.tipo_equipo_id, catalogos.tipos.filter((t) => t.activo), { valor: (t) => t.id, texto: (t) => `${t.codigo} · ${t.nombre}` });
+    // Solo servicios activos para tarifas nuevas; al editar, también el de la tarifa aunque esté inactivo.
+    const ofrecidos = catalogos.servicios.filter((s) => s.activo || (tarifa && s.codigo === tarifa.modo));
+    UI.opciones(formTarifa.elements.modo, ofrecidos, { valor: (s) => s.codigo, texto: (s) => (s.activo ? s.nombre : `${s.nombre} (inactivo)`) });
     if (tarifa) {
       formTarifa.elements.modo.value = tarifa.modo;
       formTarifa.elements.metodo_venta.value = tarifa.metodo_venta;
@@ -335,8 +360,9 @@
     }
     if (document.getElementById("campo-unidad-peso").hidden) datos.unidad_peso = "KG";
     const metodo = datos.metodo_venta || (enEdicion && enEdicion.metodo_venta);
-    // Campos que no corresponden al modo o al método van vacíos, como exige el backend.
-    if ((datos.modo || (enEdicion && enEdicion.modo)) !== "FCL") datos.tipo_equipo_id = null;
+    // Campos que no corresponden al servicio o al método van vacíos, como exige el backend.
+    const servicio = servicioDe(datos.modo || (enEdicion && enEdicion.modo));
+    if (!(servicio && servicio.usa_tipo_equipo)) datos.tipo_equipo_id = null;
     if (metodo === "MANUAL") datos.parametro_venta = null;
     else {
       datos.precio_venta_manual = null;
@@ -440,8 +466,11 @@
 
   try {
     diasAlerta = await UI.diasAlerta();
-    const [todas, tipos] = await Promise.all([XPS.api("/tarifas"), XPS.api("/tipos-equipo")]);
-    catalogos.tipos = tipos;
+    const [todas, tipos, servicios, formas] = await Promise.all([
+      XPS.api("/tarifas"), XPS.api("/tipos-equipo"), XPS.api("/servicios"), XPS.api("/formas-cobro"),
+    ]);
+    catalogos = { ...catalogos, tipos, servicios, formas };
+    UI.opciones(filtros.modo, servicios, { valor: (s) => s.codigo, texto: (s) => s.nombre, todos: "Todos" });
     opcionesDeFiltro(todas);
     if (puedeEditar) {
       const [puertos, proveedores, monedas] = await Promise.all([XPS.api("/puertos"), XPS.api("/proveedores"), XPS.api("/monedas")]);

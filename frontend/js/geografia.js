@@ -8,7 +8,8 @@
   const botonNuevo = document.getElementById("btn-nuevo");
 
   const TEXTO_NUEVO = { regiones: "Nueva región", paises: "Nuevo país", puertos: "Nuevo puerto" };
-  const TIPOS = { MARITIMO: "Marítimo", AEREO: "Aéreo" };
+  // E0: los tipos de puerto salen del catálogo de tipos de ubicación (Administración → Tipos de ubicación).
+  let tipos = [];
 
   let pestana = "regiones";
   let regiones = [];
@@ -34,7 +35,8 @@
   // ---------- Carga de listas para los selectores ----------
 
   async function cargarListasBase() {
-    [regiones, paises] = await Promise.all([XPS.api("/regiones"), XPS.api("/paises")]);
+    [regiones, paises, tipos] = await Promise.all([XPS.api("/regiones"), XPS.api("/paises"), XPS.api("/tipos-ubicacion")]);
+    UI.opciones(filtros.puertoTipo, tipos, { valor: (t) => t.codigo, texto: (t) => t.nombre, todos: "Todos" });
     UI.opciones(filtros.paisRegion, regiones, { valor: (r) => r.id, texto: (r) => `${r.codigo} · ${r.nombre}`, todos: "Todas" });
     UI.opciones(filtros.puertoPais, paises, { valor: (p) => p.id, texto: (p) => `${p.iso2} · ${p.nombre}`, todos: "Todos" });
   }
@@ -99,7 +101,7 @@
         crear("tr", {}, [
           UI.celda("Código", [UI.texto(puerto.codigo, "cifra")]),
           UI.celda("Nombre", [UI.texto(puerto.nombre)]),
-          UI.celda("Tipo", [UI.texto(TIPOS[puerto.tipo] || puerto.tipo)]),
+          UI.celda("Tipo", [UI.texto(nombreTipo(puerto.tipo))]),
           UI.celda("País", [UI.texto(`${puerto.pais.iso2} · ${puerto.pais.nombre}`)]),
           UI.celda("Estado", [UI.badgeEstado(puerto.activo)]),
           UI.celda("Acciones", [accionesFila("puerto", "puertos", puerto)]),
@@ -109,6 +111,16 @@
   }
 
   const CARGAS = { regiones: cargarRegiones, paises: cargarPaises, puertos: cargarPuertos };
+
+  function nombreTipo(codigo) {
+    const tipo = tipos.find((t) => t.codigo === codigo);
+    return tipo ? tipo.nombre : codigo;
+  }
+
+  function ayudaCodigo() {
+    const tipo = tipos.find((t) => t.codigo === dialogos.puerto.form.elements.tipo.value);
+    document.getElementById("ayuda-puerto-codigo").textContent = (tipo && tipo.ayuda_codigo) || "";
+  }
 
   async function recargar() {
     await cargarListasBase();
@@ -160,7 +172,10 @@
     } else {
       const utilizables = paises.filter((p) => p.activo || (item && p.id === item.pais_id));
       UI.opciones(form.elements.pais, utilizables, { valor: (p) => p.id, texto: (p) => `${p.iso2} · ${p.nombre}` });
-      form.elements.tipo.value = item ? item.tipo : "MARITIMO";
+      const utilizablesTipo = tipos.filter((t) => t.activo || (item && t.codigo === item.tipo));
+      UI.opciones(form.elements.tipo, utilizablesTipo, { valor: (t) => t.codigo, texto: (t) => t.nombre });
+      if (item) form.elements.tipo.value = item.tipo;
+      ayudaCodigo();
       form.elements.codigo.value = item ? item.codigo : "";
       form.elements.nombre.value = item ? item.nombre : "";
       if (item) form.elements.pais.value = String(item.pais_id);
@@ -246,6 +261,7 @@
   for (const recurso of Object.keys(dialogos)) {
     conectarFormulario(recurso);
   }
+  dialogos.puerto.form.elements.tipo.addEventListener("change", ayudaCodigo);
   for (const boton of document.querySelectorAll("[data-pestana]")) {
     boton.addEventListener("click", () => cambiarPestana(boton.dataset.pestana));
   }

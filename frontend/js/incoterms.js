@@ -1,6 +1,6 @@
 /* Matriz de Incoterms. La vista de cada sentido usa las listas que calcula el backend
  * (bloques_importacion / bloques_exportacion): el frontend no calcula el complemento.
- * Solo config.editar (admin) edita.
+ * Solo config.editar (admin) edita. E0: los servicios permitidos salen del catálogo de servicios.
  */
 "use strict";
 
@@ -15,6 +15,7 @@
   const form = document.getElementById("form-incoterm");
   const alertasDialogo = document.getElementById("alertas-incoterm");
   const contenedorBloques = document.getElementById("incoterm-bloques");
+  const contenedorServicios = document.getElementById("incoterm-servicios");
 
   const BLOQUES = [
     ["recogida_origen", "Recogida origen"],
@@ -34,14 +35,20 @@
   let sentido = "IMPORTACION";
   let puedeEditar = false;
   let incoterms = [];
+  let servicios = [];
   let enEdicion = null;
+
+  function nombreServicio(codigo) {
+    const servicio = servicios.find((s) => s.codigo === codigo);
+    return servicio ? servicio.nombre : codigo;
+  }
 
   function pintarCabecera() {
     const columnas = [crear("th", { texto: "Incoterm" })];
     for (const [, etiqueta] of BLOQUES) {
       columnas.push(crear("th", { texto: etiqueta }));
     }
-    columnas.push(crear("th", { texto: "Modo" }));
+    columnas.push(crear("th", { texto: "Servicios" }));
     if (puedeEditar) {
       columnas.push(crear("th", { texto: "Acciones" }));
     }
@@ -77,7 +84,8 @@
       for (const [bloque, etiqueta] of BLOQUES) {
         celdas.push(UI.celda(etiqueta, [marca(incluidos.has(bloque), bloque)]));
       }
-      celdas.push(UI.celda("Modo", [UI.texto(incoterm.solo_maritimo ? "Solo marítimo" : "Todos")]));
+      const permitidos = incoterm.servicios.map(nombreServicio).join(", ");
+      celdas.push(UI.celda("Servicios", [UI.texto(permitidos || "Ninguno")]));
       if (puedeEditar) {
         celdas.push(UI.celda("Acciones", [UI.boton("Editar", () => abrir(incoterm))]));
       }
@@ -106,7 +114,17 @@
       casilla.checked = incoterm[bloque];
       contenedorBloques.append(crear("label", { clase: "campo-check", atributos: { for: `bloque-${bloque}` } }, [casilla, etiqueta]));
     }
-    form.elements.solo_maritimo.checked = incoterm.solo_maritimo;
+    contenedorServicios.replaceChildren();
+    const visibles = servicios.filter((s) => s.activo || incoterm.servicios.includes(s.codigo));
+    for (const servicio of visibles) {
+      const casilla = crear("input", { atributos: { type: "checkbox", value: servicio.codigo, id: `servicio-${servicio.codigo}` } });
+      casilla.checked = incoterm.servicios.includes(servicio.codigo);
+      const etiqueta = servicio.activo ? servicio.nombre : `${servicio.nombre} (inactivo)`;
+      contenedorServicios.append(crear("label", { clase: "campo-check", atributos: { for: `servicio-${servicio.codigo}` } }, [casilla, etiqueta]));
+    }
+    if (!visibles.length) {
+      contenedorServicios.append(crear("p", { clase: "texto-suave", texto: "No hay servicios activos." }));
+    }
     form.elements.activo.checked = incoterm.activo;
     dialogo.showModal();
   }
@@ -123,10 +141,16 @@
     if (nombre !== enEdicion.nombre) {
       cambios.nombre = nombre;
     }
-    for (const campo of [...BLOQUES.map(([bloque]) => bloque), "solo_maritimo", "activo"]) {
+    for (const campo of [...BLOQUES.map(([bloque]) => bloque), "activo"]) {
       if (form.elements[campo].checked !== enEdicion[campo]) {
         cambios[campo] = form.elements[campo].checked;
       }
+    }
+    const elegidos = [...contenedorServicios.querySelectorAll("input:checked")].map((casilla) => casilla.value);
+    const ocultos = enEdicion.servicios.filter((codigo) => !contenedorServicios.querySelector(`input[value="${codigo}"]`));
+    const finales = [...elegidos, ...ocultos].sort();
+    if (finales.join() !== [...enEdicion.servicios].sort().join()) {
+      cambios.servicios = finales;
     }
     try {
       if (Object.keys(cambios).length) {
@@ -155,7 +179,7 @@
   }
 
   try {
-    incoterms = await XPS.api("/incoterms");
+    [incoterms, servicios] = await Promise.all([XPS.api("/incoterms"), XPS.api("/servicios")]);
     pintarCabecera();
     pintarMatriz();
     herramientas.hidden = false;

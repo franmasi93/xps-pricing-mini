@@ -16,7 +16,7 @@
       cuerpo.append(
         crear("tr", {}, [
           UI.celda("Ruta", [UI.texto(`${tarifa.origen.codigo} → ${tarifa.destino.codigo}`, "cifra")]),
-          UI.celda("Modo", [UI.texto(tarifa.tipo_equipo ? `${tarifa.modo} ${tarifa.tipo_equipo.codigo}` : tarifa.modo)]),
+          UI.celda("Servicio", [UI.texto(tarifa.tipo_equipo ? `${tarifa.modo} ${tarifa.tipo_equipo.codigo}` : tarifa.modo)]),
           UI.celda("Proveedor", [UI.texto(tarifa.proveedor.nombre)]),
           UI.celda("Venta", [UI.monto(tarifa.precio_venta, tarifa.moneda)]),
           UI.celda("Vence", [UI.texto(tarifa.valido_hasta, "cifra")]),

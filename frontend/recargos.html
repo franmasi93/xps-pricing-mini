@@ -61,13 +61,8 @@
               <select class="select" id="filtro-proveedor"></select>
             </div>
             <div class="campo">
-              <label for="filtro-modo">Modo</label>
-              <select class="select" id="filtro-modo">
-                <option value="">Todos</option>
-                <option value="AEREO">Aéreo</option>
-                <option value="LCL">LCL</option>
-                <option value="FCL">FCL</option>
-              </select>
+              <label for="filtro-modo">Servicio</label>
+              <select class="select" id="filtro-modo"></select>
             </div>
             <div class="campo">
               <label for="filtro-vigente">Vigente en</label>
@@ -128,16 +123,11 @@
           <input class="input" id="recargo-concepto" name="concepto" type="text" maxlength="120" required>
         </div>
         <div class="campo">
-          <label for="recargo-modo">Modo (vacío = todos los compatibles)</label>
-          <select class="select" id="recargo-modo" name="modo">
-            <option value="">Todos</option>
-            <option value="AEREO">Aéreo</option>
-            <option value="LCL">LCL</option>
-            <option value="FCL">FCL</option>
-          </select>
+          <label for="recargo-modo">Servicio (vacío = todos los compatibles)</label>
+          <select class="select" id="recargo-modo" name="modo"></select>
         </div>
         <div class="campo" id="campo-equipo">
-          <label for="recargo-equipo">Tipo de equipo (solo FCL, opcional)</label>
+          <label for="recargo-equipo">Tipo de equipo (opcional)</label>
           <select class="select" id="recargo-equipo" name="tipo_equipo_id"></select>
         </div>
         <div class="campo">
@@ -210,7 +200,7 @@
           <input class="input" id="recargo-hasta" name="valido_hasta" type="date" required>
         </div>
       </div>
-      <p class="ayuda">Seguro: por envío o como % del valor de la mercancía (solo en USD; el costo es el porcentaje, por ejemplo 0.35 = 0,35 %). CONTENEDOR solo con modo FCL.
+      <p class="ayuda">Seguro: por envío o como % del valor de la mercancía (solo en USD; el costo es el porcentaje, por ejemplo 0.35 = 0,35 %). CONTENEDOR solo con un servicio por tipo de equipo (como FCL).
         % sobre Recibo de Caja (por ejemplo "Manejo local 6 %, mínimo 30"): el costo y la venta son el porcentaje y el mínimo va en USD; solo en USD y fuera del seguro. Se calcula al final sobre las líneas de Recibo de Caja incluidas.</p>
       <div class="acciones-form">
         <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>

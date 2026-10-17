@@ -29,7 +29,7 @@
       <header class="topbar">
         <div>
           <h1 id="titulo">Nueva cotización</h1>
-          <p class="topbar-subtitulo">Cliente → sentido, modo y ruta → carga → Incoterm → tarifa → líneas</p>
+          <p class="topbar-subtitulo">Cliente → sentido, servicio y ruta → carga → Incoterm → tarifa → líneas</p>
         </div>
         <a class="btn btn-secundario" href="cotizaciones.html">Volver a la lista</a>
       </header>
@@ -60,7 +60,7 @@
           </section>
 
           <section class="tarjeta">
-            <h3>2. Sentido, modo y ruta</h3>
+            <h3>2. Sentido, servicio y ruta</h3>
             <div class="grupo-campos">
               <div class="campo">
                 <label for="sentido">Sentido</label>
@@ -70,12 +70,8 @@
                 </select>
               </div>
               <div class="campo">
-                <label for="modo">Modo</label>
-                <select class="select" id="modo" required>
-                  <option value="AEREO">Aéreo</option>
-                  <option value="LCL">Marítimo LCL</option>
-                  <option value="FCL">Marítimo FCL</option>
-                </select>
+                <label for="modo">Servicio</label>
+                <select class="select" id="modo" required></select>
               </div>
               <div class="campo">
                 <label for="origen">Origen</label>
@@ -128,7 +124,7 @@
               <button class="btn btn-secundario btn-chico" id="btn-dimension" type="button">Agregar bultos</button>
             </div>
             <div id="bloque-contenedores" hidden>
-              <p class="ayuda">Contenedores (FCL): un tipo por fila.</p>
+              <p class="ayuda">Contenedores o equipos del servicio: un tipo por fila.</p>
               <table class="tabla">
                 <thead><tr><th>Tipo</th><th>Cantidad</th><th></th></tr></thead>
                 <tbody id="tabla-contenedores"></tbody>

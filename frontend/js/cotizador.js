@@ -1,6 +1,7 @@
 /* P9 Cotizador paso a paso. Todo cálculo (peso cobrable, W/M, precios, totales) lo hace el backend;
  * esta pantalla solo arma la cabecera, muestra las opciones de flete y pide proponer las líneas.
- * ?id=N edita un BORRADOR existente (cambiar ruta, modo, Incoterm o carga borra sus líneas: D-F3-10).
+ * ?id=N edita un BORRADOR existente (cambiar ruta, servicio, Incoterm o carga borra sus líneas: D-F3-10).
+ * E0: los servicios activos (y sus tipos de ubicación y de equipo) salen del catálogo; no hay modos fijos.
  */
 "use strict";
 
@@ -12,6 +13,14 @@
   const parametros = new URLSearchParams(window.location.search);
   let cotizacionId = parametros.get("id") ? Number(parametros.get("id")) : null;
   let tiposEquipo = [];
+  let servicios = [];
+
+  const servicioDe = (codigo) => servicios.find((s) => s.codigo === codigo) || null;
+  const servicioActual = () => servicioDe(campo("modo").value);
+  const tiposDelServicio = () => {
+    const servicio = servicioActual();
+    return tiposEquipo.filter((t) => servicio && t.servicio_id === servicio.id);
+  };
 
   // ---------- Paso 1: cliente y contacto ----------
 
@@ -51,22 +60,32 @@
     }
   }
 
-  // ---------- Paso 2: ruta según el modo ----------
+  // ---------- Paso 2: ruta según el servicio ----------
 
   async function cargarPuertos() {
-    const tipo = campo("modo").value === "AEREO" ? "AEREO" : "MARITIMO";
-    const puertos = await XPS.api(UI.consulta("/puertos", { tipo, activo: true }));
-    for (const id of ["origen", "destino"]) {
-      UI.opciones(campo(id), puertos, {
+    const servicio = servicioActual();
+    const tipos = servicio ? [servicio.tipo_ubicacion_origen, servicio.tipo_ubicacion_destino] : [];
+    const listas = {};
+    for (const tipo of new Set(tipos)) {
+      listas[tipo] = await XPS.api(UI.consulta("/puertos", { tipo, activo: true }));
+    }
+    for (const [indice, id] of ["origen", "destino"].entries()) {
+      UI.opciones(campo(id), listas[tipos[indice]] || [], {
         valor: (p) => p.id,
         texto: (p) => `${p.codigo} · ${p.nombre}${p.pais ? ` (${p.pais.nombre})` : ""}`,
         todos: "Elija un puerto…",
       });
     }
-    const fcl = campo("modo").value === "FCL";
-    campo("bloque-contenedores").hidden = !fcl;
-    campo("bloque-dimensiones").hidden = fcl;
-    if (fcl && !campo("tabla-contenedores").children.length) {
+    const porEquipo = Boolean(servicio && servicio.usa_tipo_equipo);
+    campo("bloque-contenedores").hidden = !porEquipo;
+    campo("bloque-dimensiones").hidden = porEquipo;
+    // Al cambiar de servicio, las filas de equipo deben ser de los tipos del servicio nuevo.
+    const validos = new Set(tiposDelServicio().map((t) => String(t.id)));
+    for (const fila of [...campo("tabla-contenedores").children]) {
+      const tipo = fila.querySelector('[data-campo="tipo_equipo_id"]');
+      if (!validos.has(tipo.value)) fila.remove();
+    }
+    if (porEquipo && !campo("tabla-contenedores").children.length) {
       agregarContenedor();
     }
   }
@@ -107,7 +126,7 @@
 
   function agregarContenedor(contenedor = {}) {
     const tipo = crear("select", { clase: "select", atributos: { "data-campo": "tipo_equipo_id", "aria-label": "Tipo de contenedor" } });
-    UI.opciones(tipo, tiposEquipo, { valor: (t) => t.id, texto: (t) => `${t.codigo} · ${t.nombre}` });
+    UI.opciones(tipo, tiposDelServicio(), { valor: (t) => t.id, texto: (t) => `${t.codigo} · ${t.nombre}` });
     if (contenedor.tipo_equipo_id) {
       tipo.value = String(contenedor.tipo_equipo_id);
     }
@@ -136,6 +155,7 @@
 
   function cuerpo() {
     const modo = campo("modo").value;
+    const porEquipo = Boolean(servicioActual() && servicioActual().usa_tipo_equipo);
     const datos = {
       cliente_id: Number(campo("cliente").value) || null,
       contacto_id: Number(campo("contacto").value) || null,
@@ -156,13 +176,13 @@
     datos[unidad() === "LB" ? "peso_lb" : "peso_kg"] = textoONulo("peso") || "0";
     const sufijo = sufijoMedida();
     const dimensiones = filas("tabla-dimensiones").filter((b) => b.largo || b.ancho || b.alto);
-    datos.dimensiones = modo === "FCL" || !dimensiones.length ? null : dimensiones.map((b) => ({
+    datos.dimensiones = porEquipo || !dimensiones.length ? null : dimensiones.map((b) => ({
       cantidad: Number(b.cantidad),
       [`largo_${sufijo}`]: b.largo,
       [`ancho_${sufijo}`]: b.ancho,
       [`alto_${sufijo}`]: b.alto,
     }));
-    datos.contenedores = modo === "FCL" ? filas("tabla-contenedores").map((c) => ({ tipo_equipo_id: Number(c.tipo_equipo_id), cantidad: Number(c.cantidad) })) : [];
+    datos.contenedores = porEquipo ? filas("tabla-contenedores").map((c) => ({ tipo_equipo_id: Number(c.tipo_equipo_id), cantidad: Number(c.cantidad) })) : [];
     return datos;
   }
 
@@ -272,7 +292,12 @@
     campo("cliente").value = String(cotizacion.cliente.id);
     await cargarContactos(cotizacion.contacto && cotizacion.contacto.id);
     campo("sentido").value = cotizacion.sentido;
+    if (!servicioDe(cotizacion.modo) || ![...campo("modo").options].some((o) => o.value === cotizacion.modo)) {
+      // Borrador de un servicio que ya no se ofrece: se muestra para poder seguir editándolo.
+      campo("modo").append(crear("option", { texto: `${cotizacion.servicio.nombre} (inactivo)`, atributos: { value: cotizacion.modo } }));
+    }
     campo("modo").value = cotizacion.modo;
+    campo("tabla-contenedores").replaceChildren();
     await cargarPuertos();
     campo("origen").value = String(cotizacion.origen.id);
     campo("destino").value = String(cotizacion.destino.id);
@@ -293,6 +318,9 @@
     }
     campo("tabla-contenedores").replaceChildren();
     for (const contenedor of cotizacion.carga.contenedores) {
+      if (!tiposEquipo.some((t) => t.id === contenedor.tipo_equipo_id)) {
+        tiposEquipo.push({ id: contenedor.tipo_equipo_id, codigo: contenedor.codigo, nombre: "(inactivo)", servicio_id: servicioActual().id });
+      }
       agregarContenedor(contenedor);
     }
     await mostrarTarifas();
@@ -304,11 +332,15 @@
       return;
     }
     try {
-      const [incoterms, tipos] = await Promise.all([XPS.api("/incoterms"), XPS.api("/tipos-equipo")]);
+      const [incoterms, tipos, todos] = await Promise.all([XPS.api("/incoterms"), XPS.api("/tipos-equipo"), XPS.api("/servicios")]);
       tiposEquipo = tipos.filter((t) => t.activo);
+      servicios = todos;
+      // La fuente única: solo los servicios activos, en su orden.
+      UI.opciones(campo("modo"), servicios.filter((s) => s.activo), { valor: (s) => s.codigo, texto: (s) => s.nombre });
+      const nombres = (i) => i.servicios.map((codigo) => (servicioDe(codigo) || { nombre: codigo }).nombre).join(", ");
       UI.opciones(campo("incoterm"), incoterms.filter((i) => i.activo), {
         valor: (i) => i.id,
-        texto: (i) => `${i.codigo} · ${i.nombre}${i.solo_maritimo ? " (solo marítimo)" : ""}`,
+        texto: (i) => `${i.codigo} · ${i.nombre} (${nombres(i) || "sin servicios"})`,
         todos: "Elija un Incoterm…",
       });
       opcionesClientes([]);

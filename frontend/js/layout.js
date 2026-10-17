@@ -30,12 +30,17 @@ const GRUPOS_MENU = [
     opciones: [
       { texto: "Geografía", archivo: "geografia.html", permisos: ["catalogo.editar"] },
       { texto: "Proveedores", archivo: "proveedores.html", permisos: ["catalogo.editar", "costo.ver"] },
+      // E0: los lee cualquier usuario con tarifas; los edita catalogo.editar.
+      { texto: "Tipos de equipo", archivo: "tipos-equipo.html", permisos: ["catalogo.editar", "tarifa.ver"] },
     ],
   },
   {
     titulo: "Administración",
     opciones: [
       { texto: "Configuración", archivo: "configuracion.html", permisos: ["config.editar", "tarifa.editar"] },
+      // E0: solo el administrador los edita (configuracion.servicios.gestionar).
+      { texto: "Servicios", archivo: "servicios.html", permisos: ["configuracion.servicios.gestionar"] },
+      { texto: "Tipos de ubicación", archivo: "tipos-ubicacion.html", permisos: ["configuracion.servicios.gestionar"] },
       { texto: "Usuarios", archivo: "usuarios.html", permisos: ["usuario.admin"] },
       { texto: "Auditoría", archivo: "auditoria.html", permisos: ["auditoria.ver"] },
     ],
