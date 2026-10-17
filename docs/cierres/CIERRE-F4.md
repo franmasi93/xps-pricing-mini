@@ -193,3 +193,10 @@ Las tres instalan en Python 3.13.14.
 ## 11. Avance
 
 F0 5 % ✅ · F1 15 % ✅ · F2 25 % ✅ · F3 30 % ✅ · F4 15 % ✅ · **proyecto 90 %**. Sigue F5 (auditoría, deuda, despliegue y verificación final).
+
+## Anexo · decisiones de François del 2026-10-16
+
+- **(b) visual: APROBADA por François el 2026-10-16** (D-FIN-1). El diseño del correo quedó excelente y la copia oculta llega bien. Con esto la compuerta de F4 queda completa: técnica y visual.
+- **Riesgo aceptado por François (D-FIN-2):** no se rotan la SecretKey de Tencent (aunque se pegó en el chat) ni la contraseña de `pricing_app`. Sale de los pendientes y no se vuelve a proponer.
+- **CONFIG_CIFRADO_KEY (D-FIN-3):** pasa directo del `.env` a Secret Manager por la entrada estándar de gcloud, sin mostrarse. Secret Manager queda como copia de respaldo de François; reemplaza el pendiente "copiar al gestor de contraseñas".
+- **Pendientes de la sección 10:** los tres quedan resueltos o reemplazados por este anexo.

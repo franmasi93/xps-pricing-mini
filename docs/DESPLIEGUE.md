@@ -39,7 +39,7 @@ Escrito para: François, para la sesión de despliegue P-A (unos 45 minutos). El
 
 Detalle completo en `docs/go-live/README.md`.
 
-1. **Rotar la contraseña de `pricing_app`** (24 caracteres o más). Generarla en el gestor de contraseñas y luego:
+1. **Rotar la contraseña de `pricing_app`:** NO se hace. Es un riesgo aceptado por François (D-FIN-2, 2026-10-16); los pasos 1.1 y 1.2 quedan solo como referencia. Si se rotara algún día: Generarla en el gestor de contraseñas y luego:
    ```powershell
    gcloud sql users set-password pricing_app --instance=xpress-db-reborn-v2 --prompt-for-password
    ```

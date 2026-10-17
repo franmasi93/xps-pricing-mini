@@ -1,33 +1,64 @@
--- B7 · Restringir pricing_app a sus dos bases (xps_pricing y xps_pricing_test).
--- Lo ejecuta François como usuario postgres (Cloud SQL Studio o psql por el proxy). NO lo ejecuta el EJECUTOR.
+-- B7 · Restringir pricing_app a sus bases (xps_pricing y xps_pricing_test).
+-- Lo ejecuta François con el usuario postgres. pricing_app no puede hacerlo: no es dueño de esas bases ni superusuario.
+-- Dónde ejecutarlo: Google Cloud Console → SQL → xpress-db-reborn-v2 → Cloud SQL Studio → base "postgres" → usuario
+-- "postgres". También sirve psql por el proxy local.
 --
--- PostgreSQL concede CONNECT a PUBLIC en cada base nueva. Por eso pricing_app puede abrir conexiones a las bases de
--- otros sistemas de la misma instancia (aunque no tenga permisos sobre sus tablas).
--- La forma limpia de cerrarlo es quitar el CONNECT a PUBLIC en esas bases y concederlo solo a sus dueños.
--- AVISO: antes de quitar el CONNECT a PUBLIC en una base de otro sistema (por ejemplo XPS-Reborn), confirme qué roles
--- se conectan a ella y concédaselo explícitamente; si no, ese sistema puede dejar de conectarse.
+-- Situación al 2026-10-16 (consulta de solo lectura con pricing_app):
+--   bases: cloudsqladmin, postgres, xpress_dev, xpress_test, xps_pricing, xps_pricing_test
+--   roles con login: postgres, pricing_app, xpress_app (XPS-Reborn)
+--   conexiones activas: xpress_test ← xpress_app; xps_pricing ← pricing_app
+--   PUBLIC (y por eso pricing_app) puede conectarse a TODAS las bases.
+--
+-- Qué hace: en las dos bases de XPS-Reborn concede CONNECT a xpress_app y se lo quita a PUBLIC. Así pricing_app ya no
+-- entra a ellas y XPS-Reborn sigue funcionando.
+-- No se tocan cloudsqladmin, que es interna de Cloud SQL, ni postgres. pricing_app necesita entrar a postgres para
+-- recrear xps_pricing_test en la Regla 18, y ahí no tiene permisos sobre datos.
 
--- 1) Verificación: bases de la instancia, su dueño y si PUBLIC o pricing_app pueden conectarse.
+-- 1) Verificación antes del cambio.
 SELECT d.datname AS base,
-       pg_get_userbyid(d.datdba) AS dueno,
        has_database_privilege('public', d.datname, 'CONNECT') AS public_conecta,
-       has_database_privilege('pricing_app', d.datname, 'CONNECT') AS pricing_app_conecta
+       has_database_privilege('pricing_app', d.datname, 'CONNECT') AS pricing_app_conecta,
+       has_database_privilege('xpress_app', d.datname, 'CONNECT') AS xpress_app_conecta
 FROM pg_database d
 WHERE NOT d.datistemplate
 ORDER BY d.datname;
 
--- 2) pricing_app conserva sus dos bases (explícito, por si luego se quita el CONNECT a PUBLIC también aquí).
+-- 2) Cambio, en una sola transacción.
+BEGIN;
+GRANT CONNECT ON DATABASE xpress_dev TO xpress_app;
+GRANT CONNECT ON DATABASE xpress_test TO xpress_app;
 GRANT CONNECT ON DATABASE xps_pricing TO pricing_app;
 GRANT CONNECT ON DATABASE xps_pricing_test TO pricing_app;
+REVOKE CONNECT ON DATABASE xpress_dev FROM PUBLIC;
+REVOKE CONNECT ON DATABASE xpress_test FROM PUBLIC;
+REVOKE CONNECT ON DATABASE xpress_dev FROM pricing_app;
+REVOKE CONNECT ON DATABASE xpress_test FROM pricing_app;
+COMMIT;
 
--- 3) Por cada base que NO sea de Pricing (reemplace <base> y <rol_del_sistema> según la verificación del paso 1):
---    BEGIN;
---    GRANT CONNECT ON DATABASE <base> TO <rol_del_sistema>;   -- uno por cada rol que usa esa base
---    REVOKE CONNECT ON DATABASE <base> FROM PUBLIC;
---    REVOKE CONNECT ON DATABASE <base> FROM pricing_app;      -- por si se le concedió explícitamente
---    COMMIT;
+-- 3) Verificación después: repetir la consulta del paso 1. Esperado:
+--    xpress_dev y xpress_test → public_conecta = false, pricing_app_conecta = false, xpress_app_conecta = true.
+--    xps_pricing y xps_pricing_test → pricing_app_conecta = true.
+--    Después, abrir XPS-Reborn y comprobar que sigue funcionando.
 --
---    Bases de otros sistemas encontradas el 2026-10-15 (consulta de solo lectura): ver la lista al final del archivo.
+-- Para deshacer (si XPS-Reborn dejara de conectarse):
+--    GRANT CONNECT ON DATABASE xpress_dev TO PUBLIC;
+--    GRANT CONNECT ON DATABASE xpress_test TO PUBLIC;
 
--- 4) Comprobación final: repetir la consulta del paso 1. Esperado: pricing_app_conecta = true solo en xps_pricing y
---    xps_pricing_test.
+-- ===== RESULTADO DE LA APLICACIÓN (2026-10-16, D-CIE-3) =====
+-- Se ejecutó como postgres. La contraseña de postgres se restableció y quedó SOLO en Secret Manager: secreto
+-- xps-sql-postgres. Las 7 sentencias del paso 2 corrieron sin error; la de xps_pricing_test se omitió porque pricing_app
+-- ya es su dueño. Después:
+--   xpress_dev        public=false  pricing_app=TRUE   xpress_app=true
+--   xpress_test       public=TRUE   pricing_app=TRUE   xpress_app=true
+--   xps_pricing       public=true   pricing_app=true
+--   xps_pricing_test  public=true   pricing_app=true
+-- Restricción PARCIAL (hueco H-F5-6):
+--   * xpress_dev: pricing_app sigue entrando porque es MIEMBRO de cloudsqlsuperuser, dueño de esa base.
+--   * xpress_test: el REVOKE de PUBLIC no tuvo efecto (PostgreSQL solo avisa): el dueño es xpress_app y postgres no es
+--     miembro de ese rol.
+-- xpress_app conserva el acceso a las dos bases; no hubo que deshacer nada.
+-- Para completarlo (decisión de François; puede afectar las migraciones de Pricing):
+--   1) ALTER DATABASE xps_pricing OWNER TO pricing_app;   -- pricing_app conserva sus derechos sobre su base
+--   2) REVOKE cloudsqlsuperuser FROM pricing_app;         -- deja de heredar derechos de dueño sobre xpress_dev
+--   3) Como xpress_app (o un miembro de ese rol): REVOKE CONNECT ON DATABASE xpress_test FROM PUBLIC;
+--   Después: Regla 18 y una migración de prueba para confirmar que pricing_app sigue migrando.

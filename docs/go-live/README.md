@@ -4,6 +4,8 @@ Escrito para: François. Él ejecuta cada paso; el EJECUTOR preparó los comando
 
 ## 1. Rotar la contraseña de `pricing_app`
 
+**No se hace: riesgo aceptado por François (D-FIN-2, 2026-10-16).** Lo que sigue queda solo como referencia.
+
 La contraseña nueva debe tener 24 caracteres o más, generada en el gestor de contraseñas. El comando la pide sin mostrarla:
 
 ```powershell
@@ -60,6 +62,8 @@ El proxy local (`docs/Encender-Auth-Proxy.md`) usa una llave JSON de una cuenta 
 **Mejor aún:** usar `gcloud auth application-default login` en lugar de una llave JSON.
 
 ## 5. Llaves de Tencent
+
+**No se rotan: riesgo aceptado por François (D-FIN-2, 2026-10-16).**
 
 Las llaves de Tencent quedaron escritas en el chat de la sesión del 2026-10-15.
 

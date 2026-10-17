@@ -1,0 +1,20 @@
+# F5: lo que NO sube a Cloud Build con `gcloud run deploy --source .` (secretos, documentos privados y locales).
+.gcloudignore
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+.venv/
+.pytest_cache/
+**/__pycache__/
+*.pyc
+docs/
+salidas/
+tests/
+start.txt
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+frontend/image.png
