@@ -48,4 +48,14 @@ diferencias: 0
 
 ## 4. Resultado en producción
 
-Ver §5, que se completa en el paso de producción del cierre.
+- **"Antes":** capturado el 2026-10-17 sobre `xps_pricing`, en solo lectura y con el código de F5 en 0006.
+- **"Después":** capturado tras el respaldo 1792276818942 y la migración a 0007, con el código de E0.
+
+```
+base xps_pricing: 4 cotizaciones, 8 líneas guardadas, 0 líneas recalculadas, 4 HTML de PDF
+diferencias: 0
+```
+
+"0 líneas recalculadas" significa que en producción la propuesta de líneas no se puede rehacer: las tarifas de prueba quedaron inactivas al cerrar F5. El error que devuelve el motor (`TARIFA_NO_ELEGIBLE` o `SIN_TARIFA`) se capturó y también salió idéntico. Las líneas guardadas, los totales y el HTML del PDF son iguales.
+
+Además, la verificación HTTP contra Cloud Run (revisión `xps-pricing-00003-7l9`) confirmó el mismo total y las mismas líneas de las 4 cotizaciones y la generación de sus PDF, con "vía aérea" y "Aerolínea".
