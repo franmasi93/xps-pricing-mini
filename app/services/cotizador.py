@@ -61,13 +61,14 @@ class Bulto:
 
 @dataclass(frozen=True)
 class Carga:
-    modo: str
+    modo: str  # código del servicio (E0)
     peso_kg: Decimal = CERO
     cbm: Decimal | None = None
     dimensiones: tuple[Bulto, ...] = ()
     contenedores: dict[int, int] = field(default_factory=dict)  # tipo_equipo_id → cantidad
     valor_mercancia_usd: Decimal | None = None
     peso_lb: Decimal | None = None  # lo capturado en libras (H-F4-1); None si la carga se capturó en kg
+    forma_cobro: str | None = None  # E0: la del servicio; None = se busca en el catálogo por el código
 
 
 def carga_incompleta(mensaje: str) -> ErrorNegocio:
@@ -115,13 +116,19 @@ def total_contenedores(carga: Carga) -> int:
     return sum(carga.contenedores.values())
 
 
+def forma_de_carga(carga: Carga):
+    """La estrategia de cobro de la carga (E0): la indicada o la del servicio en el catálogo."""
+    from app.services import formas_cobro, servicios
+
+    if carga.forma_cobro is not None:
+        return formas_cobro.forma(carga.forma_cobro)
+    return servicios.forma_de_codigo(carga.modo)
+
+
 def cantidad_cobrable(carga: Carga) -> Decimal:
-    """§10.1: AEREO → peso cobrable; LCL → W/M; FCL → total de contenedores."""
-    if carga.modo == "AEREO":
-        return peso_cobrable(carga)
-    if carga.modo == "LCL":
-        return peso_medida(carga)
-    return Decimal(total_contenedores(carga))
+    """§10.1 según la forma de cobro: peso cobrable (PESO_TRAMOS), W/M (VOLUMEN_WM), total de equipos
+    (UNIDAD_EQUIPO) o 1 (TARIFA_PLANA)."""
+    return forma_de_carga(carga).cantidad_cobrable(carga)
 
 
 def cantidad_por_unidad(
@@ -374,14 +381,14 @@ def concepto_clave(concepto: str) -> str:
 
 
 def _rango(recargo, proveedor_flete_id: int | None) -> tuple[int, int]:
-    """Menor es mejor: 1) proveedor del flete antes que NULL; 2) tipo de equipo > modo > todos."""
+    """Menor es mejor: 1) proveedor del flete antes que NULL; 2) tipo de equipo > servicio > todos."""
     proveedor = 0 if proveedor_flete_id is not None and recargo.proveedor_id == proveedor_flete_id else 1
     especificidad = 0 if recargo.tipo_equipo_id is not None else (1 if recargo.modo is not None else 2)
     return proveedor, especificidad
 
 
 def recargos_aplicables(recargos: Iterable[Any], proveedor_flete_id: int | None, modo: str, tipos: Iterable[int]) -> list:
-    """Filtra por proveedor (el del flete o NULL), modo y tipo de equipo de la cotización."""
+    """Filtra por proveedor (el del flete o NULL), servicio y tipo de equipo de la cotización."""
     tipos = set(tipos)
     salida = []
     for recargo in recargos:
@@ -396,13 +403,22 @@ def recargos_aplicables(recargos: Iterable[Any], proveedor_flete_id: int | None,
 
 
 def elegir_mas_especifico(
-    recargos: Iterable[Any], proveedor_flete_id: int | None, modo: str, tipos: Iterable[int] = ()
+    recargos: Iterable[Any],
+    proveedor_flete_id: int | None,
+    modo: str,
+    tipos: Iterable[int] = (),
+    por_tipo_equipo: bool | None = None,
 ) -> list[tuple[Any, tuple[int, ...]]]:
-    """Un recargo por concepto (aéreo y LCL) o por concepto y tipo de equipo (FCL, H6).
+    """Un recargo por concepto o, si el servicio cobra por tipo de equipo, por concepto y tipo (H6).
 
-    Devuelve (recargo, tipos que cubre). En FCL, un recargo genérico que gana en varios tipos sale
-    una sola vez con todos los tipos que cubre; uno específico cubre solo su tipo.
+    Devuelve (recargo, tipos que cubre). Con tipo de equipo, un recargo genérico que gana en varios tipos
+    sale una sola vez con todos los tipos que cubre; uno específico cubre solo su tipo.
+    `por_tipo_equipo` None: se lee del servicio `modo` en el catálogo (E0).
     """
+    if por_tipo_equipo is None:
+        from app.services import servicios
+
+        por_tipo_equipo = servicios.forma_de_codigo(modo).usa_tipo_equipo
     tipos = sorted(set(tipos))
     candidatos = recargos_aplicables(recargos, proveedor_flete_id, modo, tipos)
     por_concepto: dict[str, list] = {}
@@ -412,7 +428,7 @@ def elegir_mas_especifico(
     elegidos: list[tuple[Any, tuple[int, ...]]] = []
     for concepto in sorted(por_concepto):
         grupo = por_concepto[concepto]
-        if modo != "FCL":
+        if not por_tipo_equipo:
             ganador = min(grupo, key=lambda r: (_rango(r, proveedor_flete_id), r.id))
             elegidos.append((ganador, ()))
             continue

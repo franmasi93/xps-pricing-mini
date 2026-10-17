@@ -42,13 +42,13 @@ editor_catalogo = require_permiso("catalogo.editar")
 
 
 @router.get("/tipos-equipo", response_model=list[TipoEquipoSalida], tags=["tarifas"], dependencies=[Depends(get_usuario_habilitado)])
-def listar_tipos_equipo(activo: bool | None = None, db: Session = Depends(get_db)):
-    return servicio_tipos.listar_tipos_equipo(db, activo=activo)
+def listar_tipos_equipo(activo: bool | None = None, servicio_id: int | None = None, db: Session = Depends(get_db)):
+    return servicio_tipos.listar_tipos_equipo(db, activo=activo, servicio_id=servicio_id)
 
 
 @router.post("/tipos-equipo", response_model=TipoEquipoSalida, status_code=status.HTTP_201_CREATED, tags=["tarifas"])
 def crear_tipo_equipo(datos: TipoEquipoCrear, db: Session = Depends(get_db), actor: Usuario = Depends(editor_catalogo)):
-    return servicio_tipos.crear_tipo_equipo(db, actor, datos.codigo, datos.nombre)
+    return servicio_tipos.crear_tipo_equipo(db, actor, datos.codigo, datos.nombre, datos.servicio_id)
 
 
 @router.get("/tipos-equipo/{tipo_id}", response_model=TipoEquipoSalida, tags=["tarifas"], dependencies=[Depends(get_usuario_habilitado)])

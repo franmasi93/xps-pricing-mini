@@ -4,6 +4,8 @@
 - No superposición de vigencias (D-F2-1): verificación previa (devuelve el id en conflicto) y, como
   respaldo ante carreras, la exclusión `ex_tarifa_vigencia_sin_superposicion` de la base.
 - Venta calculada siempre con `precio_venta` (§15.3: nunca es un input editable).
+- E0: "modo" es el código del servicio; las reglas (ubicaciones, tipo de equipo, unidades, libras y tramos)
+  salen del servicio y de su forma de cobro (services/servicios, services/formas_cobro).
 """
 from datetime import date, timedelta
 from decimal import Decimal
@@ -16,7 +18,6 @@ from app.core import fechas
 from app.core.errors import ErrorNegocio, confirmar, enviar
 from app.core.rbac import permisos_de
 from app.models import Moneda, Proveedor, Puerto, Tarifa, TipoEquipo, TramoAereo, Usuario
-from app.models.tarifas import DESDE_PERMITIDOS
 from app.schemas.tarifas import (
     PuertoRef,
     Referencia,
@@ -28,11 +29,10 @@ from app.schemas.tarifas import (
     TramoCostoMargen,
     TramoVenta,
 )
-from app.services import auditoria, precio_venta
+from app.services import auditoria, precio_venta, servicios
 from app.services.configuracion import leer_config
 
 NIVEL_VENTA, NIVEL_COSTO, NIVEL_MARGEN = "venta", "costo", "margen"
-UNIDADES_TARIFA = {"AEREO": {"KG", "ENVIO"}, "LCL": {"WM", "CBM", "ENVIO"}, "FCL": {"CONTENEDOR"}}
 CAMPOS_VENTA = (
     "costo",
     "moneda_id",
@@ -196,36 +196,55 @@ def _clave_tarifa(datos: dict[str, Any]) -> list:
     ]
 
 
+def error_ubicaciones(servicio) -> ErrorNegocio:
+    return ErrorNegocio(
+        422,
+        "PUERTO_MODO_INCONSISTENTE",
+        f"El servicio {servicio.nombre} va de {servicio.origen.nombre.lower()} a {servicio.destino.nombre.lower()}",
+    )
+
+
+def validar_tipo_equipo(db: Session, servicio, tipo_equipo_id: int | None, que: str, exigir_activo: bool) -> None:
+    """El tipo de equipo solo existe en servicios que lo usan, y debe ser de ese servicio (antes: solo FCL)."""
+    if not servicios.forma_de(servicio).usa_tipo_equipo:
+        if tipo_equipo_id is not None:
+            raise ErrorNegocio(422, "TIPO_EQUIPO_NO_PERMITIDO", f"{que} {servicio.codigo} no llevan tipo de equipo")
+        return
+    if tipo_equipo_id is None:
+        return
+    tipo = referencia_activa(db, TipoEquipo, tipo_equipo_id, "el tipo de equipo", exigir_activo)
+    if tipo.servicio_id != servicio.id:
+        raise ErrorNegocio(
+            422, "TIPO_EQUIPO_NO_PERMITIDO", f"El tipo de equipo {tipo.codigo} no es del servicio {servicio.codigo}"
+        )
+
+
 def _validar_tarifa(db: Session, datos: dict[str, Any], excluir_id: int | None = None) -> dict[str, Any]:
     """Valida el estado FINAL de la tarifa. Las referencias se exigen activas solo si la tarifa queda activa."""
     activa = datos.get("activo", True)
+    servicio = servicios.servicio_utilizable(db, datos["modo"], activa)
+    forma = servicios.forma_de(servicio)
     referencia_activa(db, Proveedor, datos["proveedor_id"], "el proveedor", activa)
     referencia_activa(db, Moneda, datos["moneda_id"], "la moneda", activa)
     origen = referencia_activa(db, Puerto, datos["origen_puerto_id"], "el puerto de origen", activa)
     destino = referencia_activa(db, Puerto, datos["destino_puerto_id"], "el puerto de destino", activa)
-    modo = datos["modo"]
+    modo = servicio.codigo
     if origen.id == destino.id:
         raise ErrorNegocio(422, "ORIGEN_IGUAL_DESTINO", "El origen y el destino deben ser distintos")
-    tipo_puerto = "AEREO" if modo == "AEREO" else "MARITIMO"
-    if origen.tipo != tipo_puerto or destino.tipo != tipo_puerto:
-        raise ErrorNegocio(
-            422,
-            "PUERTO_MODO_INCONSISTENTE",
-            "El modo AEREO usa aeropuertos; LCL y FCL usan puertos marítimos",
-        )
-    if modo == "FCL":
-        if datos.get("tipo_equipo_id") is None:
-            raise ErrorNegocio(422, "TIPO_EQUIPO_REQUERIDO", "Una tarifa FCL requiere el tipo de equipo")
-        referencia_activa(db, TipoEquipo, datos["tipo_equipo_id"], "el tipo de equipo", activa)
-    elif datos.get("tipo_equipo_id") is not None:
-        raise ErrorNegocio(422, "TIPO_EQUIPO_NO_PERMITIDO", "Solo las tarifas FCL llevan tipo de equipo")
-    if datos["rate_unit"] not in UNIDADES_TARIFA[modo]:
-        permitidas = ", ".join(sorted(UNIDADES_TARIFA[modo]))
+    if origen.tipo != servicio.tipo_ubicacion_origen or destino.tipo != servicio.tipo_ubicacion_destino:
+        raise error_ubicaciones(servicio)
+    if forma.usa_tipo_equipo and datos.get("tipo_equipo_id") is None:
+        raise ErrorNegocio(422, "TIPO_EQUIPO_REQUERIDO", f"Una tarifa {modo} requiere el tipo de equipo")
+    validar_tipo_equipo(db, servicio, datos.get("tipo_equipo_id"), "Las tarifas", activa)
+    if datos["rate_unit"] not in forma.unidades_tarifa:
+        permitidas = ", ".join(sorted(forma.unidades_tarifa))
         raise ErrorNegocio(422, "RATE_UNIT_INCOMPATIBLE", f"Con {modo} la unidad debe ser una de: {permitidas}")
     datos["unidad_peso"] = datos.get("unidad_peso") or "KG"
-    if datos["unidad_peso"] == "LB" and (modo != "AEREO" or datos["rate_unit"] != "KG"):
+    if datos["unidad_peso"] == "LB" and (not servicio.permite_libras or datos["rate_unit"] != "KG"):
         raise ErrorNegocio(
-            422, "UNIDAD_PESO_INCOMPATIBLE", "La tarifa por libra solo existe en AEREO con precio por peso"
+            422,
+            "UNIDAD_PESO_INCOMPATIBLE",
+            "La tarifa por libra solo existe en servicios que admiten libras y con precio por peso (KG)",
         )
     datos["transportista"] = (datos.get("transportista") or "").strip() or None
     validar_venta(datos)
@@ -382,7 +401,7 @@ def actualizar_tarifa(db: Session, actor: Usuario, tarifa_id: int, cambios: dict
 def _foto_tramos(tarifa: Tarifa) -> list[dict[str, Any]]:
     return [
         {
-            "desde_kg": tramo.desde_kg,
+            "desde_kg": servicios.numero(tramo.desde_kg),
             "costo_kg": precio_venta.redondear(Decimal(tramo.costo_kg)),
             "precio_venta_kg": None
             if tramo.precio_venta_kg is None
@@ -442,20 +461,25 @@ def obtener_tramos(db: Session, usuario: Usuario, tarifa_id: int):
     return presentar_tramos(obtener_tarifa(db, tarifa_id), nivel_de(usuario))
 
 
-def _validar_tramos(tarifa: Tarifa, tramos: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if tarifa.modo != "AEREO" or tarifa.rate_unit != "KG":
-        raise ErrorNegocio(422, "TRAMOS_NO_PERMITIDOS", "Solo las tarifas AEREO por KG llevan tramos")
-    desdes = [tramo["desde_kg"] for tramo in tramos]
-    # H-F4-2: en una tarifa por libra, desde_kg es "desde, en libras" (0, 100, 220, 660, 1100, 2200).
-    permitidos_unidad = DESDE_PERMITIDOS[tarifa.unidad_peso]
+def _validar_tramos(db: Session, tarifa: Tarifa, tramos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    servicio = servicios.servicio_utilizable(db, tarifa.modo, exigir_activo=False)
+    if not servicios.forma_de(servicio).usa_tramos or tarifa.rate_unit != "KG":
+        raise ErrorNegocio(
+            422, "TRAMOS_NO_PERMITIDOS", "Solo las tarifas de servicios por peso con tramos y precio por KG llevan tramos"
+        )
+    desdes = [Decimal(str(tramo["desde_kg"])) for tramo in tramos]
+    # H-F4-2: en una tarifa por libra, desde_kg es "desde, en libras". E0: los permitidos son los tramos activos
+    # del servicio en esa unidad (antes, fijos: 0, 45, 100, 300, 500, 1000 kg y 0, 100, 220, 660, 1100, 2200 lb).
+    permitidos_unidad = servicios.desdes_permitidos(db, servicio.codigo, tarifa.unidad_peso)
+    unidad = tarifa.unidad_peso.lower()
     if any(desde not in permitidos_unidad for desde in desdes):
-        permitidos = ", ".join(str(d) for d in permitidos_unidad)
-        unidad = tarifa.unidad_peso.lower()
+        permitidos = ", ".join(servicios.texto_desde(d) for d in permitidos_unidad) or "ninguno (cárguelos en el servicio)"
         raise ErrorNegocio(422, "TRAMOS_INVALIDOS", f"Los tramos permitidos desde {unidad} son: {permitidos}")
     if len(set(desdes)) != len(desdes):
         raise ErrorNegocio(422, "TRAMOS_INVALIDOS", "Hay tramos repetidos")
     if tramos and 0 not in desdes:
-        raise ErrorNegocio(422, "TRAMO_CERO_REQUERIDO", "El tramo desde 0 kg (-45) es obligatorio")
+        raise ErrorNegocio(422, "TRAMO_CERO_REQUERIDO", f"El tramo desde 0 {unidad} es obligatorio")
+    tramos = [tramo | {"desde_kg": desde} for tramo, desde in zip(tramos, desdes)]
     validados = []
     for tramo in sorted(tramos, key=lambda t: t["desde_kg"]):
         costo_kg = precio_venta.validar_monto(tramo["costo_kg"], "El costo por kg", positivo=True)
@@ -479,7 +503,7 @@ def reemplazar_tramos(db: Session, actor: Usuario, tarifa_id: int, tramos: list[
     ).one_or_none()
     if tarifa is None:
         raise ErrorNegocio(404, "TARIFA_NO_ENCONTRADA", "Tarifa no encontrada")
-    validados = _validar_tramos(tarifa, tramos)
+    validados = _validar_tramos(db, tarifa, tramos)
     campos_auditados = ("costo", "precio_venta_manual")
     antes = foto(tarifa, campos_auditados) | {"tramos": _foto_tramos(tarifa)}
 

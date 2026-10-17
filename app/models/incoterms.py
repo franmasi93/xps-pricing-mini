@@ -1,8 +1,15 @@
-"""Incoterms 2020: matriz de bloques para IMPORTACIÓN (§9.1). Tabla creada por la migración 0002."""
+"""Incoterms 2020: matriz de bloques para IMPORTACIÓN (§9.1). Tabla creada por la migración 0002.
+
+E0 (0007): los servicios permitidos viven en incoterm_servicio (reemplaza a solo_maritimo).
+"""
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Identity, String, func, true
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+if TYPE_CHECKING:
+    from app.models.servicios import Servicio
 
 from app.models.base import Base
 
@@ -26,7 +33,6 @@ class Incoterm(Base):
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     codigo: Mapped[str] = mapped_column(String(3), unique=True)
     nombre: Mapped[str] = mapped_column(String(60))
-    solo_maritimo: Mapped[bool]
     recogida_origen: Mapped[bool]
     despacho_export: Mapped[bool]
     gastos_origen: Mapped[bool]
@@ -40,3 +46,14 @@ class Incoterm(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     actualizado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+
+    servicios: Mapped[list["Servicio"]] = relationship(
+        secondary="incoterm_servicio", order_by="(Servicio.orden, Servicio.id)"
+    )
+
+    @property
+    def solo_maritimo(self) -> bool:
+        """Compatibilidad con F1–F5: verdadero si todos sus servicios van de puerto marítimo a puerto marítimo."""
+        return bool(self.servicios) and all(
+            s.tipo_ubicacion_origen == s.tipo_ubicacion_destino == "MARITIMO" for s in self.servicios
+        )

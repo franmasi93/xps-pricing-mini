@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import ContadorCotizacion, CotizacionContenedor, LineaCotizacion, Recargo
 from fabricas import crear_contacto, crear_cotizacion, crear_moneda, crear_tarifa, payload_recargo, tipo_equipo, usd
+from matriz_rbac import conteo_rbac_base
 from test_seed_f2 import _head_de_alembic
 
 CHECKS_NUEVOS = {
@@ -38,7 +39,7 @@ def test_head_tablas_y_condiciones(db_session):  # T208
     assert db_session.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == _head_de_alembic()
     for tabla in ("contador_cotizacion", "cotizacion", "cotizacion_contenedor", "linea_cotizacion"):
         contar(tabla)
-    assert (contar("rol"), contar("permiso"), contar("rol_permiso"), contar("tipo_equipo")) == (4, 15, 38, 5)
+    assert (*conteo_rbac_base(db_session), contar("tipo_equipo")) == (4, 15, 38, 5)  # D-E0-1
     condiciones = db_session.execute(
         text("SELECT valor FROM configuracion WHERE clave = 'condiciones_generales_pdf'")
     ).scalar_one()

@@ -5,6 +5,8 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import text
 
+from matriz_rbac import conteo_rbac_base
+
 RAIZ = Path(__file__).resolve().parent.parent
 TIPOS_EQUIPO = {
     "20GP": "Contenedor 20' estándar",
@@ -29,7 +31,7 @@ def test_seed_tipos_equipo_y_rbac(db_session):  # T138
     assert db_session.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == _head_de_alembic()
     tipos = dict(db_session.execute(text("SELECT codigo, nombre FROM tipo_equipo WHERE activo")).all())
     assert tipos == TIPOS_EQUIPO
-    assert (contar("rol"), contar("permiso"), contar("rol_permiso")) == (4, 15, 38)
+    assert conteo_rbac_base(db_session) == (4, 15, 38)  # D-E0-1: sin los permisos de las extensiones
     exclusiones = set(db_session.execute(text("SELECT conname FROM pg_constraint WHERE contype = 'x'")).scalars())
     assert exclusiones.issuperset({"ex_tarifa_vigencia_sin_superposicion", "ex_recargo_vigencia_sin_superposicion"})
     assert db_session.execute(text("SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'")).scalar_one() == 1

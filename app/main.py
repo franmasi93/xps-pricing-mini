@@ -17,6 +17,7 @@ from app.routers import (
     proveedores,
     roles,
     salud,
+    servicios,
     tarifas,
     usuarios,
 )
@@ -36,6 +37,7 @@ api.include_router(geografia.router)
 api.include_router(monedas.router)
 api.include_router(proveedores.router)
 api.include_router(catalogos.router)
+api.include_router(servicios.router)
 api.include_router(tarifas.router)
 api.include_router(clientes.router)
 api.include_router(cotizaciones.router)

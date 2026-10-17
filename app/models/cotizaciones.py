@@ -17,6 +17,7 @@ from app.models.incoterms import Incoterm
 from app.models.monedas import Moneda
 from app.models.proveedores import Proveedor
 from app.models.seguridad import Usuario
+from app.models.servicios import Servicio
 from app.models.tarifas import Recargo, Tarifa, TipoEquipo
 
 ESTADOS = ("BORRADOR", "EMITIDA", "ENVIADA", "ACEPTADA", "RECHAZADA")
@@ -50,7 +51,7 @@ class Cotizacion(CatalogoMixin, Base):
     comercial_id: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="RESTRICT"))
     sentido: Mapped[str] = mapped_column(String(11))
     incoterm_id: Mapped[int] = mapped_column(ForeignKey("incoterm.id", ondelete="RESTRICT"))
-    modo: Mapped[str] = mapped_column(String(5))
+    modo: Mapped[str] = mapped_column(ForeignKey("servicio.codigo", ondelete="RESTRICT"))  # E0: código del servicio
     origen_puerto_id: Mapped[int] = mapped_column(ForeignKey("puerto.id", ondelete="RESTRICT"))
     destino_puerto_id: Mapped[int] = mapped_column(ForeignKey("puerto.id", ondelete="RESTRICT"))
     proveedor_recargos_id: Mapped[int | None] = mapped_column(ForeignKey("proveedor.id", ondelete="RESTRICT"))
@@ -86,6 +87,7 @@ class Cotizacion(CatalogoMixin, Base):
     contacto: Mapped[ContactoCliente | None] = relationship()
     comercial: Mapped[Usuario] = relationship(foreign_keys=[comercial_id])
     incoterm: Mapped[Incoterm] = relationship()
+    servicio: Mapped[Servicio] = relationship(foreign_keys=[modo], viewonly=True)
     origen: Mapped[Puerto] = relationship(foreign_keys=[origen_puerto_id])
     destino: Mapped[Puerto] = relationship(foreign_keys=[destino_puerto_id])
     proveedor_recargos: Mapped[Proveedor | None] = relationship()

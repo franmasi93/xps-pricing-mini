@@ -3,7 +3,8 @@
 - Mismo esquema de venta, mínimos, decimales, vigencias y gating que la tarifa (services/tarifas).
 - No superposición (D-F2-1) por (proveedor o null, puerto, lado, bloque, concepto, modo o null,
   tipo_equipo o null); el concepto se compara sin distinguir mayúsculas.
-- Unidad según el modo (A1, D-F2-10); sin modo, según el tipo de puerto.
+- Unidad según el servicio (A1, D-F2-10; E0: la forma de cobro del servicio); sin servicio, según el tipo de
+  ubicación del puerto (las unidades de los servicios que la usan, sin las que exigen tipo de equipo).
 - Seguro por envío o como % del valor de la mercancía (PCT_VALOR, solo en USD; D-F3-3).
 - % sobre el Recibo de Caja (PCT_RECIBO, D3 de F4): costo = porcentaje, mínimo en USD; solo USD y en cualquier
   bloque menos el seguro (el flete principal no es un recargo).
@@ -16,9 +17,9 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core import fechas
 from app.core.errors import ErrorNegocio, confirmar, enviar
-from app.models import Moneda, Proveedor, Puerto, Recargo, TipoEquipo, Usuario
+from app.models import Moneda, Proveedor, Puerto, Recargo, Usuario
 from app.schemas.tarifas import PuertoRef, RecargoCosto, RecargoCostoMargen, RecargoVenta, Referencia, TipoEquipoRef
-from app.services import auditoria, precio_venta
+from app.services import auditoria, precio_venta, servicios
 from app.services.tarifas import (
     CAMPOS_VENTA,
     NIVEL_COSTO,
@@ -33,6 +34,7 @@ from app.services.tarifas import (
     precios_de,
     referencia_activa,
     superpuesta,
+    validar_tipo_equipo,
     validar_venta,
 )
 
@@ -40,9 +42,6 @@ LADO_BLOQUES = {
     "ORIGEN": {"RECOGIDA_ORIGEN", "DESPACHO_EXPORT", "GASTOS_ORIGEN", "SEGURO"},
     "DESTINO": {"GASTOS_DESTINO", "DESPACHO_IMPORT", "ENTREGA_FINAL", "SEGURO"},
 }
-# A1 + D-F2-10: con modo, manda el modo; sin modo, el tipo de puerto. CONTENEDOR solo con FCL.
-UNIDADES_POR_MODO = {"AEREO": {"KG", "ENVIO"}, "LCL": {"WM", "CBM", "ENVIO"}, "FCL": {"CONTENEDOR", "ENVIO"}}
-UNIDADES_POR_PUERTO = {"AEREO": {"KG", "ENVIO"}, "MARITIMO": {"WM", "CBM", "ENVIO"}}
 UNIDADES_SEGURO = {"ENVIO", "PCT_VALOR"}
 CAMPOS_RECARGO = (
     "proveedor_id",
@@ -79,6 +78,8 @@ def _clave_recargo(datos: dict[str, Any]) -> list:
 
 def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None = None) -> dict[str, Any]:
     activo = datos.get("activo", True)
+    modo = datos.get("modo")
+    servicio = servicios.servicio_utilizable(db, modo, activo) if modo is not None else None
     puerto = referencia_activa(db, Puerto, datos["puerto_id"], "el puerto", activo)
     if datos.get("proveedor_id") is not None:
         referencia_activa(db, Proveedor, datos["proveedor_id"], "el proveedor", activo)
@@ -94,17 +95,21 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
             422, "LADO_BLOQUE_INCOHERENTE", f"El bloque {datos['bloque_incoterm']} no corresponde al lado {datos['lado']}"
         )
 
-    modo = datos.get("modo")
-    if modo is not None:
-        tipo_puerto = "AEREO" if modo == "AEREO" else "MARITIMO"
-        if puerto.tipo != tipo_puerto:
+    if servicio is not None:
+        esperado = servicio.tipo_ubicacion_origen if datos["lado"] == "ORIGEN" else servicio.tipo_ubicacion_destino
+        if puerto.tipo != esperado:
             raise ErrorNegocio(
-                422, "PUERTO_MODO_INCONSISTENTE", "El modo AEREO usa aeropuertos; LCL y FCL usan puertos marítimos"
+                422,
+                "PUERTO_MODO_INCONSISTENTE",
+                f"El servicio {servicio.nombre} va de {servicio.origen.nombre.lower()} a "
+                f"{servicio.destino.nombre.lower()}; este puerto es {puerto.tipo_ubicacion.nombre.lower()}",
             )
     if datos.get("tipo_equipo_id") is not None:
-        if modo != "FCL":
-            raise ErrorNegocio(422, "TIPO_EQUIPO_NO_PERMITIDO", "Solo los recargos FCL llevan tipo de equipo")
-        referencia_activa(db, TipoEquipo, datos["tipo_equipo_id"], "el tipo de equipo", activo)
+        if servicio is None:
+            raise ErrorNegocio(
+                422, "TIPO_EQUIPO_NO_PERMITIDO", "Solo los recargos de un servicio con tipo de equipo llevan tipo de equipo"
+            )
+        validar_tipo_equipo(db, servicio, datos["tipo_equipo_id"], "Los recargos", activo)
 
     # D-F3-3: el seguro va por envío o como % del valor (PCT_VALOR, solo en USD; el costo es el porcentaje).
     if datos["rate_unit"] == "PCT_VALOR" and datos["bloque_incoterm"] != "SEGURO":
@@ -122,9 +127,13 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
             raise ErrorNegocio(422, "PCT_RECIBO_SOLO_USD", "El % sobre el Recibo de Caja se registra en USD")
         permitidas = {"PCT_RECIBO"}
     else:
-        permitidas = UNIDADES_POR_MODO[modo] if modo is not None else UNIDADES_POR_PUERTO[puerto.tipo]
+        permitidas = (
+            set(servicios.forma_de(servicio).unidades_recargo)
+            if servicio is not None
+            else servicios.unidades_recargo_sin_servicio(db, puerto.tipo)
+        )
     if datos["rate_unit"] not in permitidas:
-        referencia = f"el modo {modo}" if modo is not None else f"un puerto {puerto.tipo.lower()}"
+        referencia = f"el servicio {modo}" if modo is not None else f"un {puerto.tipo_ubicacion.nombre.lower()}"
         raise ErrorNegocio(
             422,
             "RATE_UNIT_INCOMPATIBLE",

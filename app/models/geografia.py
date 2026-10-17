@@ -1,10 +1,24 @@
-"""M2 Geografía: Region → Pais → Puerto. Tablas creadas por la migración 0002."""
-from sqlalchemy import CheckConstraint, ForeignKey, Identity, String
+"""M2 Geografía: Region → Pais → Puerto. Tablas creadas por la migración 0002.
+
+E0 (0007): el tipo del puerto es un catálogo editable (tipo_ubicacion) con su regla de código.
+"""
+from sqlalchemy import CheckConstraint, ForeignKey, Identity, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CatalogoMixin
 
-TIPOS_PUERTO = ("MARITIMO", "AEREO")
+
+class TipoUbicacion(CatalogoMixin, Base):
+    """Puerto marítimo, aeropuerto, terminal terrestre… El código del puerto se valida con su regex (si tiene)."""
+
+    __tablename__ = "tipo_ubicacion"
+
+    id: Mapped[int] = mapped_column(Identity(), primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(10), unique=True)
+    nombre: Mapped[str] = mapped_column(String(60))
+    regex_codigo: Mapped[str | None] = mapped_column(Text)
+    ayuda_codigo: Mapped[str | None] = mapped_column(String(200))
+    prefijo_pais: Mapped[bool] = mapped_column(default=False)
 
 
 class Region(CatalogoMixin, Base):
@@ -30,18 +44,12 @@ class Pais(CatalogoMixin, Base):
 
 class Puerto(CatalogoMixin, Base):
     __tablename__ = "puerto"
-    __table_args__ = (
-        CheckConstraint("tipo IN ('MARITIMO', 'AEREO')", name="tipo"),
-        CheckConstraint(
-            "(tipo = 'MARITIMO' AND codigo ~ '^[A-Z]{2}[A-Z0-9]{3}$') OR (tipo = 'AEREO' AND codigo ~ '^[A-Z]{3}$')",
-            name="codigo_formato",
-        ),
-    )
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
-    codigo: Mapped[str] = mapped_column(String(5), unique=True)
+    codigo: Mapped[str] = mapped_column(String(10), unique=True)
     nombre: Mapped[str] = mapped_column(String(120))
     pais_id: Mapped[int] = mapped_column(ForeignKey("pais.id", ondelete="RESTRICT"), index=True)
-    tipo: Mapped[str] = mapped_column(String(10), index=True)
+    tipo: Mapped[str] = mapped_column(ForeignKey("tipo_ubicacion.codigo", ondelete="RESTRICT"), index=True)
 
     pais: Mapped[Pais] = relationship()
+    tipo_ubicacion: Mapped[TipoUbicacion] = relationship(viewonly=True)

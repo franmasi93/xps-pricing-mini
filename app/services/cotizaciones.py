@@ -6,6 +6,8 @@
 - Solo el BORRADOR se edita; cualquier escritura sobre otro estado → 409 COTIZACION_NO_EDITABLE.
 - Auditoría: emitir, estado, duplicar y ajustes como EDITAR; descartar como DESACTIVAR; la nota
   empieza con la acción real en mayúsculas.
+- E0: "modo" es el código del servicio; lo que dependía del modo (ubicaciones, carga exigida, cantidad, claves de
+  flete, recargos por tipo de equipo) sale del servicio y de su forma de cobro.
 """
 from datetime import date
 from decimal import Decimal
@@ -35,12 +37,12 @@ from app.models import (
     Usuario,
 )
 from app.models.cotizaciones import BLOQUES_LINEA
-from app.services import auditoria, clientes, cotizador, pdf, precio_venta
+from app.services import auditoria, clientes, cotizador, pdf, precio_venta, servicios
 from app.services.empresa import datos_empresa
 from app.services.configuracion import leer_config, leer_iva_tasa
 from app.services.cotizador import Bulto, Carga
 from app.services.incoterms import bloques_incluidos, validar_incoterm_modo
-from app.services.tarifas import NIVEL_MARGEN, NIVEL_VENTA, nivel_de, precio_venta_kg
+from app.services.tarifas import NIVEL_MARGEN, NIVEL_VENTA, error_ubicaciones, nivel_de, precio_venta_kg
 
 EMPRESA = "XPRESS LOGISTICS XPS S.A."
 ESTADOS_FINALES = ("ACEPTADA", "RECHAZADA")
@@ -168,8 +170,14 @@ def _activo(db: Session, modelo, ident: int | None, que: str):
     return objeto
 
 
-def _validar(db: Session, actor: Usuario, datos: dict[str, Any], contenedores: list[dict[str, Any]]) -> dict[str, Any]:
-    """Valida cabecera y carga completas (crear y PATCH) y devuelve los datos normalizados."""
+def _validar(db: Session, actor: Usuario, datos: dict[str, Any], contenedores: list[dict[str, Any]],
+             modo_anterior: str | None = None) -> dict[str, Any]:
+    """Valida cabecera y carga completas (crear y PATCH) y devuelve los datos normalizados.
+
+    El servicio debe estar activo al crear o al cambiarlo; un borrador de un servicio ya desactivado se sigue
+    editando (lo histórico queda intacto)."""
+    servicio = servicios.servicio_utilizable(db, datos["modo"], exigir_activo=datos["modo"] != modo_anterior)
+    forma = servicios.forma_de(servicio)
     cliente = clientes.obtener_cliente(db, actor, datos["cliente_id"])  # ajeno → 404
     if not cliente.activo:
         raise ErrorNegocio(422, "PADRE_INACTIVO", "El cliente está inactivo")
@@ -184,34 +192,30 @@ def _validar(db: Session, actor: Usuario, datos: dict[str, Any], contenedores: l
     if not bloques:
         raise ErrorNegocio(422, "NADA_QUE_COTIZAR", advertencia)
 
-    tipo_puerto = "AEREO" if datos["modo"] == "AEREO" else "MARITIMO"
-    for campo, que in (("origen_puerto_id", "el puerto de origen"), ("destino_puerto_id", "el puerto de destino")):
+    for campo, que, tipo in (
+        ("origen_puerto_id", "el puerto de origen", servicio.tipo_ubicacion_origen),
+        ("destino_puerto_id", "el puerto de destino", servicio.tipo_ubicacion_destino),
+    ):
         puerto = _activo(db, Puerto, datos[campo], que)
-        if puerto.tipo != tipo_puerto:
-            raise ErrorNegocio(
-                422, "PUERTO_MODO_INCONSISTENTE", "El modo AEREO usa aeropuertos; LCL y FCL usan puertos marítimos"
-            )
+        if puerto.tipo != tipo:
+            raise error_ubicaciones(servicio)
     if datos["origen_puerto_id"] == datos["destino_puerto_id"]:
         raise ErrorNegocio(422, "ORIGEN_IGUAL_DESTINO", "El origen y el destino deben ser distintos")
     if datos.get("proveedor_recargos_id") is not None:
         _activo(db, Proveedor, datos["proveedor_recargos_id"], "el proveedor")
 
-    _validar_peso_y_dimensiones(datos)
+    _validar_peso_y_dimensiones(datos, forma.peso_obligatorio)
     datos["cbm"] = _decimal(datos.get("cbm"), "El CBM", 4)
     datos["valor_mercancia_usd"] = _decimal(datos.get("valor_mercancia_usd"), "El valor de la mercancía", 2)
     dimensiones = datos["dimensiones"] or []
-    if datos["modo"] == "LCL" and datos["cbm"] is None and not dimensiones:
-        raise cotizador.carga_incompleta("Indique el CBM o las dimensiones de los bultos")
-    if datos["modo"] == "FCL":
-        if not contenedores:
-            raise cotizador.carga_incompleta("Indique los contenedores (tipo y cantidad)")
-        tipos = [c["tipo_equipo_id"] for c in contenedores]
-        if len(set(tipos)) != len(tipos):
-            raise ErrorNegocio(422, "CONTENEDOR_DUPLICADO", "Cada tipo de contenedor va una sola vez")
-        for tipo in tipos:
-            _activo(db, TipoEquipo, tipo, "el tipo de equipo")
-    elif contenedores:
-        raise ErrorNegocio(422, "CONTENEDORES_NO_PERMITIDOS", "Solo las cotizaciones FCL llevan contenedores")
+    forma.validar_carga(datos, dimensiones, contenedores, servicio.codigo)
+    if forma.usa_tipo_equipo:
+        for contenedor in contenedores:
+            tipo = _activo(db, TipoEquipo, contenedor["tipo_equipo_id"], "el tipo de equipo")
+            if tipo.servicio_id != servicio.id:
+                raise ErrorNegocio(
+                    422, "TIPO_EQUIPO_NO_PERMITIDO", f"El tipo de equipo {tipo.codigo} no es del servicio {servicio.codigo}"
+                )
     for campo in ("notas_cliente", "notas_internas", "transportista", "descripcion_carga"):
         if datos.get(campo) is not None:
             datos[campo] = datos[campo].strip() or None
@@ -225,13 +229,13 @@ def _medida(bulto: dict[str, Any], clave: str) -> Decimal:
     return _decimal(bulto[clave], "Cada medida", 2, positivo=True)
 
 
-def _validar_peso_y_dimensiones(datos: dict[str, Any]) -> None:
-    """KG: igual que en F3. LB (H-F4-1): se guarda lo capturado (lb, pulgadas) y se derivan kg y cm."""
+def _validar_peso_y_dimensiones(datos: dict[str, Any], positivo: bool) -> None:
+    """KG: igual que en F3. LB (H-F4-1): se guarda lo capturado (lb, pulgadas) y se derivan kg y cm.
+    `positivo`: la forma de cobro exige peso mayor que 0 (antes: AEREO)."""
     unidad = datos.get("unidad_peso") or "KG"
     if unidad not in ("KG", "LB"):
         raise ErrorNegocio(422, "CARGA_INVALIDA", "La unidad de peso debe ser KG o LB")
     datos["unidad_peso"] = unidad
-    positivo = datos["modo"] == "AEREO"
     if unidad == "LB":
         datos["peso_lb"] = _decimal(datos.get("peso_lb") or 0, "El peso", 3, positivo=positivo)
         datos["peso_kg"] = lb_a_kg(datos["peso_lb"])
@@ -266,6 +270,7 @@ def carga_de(cotizacion: Cotizacion) -> Carga:
         contenedores={c.tipo_equipo_id: c.cantidad for c in cotizacion.contenedores},
         valor_mercancia_usd=cotizacion.valor_mercancia_usd,
         peso_lb=cotizacion.peso_lb,
+        forma_cobro=cotizacion.servicio.forma_cobro,
     )
 
 
@@ -413,15 +418,7 @@ def _carga_dict(cotizacion: Cotizacion) -> dict[str, Any]:
         ],
     }
     try:
-        if cotizacion.modo == "AEREO":
-            datos["peso_volumetrico_kg"] = _d(cotizador.peso_volumetrico(carga))
-            datos["peso_cobrable_kg"] = _d(cotizador.peso_cobrable(carga))
-            datos["peso_cobrable_lb"] = _d(cotizador.peso_cobrable_en(carga, "LB"))
-            datos["base_cobro"] = (
-                "VOLUMETRICO" if cotizador.peso_volumetrico(carga) > cotizador.a_3(carga.peso_kg) else "REAL"
-            )
-        elif cotizacion.modo == "LCL":
-            datos["peso_medida"] = _d(cotizador.peso_medida(carga))
+        datos |= servicios.forma_de(cotizacion.servicio).datos_carga(carga)
     except ErrorNegocio:
         pass
     return datos
@@ -558,6 +555,14 @@ def presentar_cotizacion(db: Session, usuario: Usuario, cotizacion: Cotizacion, 
             "id": cotizacion.incoterm.id, "codigo": cotizacion.incoterm.codigo, "nombre": cotizacion.incoterm.nombre
         },
         "modo": cotizacion.modo,
+        "servicio": {
+            "codigo": cotizacion.servicio.codigo,
+            "nombre": cotizacion.servicio.nombre,
+            "forma_cobro": cotizacion.servicio.forma_cobro,
+            "usa_tipo_equipo": cotizacion.servicio.usa_tipo_equipo,
+            "etiqueta_transportista": cotizacion.servicio.etiqueta_transportista,
+            "activo": cotizacion.servicio.activo,
+        },
         "origen": _ref_puerto(cotizacion.origen),
         "destino": _ref_puerto(cotizacion.destino),
         "proveedor_recargos_id": cotizacion.proveedor_recargos_id,
@@ -712,9 +717,10 @@ def actualizar_cotizacion(db: Session, actor: Usuario, cotizacion_id: int, cambi
     if "contenedores" in cambios:
         contenedores = cambios.pop("contenedores") or []
     datos |= cambios
-    if datos["modo"] != "FCL" and "contenedores" not in cambios and "modo" in cambios:
+    nuevo_servicio = servicios.servicio_por_codigo(db, datos["modo"])
+    if "modo" in cambios and "contenedores" not in cambios and nuevo_servicio and not nuevo_servicio.usa_tipo_equipo:
         contenedores = []
-    datos = _validar(db, actor, datos, contenedores)
+    datos = _validar(db, actor, datos, contenedores, modo_anterior=cotizacion.modo)
     nuevos_contenedores = sorted((c["tipo_equipo_id"], c["cantidad"]) for c in contenedores)
     borra = any(
         datos[campo] != antes[campo] for campo in CAMPOS_QUE_BORRAN_LINEAS if campo != "contenedores"
@@ -742,10 +748,8 @@ def actualizar_cotizacion(db: Session, actor: Usuario, cotizacion_id: int, cambi
 
 
 def _claves_flete(cotizacion: Cotizacion) -> list[tuple[str, int | None]]:
-    """(clave, tipo_equipo_id): una por tipo de contenedor en FCL; una sola en aéreo y LCL."""
-    if cotizacion.modo == "FCL":
-        return [(str(c.tipo_equipo_id), c.tipo_equipo_id) for c in cotizacion.contenedores]
-    return [(cotizacion.modo, None)]
+    """(clave, tipo_equipo_id): una por tipo de equipo si el servicio cobra por equipo; si no, una sola."""
+    return servicios.forma_de(cotizacion.servicio).claves_flete(cotizacion.modo, cotizacion.contenedores)
 
 
 def _tarifas_elegibles(db: Session, cotizacion: Cotizacion, tipo_equipo_id: int | None, hoy: date) -> list[Tarifa]:
@@ -857,7 +861,9 @@ def _elegir_tarifas(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int
             )
         tarifas.append(tarifa)
     if len({t.proveedor_id for t in tarifas}) > 1:
-        raise ErrorNegocio(422, "PROVEEDORES_DISTINTOS", "En FCL todas las tarifas deben ser del mismo proveedor")
+        raise ErrorNegocio(
+            422, "PROVEEDORES_DISTINTOS", f"En {cotizacion.modo} todas las tarifas deben ser del mismo proveedor"
+        )
     return tarifas
 
 
@@ -973,7 +979,8 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
         bloque = BLOQUE_RECARGO[campo]
         puerto, lado = _puerto_de_bloque(cotizacion, bloque)
         elegidos = cotizador.elegir_mas_especifico(
-            _recargos_vigentes(db, puerto, bloque, lado, hoy), proveedor_flete, cotizacion.modo, tipos
+            _recargos_vigentes(db, puerto, bloque, lado, hoy), proveedor_flete, cotizacion.modo, tipos,
+            por_tipo_equipo=cotizacion.servicio.usa_tipo_equipo,
         )
         if not elegidos:
             avisos.append(f"Sin recargo cargado para {bloque} en {puerto.codigo}")
@@ -1210,6 +1217,7 @@ def _snapshot(cotizacion: Cotizacion, condiciones: str, totales: cotizador.Total
         "incoterm": {"codigo": cotizacion.incoterm.codigo, "nombre": cotizacion.incoterm.nombre},
         "sentido": cotizacion.sentido,
         "modo": cotizacion.modo,
+        "servicio": servicios.snapshot_servicio(cotizacion.servicio),  # E0: textos del PDF congelados
         "carga": _carga_dict(cotizacion),
         "transit_time": _texto_dias([t.transit_time_dias for t in fletes]),
         "dias_libres": _texto_dias([t.dias_libres for t in fletes]),
@@ -1359,7 +1367,7 @@ def duplicar_cotizacion(db: Session, actor: Usuario, cotizacion_id: int) -> dict
     elegidas = {}
     for linea in origen.lineas:
         if linea.tarifa_id is not None:
-            clave = str(linea.tipo_equipo_id) if origen.modo == "FCL" else origen.modo
+            clave = str(linea.tipo_equipo_id) if origen.servicio.usa_tipo_equipo else origen.modo
             elegidas[clave] = linea.tarifa_id
     avisos: list[str] = []
     with db.no_autoflush:

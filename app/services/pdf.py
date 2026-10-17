@@ -31,11 +31,6 @@ FUENTE_INTER = DIR_PLANTILLAS / "fonts" / "Inter.ttf"
 FUENTE_MONO = DIR_PLANTILLAS / "fonts" / "JetBrainsMono.ttf"
 RAZON_SOCIAL = "XPRESS LOGISTICS XPS S.A."
 BASE_POR_UNIDAD = {"CBM": "m³", "WM": "W/M", "ENVIO": "Envío", "PCT_VALOR": "% s/ valor", "PCT_RECIBO": "% s/ recibo"}
-MODO_TEXTO = {
-    "AEREO": "vía aérea",
-    "LCL": "vía marítima · carga consolidada (LCL)",
-    "FCL": "vía marítima · contenedor completo (FCL)",
-}
 INCOTERMS_EN_ORIGEN = ("EXW", "FCA", "FAS", "FOB")  # grupos E y F: el lugar es el de origen (H-F4-18)
 MARCAS = {"borrador": "BORRADOR — SIN VALIDEZ", "prueba": "PRUEBA — SIN VALIDEZ"}
 MARGENES = {"top": "12mm", "bottom": "16mm", "left": "11mm", "right": "11mm"}
@@ -218,11 +213,22 @@ def _lugar_incoterm(datos: dict[str, Any]) -> str:
     return puerto["nombre"]
 
 
+def textos_servicio(datos: dict[str, Any]) -> dict[str, str]:
+    """E0: la descripción del servicio y la etiqueta del transportista. La emisión las congela en el snapshot; una
+    emitida antes de E0 no las trae y se leen del servicio (sembrado con los textos de F4: el PDF sale igual)."""
+    if datos.get("servicio"):
+        return datos["servicio"]
+    from app.services import servicios
+
+    return servicios.textos_pdf(datos["modo"])
+
+
 def renderizar_html(datos: dict[str, Any], borrador: bool, *, marca: str | None = None) -> str:
     """marca: None (emitida), "borrador" o "prueba" (correo de prueba del administrador)."""
     if borrador and marca is None:
         marca = "borrador"
     empresa = datos.get("datos_empresa") or {}
+    servicio = textos_servicio(datos)
     return _entorno().get_template("cotizacion.html").render(
         d=datos,
         e=empresa,
@@ -231,8 +237,8 @@ def renderizar_html(datos: dict[str, Any], borrador: bool, *, marca: str | None 
         bloques=bloques_fiscales(datos),
         total_factura=Decimal(datos["totales"]["subtotal_factura"]) + Decimal(datos["totales"]["iva"]),
         carga=_carga(datos),
-        modo_texto=MODO_TEXTO.get(datos["modo"], datos["modo"]),
-        etiqueta_transportista="Aerolínea" if datos["modo"] == "AEREO" else "Naviera / Motonave",
+        modo_texto=servicio["descripcion_pdf"],
+        etiqueta_transportista=servicio["etiqueta_transportista"],
         lugar_incoterm=_lugar_incoterm(datos),
         logo=_base64(LOGO),
         fuente_inter=_base64(FUENTE_INTER),

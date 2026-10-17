@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy import text
 
 from app.core.rbac import tiene_permiso
-from matriz_rbac import MATRIZ_6_2
+from matriz_rbac import MATRIZ_6_2, sin_extensiones
 
 ENDPOINTS_ADMIN = [
     ("get", "/v1/usuarios", None),
@@ -56,4 +56,4 @@ def test_roles_lista_4_con_permisos_6_2(client, crear_usuario, headers_de):  # T
     respuesta = client.get("/v1/roles", headers=headers_de(admin))
     assert respuesta.status_code == 200
     roles = {rol["codigo"]: set(rol["permisos"]) for rol in respuesta.json()}
-    assert roles == MATRIZ_6_2
+    assert sin_extensiones(roles) == MATRIZ_6_2  # D-E0-1: los permisos de las extensiones, en test_e0_servicios

@@ -32,6 +32,8 @@ def _incoterm_salida(incoterm: Incoterm) -> IncotermSalida:
     return IncotermSalida(
         **{campo: getattr(incoterm, campo) for campo in ("id", "codigo", "actualizado_en")},
         **{campo: getattr(incoterm, campo) for campo in servicio_incoterms.CAMPOS_EDITABLES},
+        solo_maritimo=incoterm.solo_maritimo,
+        servicios=[servicio.codigo for servicio in incoterm.servicios],
         bloques_importacion=importacion,
         bloques_exportacion=exportacion,
         advertencia_importacion=aviso_importacion,

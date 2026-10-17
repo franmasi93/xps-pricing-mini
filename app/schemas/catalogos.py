@@ -11,7 +11,8 @@ class IncotermSalida(BaseModel):
     id: int  # F3: el cotizador lo envía como incoterm_id
     codigo: str
     nombre: str
-    solo_maritimo: bool
+    solo_maritimo: bool  # E0: derivado de los servicios permitidos (compatibilidad con F1–F5)
+    servicios: list[str]  # E0: códigos de los servicios permitidos (incoterm_servicio)
     activo: bool
     recogida_origen: bool
     despacho_export: bool
@@ -31,7 +32,7 @@ class IncotermSalida(BaseModel):
 
 class IncotermActualizar(Entrada):
     nombre: str | None = Field(default=None, max_length=60)
-    solo_maritimo: bool | None = None
+    servicios: list[str] | None = Field(default=None, max_length=50)  # E0: reemplaza a solo_maritimo
     recogida_origen: bool | None = None
     despacho_export: bool | None = None
     gastos_origen: bool | None = None
@@ -44,7 +45,7 @@ class IncotermActualizar(Entrada):
 
     _sin_null = sin_null(
         "nombre",
-        "solo_maritimo",
+        "servicios",
         "recogida_origen",
         "despacho_export",
         "gastos_origen",

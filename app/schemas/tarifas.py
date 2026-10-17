@@ -8,13 +8,22 @@ Los montos salen como texto (Decimal serializado), nunca como float.
 """
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer
 
 from app.schemas.comunes import CatalogoSalida, Entrada, sin_null
 
-Modo = Literal["AEREO", "LCL", "FCL"]
+# E0: el código de un servicio del catálogo (antes Literal["AEREO", "LCL", "FCL"]); lo valida el service.
+Modo = Annotated[str, Field(min_length=2, max_length=10)]
+
+
+def _numero(valor: Decimal) -> int | float:
+    return int(valor) if valor == valor.to_integral_value() else float(valor.normalize())
+
+
+# Un "desde" de tramo: decimal (un courier usa 0,5 kg) que sale como número (0, 45, 0.5), igual que antes.
+Desde = Annotated[Decimal, PlainSerializer(_numero, return_type=int | float)]
 RateUnit = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO"]
 # D-F3-3: PCT_VALOR (seguro como % del valor) solo existe en los recargos; D3 de F4: PCT_RECIBO también.
 RateUnitRecargo = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO", "PCT_VALOR", "PCT_RECIBO"]
@@ -66,19 +75,22 @@ class TipoEquipoRef(Referencia):
 class TipoEquipoSalida(CatalogoSalida):
     codigo: str
     nombre: str
+    servicio_id: int
 
 
 class TipoEquipoCrear(Entrada):
     codigo: str = Field(max_length=20)
     nombre: str = Field(max_length=80)
+    servicio_id: int | None = None  # sin indicar: el primer servicio activo con tipo de equipo
 
 
 class TipoEquipoActualizar(Entrada):
     codigo: str | None = Field(default=None, max_length=20)
     nombre: str | None = Field(default=None, max_length=80)
+    servicio_id: int | None = None
     activo: bool | None = None
 
-    _sin_null = sin_null("codigo", "nombre", "activo")
+    _sin_null = sin_null("codigo", "nombre", "servicio_id", "activo")
 
 
 # ---------- Salidas de tarifa ----------
@@ -127,7 +139,7 @@ class TarifaCostoMargen(TarifaCosto):
 
 
 class TramoVenta(BaseModel):
-    desde_kg: int
+    desde_kg: Desde
     precio_venta_kg: Decimal
 
 
@@ -257,13 +269,13 @@ class TarifaDuplicar(Entrada):
 
 
 class TramoEntrada(Entrada):
-    desde_kg: int
+    desde_kg: Decimal
     costo_kg: Decimal
     precio_venta_kg: Decimal | None = None
 
 
 class TramosEntrada(Entrada):
-    tramos: list[TramoEntrada] = Field(max_length=6)
+    tramos: list[TramoEntrada] = Field(max_length=50)
 
 
 class RecargoCrear(_VentaEntrada):

@@ -1,6 +1,8 @@
 """Seed de la migración 0002 (T136): solo USD, 11 Incoterms, 4 claves; RBAC sin cambios."""
 from sqlalchemy import text
 
+from matriz_rbac import conteo_rbac_base
+
 
 def test_conteos_despues_de_upgrade(db_session):  # T136
     def contar(tabla: str) -> int:
@@ -9,4 +11,4 @@ def test_conteos_despues_de_upgrade(db_session):  # T136
     # La revisión head la verifica el seed de la última migración (T138); aquí solo el seed de 0002.
     assert list(db_session.execute(text("SELECT codigo FROM moneda")).scalars()) == ["USD"]
     assert (contar("incoterm"), contar("configuracion")) == (11, 4)
-    assert (contar("rol"), contar("permiso"), contar("rol_permiso")) == (4, 15, 38)
+    assert conteo_rbac_base(db_session) == (4, 15, 38)  # D-E0-1: sin los permisos de las extensiones

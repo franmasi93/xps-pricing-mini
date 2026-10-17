@@ -2,7 +2,7 @@
 import pytest
 
 from conftest import PASSWORD_PRUEBA
-from matriz_rbac import MATRIZ_6_2
+from matriz_rbac import MATRIZ_6_2, PERMISOS_EXTENSIONES
 
 CLAVE_NUEVA = "NuevaClave2026"
 
@@ -22,7 +22,8 @@ def test_yo_permisos_exactos_por_rol(client, crear_usuario, headers_de, rol):  #
     assert respuesta.status_code == 200
     cuerpo = respuesta.json()
     assert cuerpo["rol"]["codigo"] == rol
-    assert cuerpo["permisos"] == sorted(MATRIZ_6_2[rol])
+    # D-E0-1: sin los permisos de las extensiones (se verifican en test_e0_servicios).
+    assert [p for p in cuerpo["permisos"] if p not in PERMISOS_EXTENSIONES] == sorted(MATRIZ_6_2[rol])
 
 
 def test_cambiar_password_invalida_token_anterior(client, crear_usuario, headers_de):  # T29 (e)

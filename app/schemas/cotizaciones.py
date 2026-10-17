@@ -5,14 +5,14 @@ margen se omiten, no van en null), igual que en tarifas.
 """
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field
 
 from app.schemas.comunes import Entrada, sin_null
 
 Sentido = Literal["IMPORTACION", "EXPORTACION"]
-Modo = Literal["AEREO", "LCL", "FCL"]
+Modo = Annotated[str, Field(min_length=2, max_length=10)]  # E0: código de un servicio; lo valida el service
 UnidadPeso = Literal["KG", "LB"]
 MotivoRechazo = Literal["PRECIO", "TIEMPO", "COMPETENCIA", "OTRO"]
 

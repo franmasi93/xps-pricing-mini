@@ -1,11 +1,11 @@
 """Schemas de M2 Geografía. El formato de los códigos se valida en el service (códigos de error propios)."""
-from typing import Literal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.comunes import CatalogoSalida, Entrada, sin_null
 
-TipoPuerto = Literal["MARITIMO", "AEREO"]
+TipoPuerto = Annotated[str, Field(min_length=2, max_length=10)]  # E0: código de un tipo de ubicación
 
 
 class RegionResumen(BaseModel):

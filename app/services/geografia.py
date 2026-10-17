@@ -2,6 +2,8 @@
 
 Reglas: códigos sin espacios y en mayúsculas; un hijo no puede quedar activo bajo un padre
 inactivo (PADRE_INACTIVO); un padre no se desactiva con hijos activos (TIENE_DEPENDIENTES).
+E0: el tipo del puerto es un tipo de ubicación del catálogo; su regex, su ayuda y la regla del prefijo del país
+validan el código (antes fijos: UN/LOCODE con el ISO2 del país para MARITIMO, IATA para AEREO).
 """
 import re
 from typing import Any
@@ -10,12 +12,11 @@ from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorNegocio, confirmar
-from app.models import Pais, Puerto, Region, Usuario
+from app.models import Pais, Puerto, Region, TipoUbicacion, Usuario
+from app.services import servicios as catalogo_servicios
 
 PATRON_REGION = re.compile(r"^[A-Z0-9_]{2,20}$")
 PATRON_ISO2 = re.compile(r"^[A-Z]{2}$")
-PATRON_LOCODE = re.compile(r"^[A-Z]{2}[A-Z0-9]{3}$")
-PATRON_IATA = re.compile(r"^[A-Z]{3}$")
 
 
 def normalizar_codigo(codigo: str) -> str:
@@ -142,11 +143,12 @@ def actualizar_pais(db: Session, pais_id: int, cambios: dict[str, Any]) -> Pais:
     with db.no_autoflush:  # las consultas de validación no deben escribir cambios a medias
         if "iso2" in cambios:
             nuevo_iso2 = _validar_iso2(cambios["iso2"])
+            con_prefijo = select(TipoUbicacion.codigo).where(TipoUbicacion.prefijo_pais.is_(True))
             if nuevo_iso2 != pais.iso2 and db.scalar(
-                select(exists().where(Puerto.pais_id == pais.id, Puerto.tipo == "MARITIMO"))
+                select(exists().where(Puerto.pais_id == pais.id, Puerto.tipo.in_(con_prefijo)))
             ):
                 raise _tiene_dependientes(
-                    "El país tiene puertos marítimos cuyo código empieza con su ISO actual; no se puede cambiar"
+                    "El país tiene puertos cuyo código empieza con su ISO actual; no se puede cambiar"
                 )
             pais.iso2 = nuevo_iso2
         if "nombre" in cambios:
@@ -169,20 +171,15 @@ def actualizar_pais(db: Session, pais_id: int, cambios: dict[str, Any]) -> Pais:
 # ---------- Puertos ----------
 
 
-def _validar_puerto(codigo: str, tipo: str, pais: Pais) -> None:
-    if tipo == "MARITIMO":
-        if not PATRON_LOCODE.match(codigo):
-            raise ErrorNegocio(
-                422, "CODIGO_INVALIDO", "Un puerto marítimo usa UN/LOCODE: 5 caracteres, como ECGYE"
-            )
-        if codigo[:2] != pais.iso2:
-            raise ErrorNegocio(
-                422,
-                "PUERTO_PAIS_INCONSISTENTE",
-                f"El código {codigo} empieza con {codigo[:2]}, pero el país es {pais.iso2}",
-            )
-    elif not PATRON_IATA.match(codigo):
-        raise ErrorNegocio(422, "CODIGO_INVALIDO", "Un aeropuerto usa el código IATA: 3 letras, como GYE")
+def _validar_puerto(db: Session, codigo: str, tipo: str, pais: Pais, exigir_activo: bool) -> None:
+    tipo_ubicacion = catalogo_servicios.tipo_de_puerto(db, tipo)
+    if tipo_ubicacion is None:
+        raise _referencia_inexistente("el tipo de ubicación")
+    if exigir_activo and not tipo_ubicacion.activo:
+        raise _padre_inactivo("un tipo de ubicación")
+    error = catalogo_servicios.error_codigo_puerto(tipo_ubicacion, codigo, pais.iso2)
+    if error is not None:
+        raise error
 
 
 def _pais_utilizable(db: Session, pais_id: int) -> Pais:
@@ -224,7 +221,8 @@ def obtener_puerto(db: Session, puerto_id: int) -> Puerto:
 def crear_puerto(db: Session, actor: Usuario, codigo: str, nombre: str, pais_id: int, tipo: str) -> Puerto:
     pais = _pais_utilizable(db, pais_id)
     codigo = normalizar_codigo(codigo)
-    _validar_puerto(codigo, tipo, pais)
+    tipo = normalizar_codigo(tipo)
+    _validar_puerto(db, codigo, tipo, pais, exigir_activo=True)
     puerto = Puerto(codigo=codigo, nombre=_nombre(nombre), pais=pais, tipo=tipo, creado_por=actor.id)
     db.add(puerto)
     confirmar(db)
@@ -238,8 +236,8 @@ def actualizar_puerto(db: Session, puerto_id: int, cambios: dict[str, Any]) -> P
     if "pais_id" in cambios and cambios["pais_id"] != puerto.pais_id:
         pais = _pais_utilizable(db, cambios["pais_id"])
     codigo = normalizar_codigo(cambios["codigo"]) if "codigo" in cambios else puerto.codigo
-    tipo = cambios.get("tipo", puerto.tipo)
-    _validar_puerto(codigo, tipo, pais)
+    tipo = normalizar_codigo(cambios["tipo"]) if "tipo" in cambios else puerto.tipo
+    _validar_puerto(db, codigo, tipo, pais, exigir_activo=tipo != puerto.tipo)
     nombre = _nombre(cambios["nombre"]) if "nombre" in cambios else puerto.nombre
 
     activo_final = cambios.get("activo", puerto.activo)
