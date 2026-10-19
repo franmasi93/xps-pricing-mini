@@ -44,11 +44,12 @@ En esta carpeta hay una copia del HTML y del texto de cada plantilla, tal como e
 
 Copias del HTML aprobado: `72752_Xps_interno_aviso.html` y `72753_Xps_interno_resumen.html`, descargadas de Tencent. Las `.txt` son la versión de texto que arma el sistema (Tencent no devolvió parte de texto).
 
-## El botón de 72752 y 72753 no tiene enlace
+## El botón de 72752 y 72753
 
-En las versiones aprobadas, los botones "Revisar en el sistema" y "Ver el detalle en el sistema" **no tienen `href`**: Tencent quitó el enlace. Se ven, pero no llevan a ninguna pantalla, ni de pricing.xpress.ec ni de la URL de Cloud Run.
-- El sistema ya envía `{{enlace}}` como **ruta interna** (por ejemplo, `/app/cotizacion.html?id=12`) cuando la plantilla la tenga.
-- **Mejora opcional:** editar en Tencent el botón como `href="https://pricing.xpress.ec{{enlace}}"`. Tencent sugirió el dominio fijo cuando rechazó la versión anterior, que llevaba la URL completa en la variable. Ojo: editarla la devuelve a revisión, y mientras tanto esos correos no salen (quedan OMITIDO; la campana llega igual).
+Desde el 2026-10-19 (versión aprobada), el botón de las dos plantillas lleva el **enlace fijo** `https://pricing.xpress.ec/app/inicio.html`, sin variable.
+- El sistema no envía `{{enlace}}` a estas plantillas.
+- La pantalla exacta de cada aviso queda en la campana y en la bitácora.
+- Probado con correos reales al administrador.
 
 ## La llave API no puede crear plantillas
 
