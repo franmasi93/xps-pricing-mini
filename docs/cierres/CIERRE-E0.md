@@ -45,8 +45,8 @@ Lo existente quedó exactamente igual. La **prueba de oro** recalculó todas las
 | E0.2 Migración | 7 % | Hecho: 0007 con upgrade y downgrade probados ida y vuelta (esquema y datos idénticos a 0006 tras el downgrade) |
 | E0.3 Lógica | 10 % | Hecho: tarifas, recargos, cotizaciones, motor, Incoterms, geografía y PDF resuelven todo con servicio → forma de cobro |
 | E0.4 Pantallas | 4 % | Hecho: Servicios (con pestaña Tramos), Tipos de ubicación, Tipos de equipo; "Modo" pasa a "Servicio" en tarifas, recargos y cotizador; Incoterms con casillas de servicios |
-| E0.5 Cierre | 3 % | Hecho: Regla 18 doble, commits, respaldo, migración, despliegue y verificación. **Pendiente: el push a GitHub**, que el permiso de Claude Code bloqueó (ver §8) |
-| **Total E0** | **35 %** | **35 %** (el push queda pendiente de autorización) |
+| E0.5 Cierre | 3 % | Hecho: Regla 18 doble, commits, respaldo, migración, despliegue y verificación. Push hecho el 2026-10-18 (f86cdc2..b1086b8) |
+| **Total E0** | **35 %** | **35 %** |
 
 ## 3. Qué se construyó
 
@@ -215,7 +215,7 @@ Chromium, como admin, sobre la base de pruebas, en 10 pantallas: servicios, tipo
 
 ## 8. Pendientes
 
-- **Push a GitHub de los commits de E0:** el permiso de Claude Code lo bloqueó (los push requieren un pedido explícito de François). Hay que ejecutar `git push origin main` o autorizarlo. Mientras tanto, E1 no empieza: la regla es cerrar con commit, push y despliegue verificado.
+- ~~Push a GitHub de los commits de E0~~: hecho el 2026-10-18 por pedido de François (f86cdc2..b1086b8).
 - El tiempo de la suite subió a ~90 min o más por ciclo, por la latencia a Cloud SQL (125 ms por consulta el 2026-10-17).
 
 ## 9. Cómo agregar un servicio nuevo (guía para el gerente)
