@@ -40,9 +40,10 @@ EXTERNA, INTERNA = "EXTERNA", "INTERNA"
 INMEDIATO, POR_FECHA, RESUMEN = "INMEDIATO", "POR_FECHA", "RESUMEN"
 VARIABLES_COTIZACION = ("nombre_contacto", "numero", "ruta", "servicio", "total", "valida_hasta", "comercial")
 VARIABLES_EMPRESA = ("whatsapp_numero", "empresa_direccion", "empresa_telefono", "empresa_whatsapp", "empresa_horario")
-VARIABLES_INTERNO = ("titulo", "mensaje", *[f"detalle_{n:02d}" for n in range(1, 7)], "enlace", "fecha")
+# Las de las plantillas aprobadas (2026-10-19): 72752 y 72753 llevan el enlace fijo en el botón, sin variable.
+VARIABLES_INTERNO = ("evento", "referencia", "fecha")
 VARIABLES_RESUMEN = ("periodo", "kpi_emitidas", "kpi_enviadas", "kpi_aceptadas", "kpi_rechazadas", "kpi_tasa_cierre",
-                     "kpi_monto", "kpi_margen", *[f"linea_{n:02d}" for n in range(1, 13)], "enlace")
+                     "kpi_monto", "kpi_margen")
 
 
 @dataclass
@@ -113,6 +114,13 @@ def detector_de(codigo: str):
 
 def dinero(valor: Any) -> str:
     return f"USD {pdf._dinero(valor)}"
+
+
+def porcentaje(valor: Decimal | None, sin_datos: str = "Sin datos") -> str:
+    """Un porcentaje con 1 decimal y coma decimal: 18,5 %. Sin valor: "Sin datos"."""
+    if valor is None:
+        return sin_datos
+    return f"{Decimal(valor).quantize(Decimal('0.1')):.1f}".replace(".", ",") + " %"
 
 
 def fecha(valor: date | None) -> str:
@@ -537,8 +545,8 @@ def _resumen(db: Session, contexto: Contexto, desde: date, hasta: date, clave: s
     inicio, fin = _rango(desde, hasta)
     campanas = list(db.scalars(select(Campana).where(Campana.terminada_en >= inicio, Campana.terminada_en < fin)))
     periodo = fecha(desde) if desde == hasta else f"{fecha(desde)} al {fecha(hasta)}"
-    tasa = f"{datos['tasa_cierre']} %" if datos["tasa_cierre"] is not None else "—"
-    margen = dinero(datos["margen"]) + (f" ({datos['margen_pct']} %)" if datos["margen_pct"] is not None else "")
+    tasa = porcentaje(datos["tasa_cierre"])  # sin cotizaciones cerradas en el periodo: "Sin datos"
+    margen = porcentaje(datos["margen_pct"])  # el margen va como porcentaje (no en USD)
     top = lambda contador: " · ".join(f"{k} ({v})" for k, v in contador.most_common(3)) or "—"  # noqa: E731
     lineas = [
         f"Motivos de rechazo: {top(datos['motivos'])}",

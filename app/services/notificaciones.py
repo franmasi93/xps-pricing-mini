@@ -330,8 +330,8 @@ NOMBRE_CORTO = {
 
 
 def ruta_interna(ruta: str | None) -> str:
-    """{{enlace}} de las plantillas internas: SOLO la ruta del sistema, empezando con "/" (el dominio lo pone la
-    plantilla). Las URL completas (baja de boletines y avisos) se arman con la URL pública del sistema."""
+    """La ruta de la pantalla del registro, empezando con "/" (campana y bitácora). Las plantillas internas aprobadas
+    llevan el enlace fijo en el botón; las URL completas (baja) se arman con la URL pública del sistema."""
     ruta = ruta or "/app/inicio.html"
     return ruta if ruta.startswith("/") else "/" + ruta
 
@@ -383,14 +383,14 @@ def _variables(db: Session, regla: ReglaNotificacion, evento, ocurrencia: Ocurre
         if token_baja:
             datos["enlace_baja"] = _url(db, f"/b/{token_baja}")
         return {clave: str(valor) for clave, valor in datos.items()}
-    enlace = ruta_interna(ocurrencia.enlace)
     if ocurrencia.resumen:
-        return dict(ocurrencia.variables) | {"enlace": enlace}
+        return dict(ocurrencia.variables)
     detalles = list(ocurrencia.detalles)[:6]
-    # 72752 aprobada: evento, referencia y fecha. Se mantienen las de la versión anterior (titulo, mensaje, detalle_NN):
-    # solo se envían las que tenga la plantilla del catálogo (entregar filtra por variables_esperadas).
+    # 72752 aprobada: evento, referencia y fecha; el botón lleva el enlace fijo (sin variable {{enlace}}). Se mantienen
+    # las de la versión anterior (titulo, mensaje, detalle_NN): solo se envían las que tenga la plantilla del catálogo.
+    # La ruta de la pantalla sigue en la notificación (campana y bitácora).
     return {"evento": NOMBRE_CORTO.get(evento.codigo, evento.nombre), "referencia": referencia(db, ocurrencia),
-            "titulo": ocurrencia.titulo, "mensaje": ocurrencia.mensaje[:600], "enlace": enlace,
+            "titulo": ocurrencia.titulo, "mensaje": ocurrencia.mensaje[:600],
             "fecha": fechas.ahora_ecuador().strftime("%d/%m/%Y %H:%M")} | {
         f"detalle_{n:02d}": (detalles[n - 1] if n <= len(detalles) else "") for n in range(1, 7)}
 
@@ -483,7 +483,7 @@ def generar(db: Session, codigo_evento: str, ocurrencias: list[Ocurrencia], regl
                     "cliente_id": ocurrencia.cliente_id, "comercial_id": ocurrencia.comercial_id,
                     "usuario_id": destino.usuario.id if destino.usuario else None, "email": destino.email,
                     "canal": canal, "estado": estado, "motivo_omision": motivo, "titulo": ocurrencia.titulo[:200],
-                    "mensaje": ocurrencia.mensaje, "enlace": ocurrencia.enlace,
+                    "mensaje": ocurrencia.mensaje, "enlace": ruta_interna(ocurrencia.enlace),
                     "asunto": _asunto(plantilla, ocurrencia, evento) if canal == "CORREO" else None,
                     "plantilla_id": plantilla.id if plantilla and canal == "CORREO" else None, "variables": variables,
                     "adjuntar_pdf": bool((regla.parametros or {}).get("adjuntar_pdf")) and ocurrencia.cotizacion is not None,

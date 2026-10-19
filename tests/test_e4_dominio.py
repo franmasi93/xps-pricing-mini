@@ -93,7 +93,7 @@ def test_avisos_generados_con_la_url_configurada(db_session, crear_usuario):  # 
     correo = db_session.scalars(select(Notificacion).where(Notificacion.evento == "USUARIO_BLOQUEADO",
                                                            Notificacion.canal == "CORREO",
                                                            Notificacion.usuario_id == admin.id)).one()
-    assert correo.variables["enlace"] == "/app/usuarios.html"  # solo la ruta (sin dominio)
+    assert "enlace" not in correo.variables and correo.enlace == "/app/usuarios.html"  # 72752: enlace fijo en el botón
     assert correo.variables["referencia"] == admin.email and correo.variables["evento"] == "Usuario bloqueado"
 
 

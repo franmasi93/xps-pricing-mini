@@ -409,7 +409,9 @@ def test_resumen_diario_con_cifras_de_la_base(client, crear_usuario, headers_de,
         str(cifras["emitidas"]), str(cifras["aceptadas"]), str(cifras["rechazadas"]))
     assert variables["kpi_monto"] == eventos.dinero(cifras["monto"])
     assert variables["periodo"] == HOY.strftime("%d/%m/%Y") and "TIEMPO (1)" in variables["linea_01"]
-    assert variables["enlace"].endswith("/app/cotizaciones.html")
+    assert "enlace" not in variables and resumen[0].enlace == "/app/cotizaciones.html"  # el botón trae el enlace fijo
+    assert variables["kpi_tasa_cierre"] == eventos.porcentaje(cifras["tasa_cierre"]) and variables["kpi_tasa_cierre"].endswith(" %")
+    assert variables["kpi_margen"] == eventos.porcentaje(cifras["margen_pct"]) and "USD" not in variables["kpi_margen"]
 
 
 def test_margen_bajo_al_emitir(client, crear_usuario, headers_de, db_session, avisos):  # TE3-19
@@ -576,6 +578,15 @@ def test_variables_exactas_de_las_plantillas_internas_aprobadas(client, crear_us
     assert resumen.datos_plantilla["kpi_monto"].startswith("USD ") and resumen.datos_plantilla["periodo"]
     assert all(valor != "" for valor in resumen.datos_plantilla.values())
     assert {m.destinatario for m in correo_listo.enviados if m.plantilla_id == 72753} == {gerente.email}
+
+
+def test_formato_de_los_kpi_del_resumen():  # TE3-29
+    from decimal import Decimal
+
+    assert eventos.porcentaje(Decimal("18.46")) == "18,5 %"
+    assert eventos.porcentaje(Decimal("0")) == "0,0 %"
+    assert eventos.porcentaje(None) == "Sin datos"
+    assert eventos.dinero(Decimal("1234567.5")) == "USD 1,234,567.50"
 
 
 @pytest.mark.parametrize("pagina", ["notificaciones-config", "notificaciones-bitacora", "mis-notificaciones"])
