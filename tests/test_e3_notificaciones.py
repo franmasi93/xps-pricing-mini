@@ -432,7 +432,9 @@ def test_envio_fallido_de_cotizacion(client, crear_usuario, headers_de, db_sessi
     assert respuesta.status_code == 502
     db_session.expire_all()
     destinatarios = {n.usuario_id for n in _de(db_session, "ENVIO_FALLIDO", canal="INTERNO")}
-    assert destinatarios == {admin.id, comercial.id}
+    admins = set(db_session.scalars(select(Usuario.id).join(Usuario.rol).where(Usuario.activo.is_(True))
+                                    .where(Usuario.rol.has(codigo="admin"))))
+    assert admin.id in admins and destinatarios == admins | {comercial.id}  # cada administrador activo y quien envió
 
 
 def test_usuario_bloqueado(client, crear_usuario, headers_de, db_session):  # TE3-21

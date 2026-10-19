@@ -29,24 +29,32 @@
       <header class="topbar">
         <div>
           <h1>Inicio</h1>
-          <p class="topbar-subtitulo">Tarifas y cotizaciones de carga internacional</p>
+          <p class="topbar-subtitulo">Su resumen del día: pendientes, cotizaciones y tarifas</p>
         </div>
       </header>
 
       <main class="contenido">
         <div id="alertas" hidden></div>
 
-        <section class="tarjeta" id="bienvenida" hidden>
-          <h3 id="saludo"></h3>
-          <p id="detalle-rol" class="texto-suave"></p>
-          <p>El envío de cotizaciones por correo estará disponible en F4.</p>
+        <section class="tarjeta bienvenida" id="bienvenida" hidden>
+          <p class="bienvenida-fecha" id="fecha-hoy"></p>
+          <h2 class="bienvenida-saludo" id="saludo"></h2>
+          <p class="texto-suave" id="detalle-rol"></p>
+          <div class="accesos" id="accesos"></div>
+        </section>
+
+        <div class="contadores contadores-inicio" id="indicadores" hidden></div>
+
+        <section class="tarjeta" id="bloque-pendientes" hidden>
+          <h3>Para hoy</h3>
+          <ul class="pendientes" id="lista-pendientes"></ul>
         </section>
 
         <section class="tarjeta" id="bloque-recientes" hidden>
           <div class="tarjeta-cabecera">
             <div>
               <h3>Cotizaciones recientes</h3>
-              <p class="texto-suave">Las últimas cinco que usted puede ver.</p>
+              <p class="texto-suave">Las cinco más recientes de su alcance.</p>
             </div>
             <a class="btn btn-secundario btn-chico" href="cotizaciones.html">Ver cotizaciones</a>
           </div>
