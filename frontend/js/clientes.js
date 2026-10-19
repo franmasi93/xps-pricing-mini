@@ -177,9 +177,13 @@
   // ---------- Contactos ----------
 
   async function pintarContactos() {
-    const contactos = await XPS.api(`/clientes/${clienteContactos.id}/contactos`);
+    const [contactos, avisos] = await Promise.all([
+      XPS.api(`/clientes/${clienteContactos.id}/contactos`), XPS.api(`/clientes/${clienteContactos.id}/avisos`),
+    ]);
+    pintarAvisosCliente(avisos);
+    const recibe = Object.fromEntries(avisos.contactos.map((c) => [c.id, c.recibir_avisos]));
     const cuerpoContactos = document.getElementById("tabla-contactos");
-    cuerpoContactos.replaceChildren(...(contactos.length ? [] : [UI.filaVacia(7, "Este cliente todavía no tiene contactos.")]));
+    cuerpoContactos.replaceChildren(...(contactos.length ? [] : [UI.filaVacia(8, "Este cliente todavía no tiene contactos.")]));
     for (const contacto of contactos) {
       const celdas = [
         UI.celda("Nombre", [UI.texto(contacto.nombre)]),
@@ -188,6 +192,7 @@
         UI.celda("Teléfono", [UI.texto(contacto.telefono, "cifra")]),
         UI.celda("Principal", [contacto.principal ? crear("span", { clase: "badge badge-rol", texto: "Principal" }) : UI.texto(null)]),
         UI.celda("Estado", [UI.badgeEstado(contacto.activo)]),
+        UI.celda("Avisos", [UI.texto(recibe[contacto.id] === false ? "No recibe" : "Recibe")]),
       ];
       if (puedeEditar) {
         const acciones = [UI.boton("Editar", () => editarContacto(contacto))];
@@ -195,6 +200,10 @@
           acciones.push(UI.boton("Marcar principal", () => actualizarContacto(contacto, { principal: true })));
         }
         acciones.push(UI.boton(contacto.activo ? "Desactivar" : "Activar", () => actualizarContacto(contacto, { activo: !contacto.activo })));
+        if (contacto.activo) {
+          acciones.push(UI.boton(recibe[contacto.id] === false ? "Recibir avisos" : "No recibir avisos", () => cambiarAvisos(
+            `/clientes/${clienteContactos.id}/contactos/${contacto.id}/avisos`, { recibir: recibe[contacto.id] === false })));
+        }
         celdas.push(UI.celda("Acciones", [crear("div", { clase: "celda-acciones" }, acciones)]));
       }
       cuerpoContactos.append(crear("tr", {}, celdas));
@@ -205,6 +214,32 @@
     contactoEnEdicion = null;
     formContacto.reset();
     document.getElementById("titulo-form-contacto").textContent = "Agregar contacto";
+  }
+
+  // E3: "no enviar avisos" del cliente y preferencia de cada contacto (avisos de sus cotizaciones).
+  function pintarAvisosCliente(avisos) {
+    let bloque = document.getElementById("avisos-cliente");
+    if (!bloque) {
+      bloque = crear("div", { clase: "config-acciones", atributos: { id: "avisos-cliente" } });
+      document.getElementById("titulo-contactos").after(bloque);
+    }
+    const texto = crear("p", { clase: "ayuda", texto: avisos.activos ? "El cliente recibe avisos automáticos de sus cotizaciones." : "El cliente no recibe avisos automáticos." });
+    const hijos = [texto];
+    if (puedeEditar) {
+      hijos.push(UI.boton(avisos.activos ? "No enviar avisos al cliente" : "Enviar avisos al cliente",
+        () => cambiarAvisos(`/clientes/${clienteContactos.id}/avisos`, { activos: !avisos.activos })));
+    }
+    bloque.replaceChildren(...hijos);
+  }
+
+  async function cambiarAvisos(ruta, cuerpo) {
+    XPS.limpiarAlerta(alertasContactos);
+    try {
+      await XPS.api(ruta, { metodo: "PATCH", cuerpo });
+      await pintarContactos();
+    } catch (error) {
+      XPS.mostrarError(alertasContactos, error);
+    }
   }
 
   async function abrirContactos(cliente) {

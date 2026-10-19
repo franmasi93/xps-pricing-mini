@@ -11,3 +11,8 @@ ZONA_ECUADOR = timezone(timedelta(hours=-5), "America/Guayaquil")
 
 def hoy_ecuador() -> date:
     return datetime.now(ZONA_ECUADOR).date()
+
+
+def ahora_ecuador() -> datetime:
+    """E3: la hora de negocio (con zona). Los tests de notificaciones la sustituyen para simular el reloj."""
+    return datetime.now(ZONA_ECUADOR)

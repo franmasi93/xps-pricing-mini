@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notificaciones · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Notificaciones</h1>
+          <p class="topbar-subtitulo">Avisos automáticos a clientes y a usuarios: eventos, reglas y el interruptor de avisos a clientes</p>
+        </div>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+
+        <section class="tarjeta" id="bloque-config" hidden>
+          <h3>Interruptor de avisos a clientes</h3>
+          <p class="ayuda">En SIMULACIÓN el sistema registra en la bitácora lo que habría enviado, sin enviarlo. Revise la bitácora unos días antes de pasar a ACTIVO. Los avisos internos funcionan siempre.</p>
+          <div id="alertas-config" hidden></div>
+          <form id="form-config" novalidate>
+            <fieldset class="campo">
+              <legend>Modo</legend>
+              <div class="interruptor-modo">
+                <label class="campo-check" for="modo-simulacion"><input id="modo-simulacion" name="modo_externo" type="radio" value="SIMULACION"> Simulación</label>
+                <label class="campo-check" for="modo-activo"><input id="modo-activo" name="modo_externo" type="radio" value="ACTIVO"> Activo (se envían a clientes)</label>
+                <label class="campo-check" for="modo-apagado"><input id="modo-apagado" name="modo_externo" type="radio" value="APAGADO"> Apagado</label>
+              </div>
+            </fieldset>
+            <div class="grupo-campos">
+              <div class="campo">
+                <label for="config-desde">Aplicar desde</label>
+                <input class="input" id="config-desde" name="aplicar_desde" type="date" aria-describedby="ayuda-desde">
+                <p class="ayuda" id="ayuda-desde">Solo cotizaciones enviadas desde esta fecha. Al activar sin fecha, se usa la de hoy.</p>
+              </div>
+              <div class="campo">
+                <label for="config-tope">Avisos por cliente por semana (máximo)</label>
+                <input class="input cifra" id="config-tope" name="tope_semanal_cliente" type="number" min="0" max="100" step="1">
+              </div>
+              <div class="campo">
+                <label for="config-hora-desde">Desde la hora</label>
+                <input class="input cifra" id="config-hora-desde" name="hora_desde" type="number" min="0" max="23" step="1">
+              </div>
+              <div class="campo">
+                <label for="config-hora-hasta">Hasta la hora</label>
+                <input class="input cifra" id="config-hora-hasta" name="hora_hasta" type="number" min="0" max="23" step="1">
+              </div>
+            </div>
+            <fieldset class="campo">
+              <legend>Días hábiles</legend>
+              <div class="interruptor-modo" id="dias-habiles"></div>
+            </fieldset>
+            <p class="ayuda" id="ultima-evaluacion"></p>
+            <div class="config-acciones">
+              <button class="btn btn-primario btn-chico" type="submit">Guardar</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="tarjeta" id="bloque-clientes" hidden>
+          <h3>Avisos a clientes</h3>
+          <table class="tabla">
+            <thead><tr><th>Evento</th><th>Regla</th><th>Destinatarios</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-externos"></tbody>
+          </table>
+        </section>
+
+        <section class="tarjeta" id="bloque-internos" hidden>
+          <h3>Avisos internos</h3>
+          <table class="tabla">
+            <thead><tr><th>Evento</th><th>Regla</th><th>Destinatarios</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-internos"></tbody>
+          </table>
+        </section>
+
+        <section class="tarjeta" id="bloque-resumenes" hidden>
+          <h3>Resúmenes</h3>
+          <table class="tabla">
+            <thead><tr><th>Evento</th><th>Regla</th><th>Destinatarios</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-resumenes"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo dialogo-ancho" id="dialogo-regla" aria-labelledby="titulo-regla">
+    <h2 id="titulo-regla">Regla</h2>
+    <p class="ayuda" id="regla-descripcion"></p>
+    <div id="alertas-regla" hidden></div>
+    <form id="form-regla" novalidate>
+      <div class="campo">
+        <label for="regla-nombre">Nombre</label>
+        <input class="input" id="regla-nombre" name="nombre" type="text" maxlength="120" required>
+      </div>
+      <fieldset class="campo">
+        <legend>Canales</legend>
+        <label class="campo-check" for="regla-correo"><input id="regla-correo" name="canal_correo" type="checkbox"> Correo</label>
+        <label class="campo-check" for="regla-interno"><input id="regla-interno" name="canal_interno" type="checkbox"> Centro de notificaciones (campana)</label>
+      </fieldset>
+      <fieldset class="campo">
+        <legend>Destinatarios</legend>
+        <div id="regla-tipos"></div>
+        <div id="regla-roles"></div>
+        <label for="regla-correos">Correos fijos (separados por coma)</label>
+        <input class="input" id="regla-correos" name="correos" type="text" maxlength="1000">
+      </fieldset>
+      <fieldset class="campo">
+        <legend>Parámetros</legend>
+        <div class="grupo-campos" id="regla-parametros"></div>
+      </fieldset>
+      <div class="grupo-campos">
+        <div class="campo">
+          <label for="regla-plantilla">Plantilla de Tencent</label>
+          <select class="select" id="regla-plantilla" name="plantilla_id"></select>
+        </div>
+        <div class="campo">
+          <label for="regla-agrupacion">Agrupación</label>
+          <select class="select" id="regla-agrupacion" name="agrupacion">
+            <option value="INDIVIDUAL">Un aviso por cada caso</option>
+            <option value="RESUMEN">Un aviso diario con todos los casos</option>
+          </select>
+        </div>
+      </div>
+      <label class="campo-check" for="regla-obligatoria"><input id="regla-obligatoria" name="obligatoria" type="checkbox"> Obligatoria por correo (los usuarios no pueden apagarla)</label>
+      <label class="campo-check" for="regla-activa"><input id="regla-activa" name="activo" type="checkbox"> Activa</label>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/notificaciones-config.js"></script>
+</body>
+</html>

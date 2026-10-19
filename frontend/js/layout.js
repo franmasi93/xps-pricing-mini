@@ -57,6 +57,9 @@ const GRUPOS_MENU = [
       { texto: "Roles y permisos", archivo: "roles.html", permisos: ["usuario.admin"] },
       { texto: "Motivos de rechazo", archivo: "motivos-rechazo.html", permisos: ["config.editar"] },
       { texto: "Tipos de identificación", archivo: "tipos-identificacion.html", permisos: ["config.editar"] },
+      // E3: notificaciones y avisos.
+      { texto: "Notificaciones", archivo: "notificaciones-config.html", permisos: ["notificaciones.reglas.gestionar"] },
+      { texto: "Bitácora de avisos", archivo: "notificaciones-bitacora.html", permisos: ["notificaciones.bitacora.ver"] },
       { texto: "Auditoría", archivo: "auditoria.html", permisos: ["auditoria.ver"] },
     ],
   },
@@ -127,5 +130,34 @@ async function iniciarLayout(archivoActual, { permitirForzado = false } = {}) {
     }
     menu.append(XPS.crear("p", { clase: "nav-grupo", texto: grupo.titulo }), lista);
   }
+  if (permisos.has("notificaciones.ver")) {
+    pintarCampana(archivoActual);
+  }
   return yo;
+}
+
+/** E3: campana con el contador de notificaciones no leídas, junto al perfil. Lleva a "Mis notificaciones". */
+async function pintarCampana(archivoActual) {
+  const perfil = document.querySelector(".perfil");
+  if (!perfil || document.getElementById("campana")) return;
+  const contador = XPS.crear("span", { clase: "campana-contador", atributos: { id: "campana-contador", hidden: "" } });
+  const campana = XPS.crear("a", {
+    clase: `campana${archivoActual === "mis-notificaciones.html" ? " activo" : ""}`,
+    atributos: { id: "campana", href: "mis-notificaciones.html", "aria-label": "Mis notificaciones", title: "Mis notificaciones" },
+  }, [XPS.crear("span", { texto: "🔔", atributos: { "aria-hidden": "true" } }), contador]);
+  perfil.prepend(campana);
+  await actualizarCampana();
+}
+
+async function actualizarCampana() {
+  const contador = document.getElementById("campana-contador");
+  if (!contador) return;
+  try {
+    const { no_leidas: noLeidas } = await XPS.api("/notificaciones/mias/conteo");
+    contador.textContent = noLeidas > 99 ? "99+" : String(noLeidas);
+    contador.hidden = noLeidas === 0;
+    document.getElementById("campana").setAttribute("aria-label", `Mis notificaciones (${noLeidas} sin leer)`);
+  } catch {
+    contador.hidden = true;
+  }
 }

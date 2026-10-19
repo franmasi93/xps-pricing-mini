@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mis notificaciones · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Mis notificaciones</h1>
+          <p class="topbar-subtitulo">Avisos del sistema para usted, y qué recibe también por correo</p>
+        </div>
+        <button class="btn btn-secundario" id="btn-leer-todas" type="button" hidden>Marcar todas como leídas</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <section class="tarjeta" id="bloque-lista" hidden>
+          <label class="campo-check" for="solo-no-leidas"><input id="solo-no-leidas" type="checkbox"> Solo las no leídas</label>
+          <ul class="lista-notificaciones" id="lista"></ul>
+        </section>
+
+        <section class="tarjeta" id="bloque-preferencias" hidden>
+          <h3>Mis preferencias</h3>
+          <p class="ayuda">Todo llega a la campana. Marque qué quiere recibir además por correo. Los obligatorios no se pueden apagar.</p>
+          <div id="alertas-preferencias" hidden></div>
+          <form id="form-preferencias" novalidate>
+            <div id="lista-preferencias"></div>
+            <div class="config-acciones">
+              <button class="btn btn-primario btn-chico" type="submit">Guardar preferencias</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/mis-notificaciones.js"></script>
+</body>
+</html>

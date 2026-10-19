@@ -75,6 +75,7 @@ class Cotizacion(CatalogoMixin, Base):
     iva_tasa_aplicada: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     snapshot_emision: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     motivo_rechazo: Mapped[str | None] = mapped_column(ForeignKey("motivo_rechazo.codigo", ondelete="RESTRICT"))  # E2
+    avisos_activos: Mapped[bool] = mapped_column(default=True, server_default=true())  # E3
     detalle_rechazo: Mapped[str | None] = mapped_column(Text)
     cotizacion_origen_id: Mapped[int | None] = mapped_column(ForeignKey("cotizacion.id", ondelete="RESTRICT"))
     transportista: Mapped[str | None] = mapped_column(Text)

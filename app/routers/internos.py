@@ -10,6 +10,7 @@
   Token inválido o desconocido: mensaje genérico.
 """
 import hmac
+from types import SimpleNamespace
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -20,8 +21,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.core.errors import ErrorNegocio
 from app.db import get_db
-from app.models import BajaCorreo, CampanaDestinatario
-from app.services import boletines, motor_envios
+from app.models import BajaCorreo, CampanaDestinatario, Notificacion
+from app.services import boletines, motor_envios, notificaciones
 
 router_internos = APIRouter()
 router_publico = APIRouter()
@@ -39,6 +40,13 @@ def _exigir_secreto(recibido: str | None, configurado) -> None:
 def procesar_lote(x_tarea_secreto: str | None = Header(default=None), db: Session = Depends(get_db)):
     _exigir_secreto(x_tarea_secreto, get_settings().TAREAS_SECRETO)
     return motor_envios.procesar_lote(db)
+
+
+@router_internos.post("/internal/notificaciones/evaluar", tags=["internos"])
+def evaluar_notificaciones(x_tarea_secreto: str | None = Header(default=None), db: Session = Depends(get_db)):
+    """E3: Cloud Scheduler cada hora. Busca los eventos por fecha y los resúmenes, y envía los avisos pendientes."""
+    _exigir_secreto(x_tarea_secreto, get_settings().TAREAS_SECRETO)
+    return notificaciones.evaluar(db)
 
 
 @router_internos.post("/internal/tencent/eventos/{token}", tags=["internos"])
@@ -62,7 +70,10 @@ def _destinatario(db: Session, token: str) -> CampanaDestinatario:
     if not boletines.token_valido(token):
         raise ErrorNegocio(404, "ENLACE_INVALIDO", GENERICO)
     destinatario = db.scalars(select(CampanaDestinatario).where(CampanaDestinatario.token_baja == token)).first()
-    if destinatario is None:
+    if destinatario is None:  # E3: el enlace de baja de un aviso comercial (TARIFA_RUTA_INTERES)
+        aviso = db.scalars(select(Notificacion).where(Notificacion.variables["token_baja"].astext == token)).first()
+        if aviso is not None and aviso.email:
+            return SimpleNamespace(email=aviso.email, campana_id=None)
         raise ErrorNegocio(404, "ENLACE_INVALIDO", GENERICO)
     return destinatario
 

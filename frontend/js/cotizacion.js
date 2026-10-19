@@ -308,6 +308,35 @@
     ]));
     document.getElementById("tabla-envios").replaceChildren(...(filas.length ? filas : [UI.filaVacia(7, "Sin envíos")]));
     bloque.hidden = false;
+    await cargarAvisos();
+  }
+
+  // E3: interruptor "no enviar avisos" y línea de tiempo de avisos (enviados, simulados, programados u omitidos).
+  async function cargarAvisos() {
+    const bloque = document.getElementById("bloque-avisos");
+    const datos = await XPS.api(`/cotizaciones/${id}/avisos`);
+    const boton = document.getElementById("btn-avisos");
+    document.getElementById("avisos-estado").textContent = !datos.cliente_activos
+      ? "El cliente tiene los avisos desactivados."
+      : datos.activos ? "Esta cotización recibe avisos automáticos (seguimiento, por vencer, vencida y aceptación)." : "Esta cotización no recibe avisos automáticos.";
+    boton.textContent = datos.activos ? "No enviar avisos" : "Volver a enviar avisos";
+    boton.hidden = !UI.tieneAlguno(yo, ["cotizacion.crear"]);
+    boton.onclick = async () => {
+      try {
+        await XPS.api(`/cotizaciones/${id}/avisos`, { metodo: "PATCH", cuerpo: { activos: !datos.activos } });
+        await cargarAvisos();
+      } catch (error) {
+        XPS.mostrarError(alertas, error);
+      }
+    };
+    const filas = datos.avisos.map((aviso) => crear("tr", {}, [
+      UI.celda("Programado", [UI.texto(new Date(aviso.programada_para).toLocaleString("es-EC"))]),
+      UI.celda("Aviso", [UI.texto(aviso.titulo)]),
+      UI.celda("Para", [UI.texto(aviso.email)]),
+      UI.celda("Estado", [UI.texto(aviso.motivo_omision ? `${aviso.estado} · ${aviso.motivo_omision}` : aviso.estado)]),
+    ]));
+    document.getElementById("tabla-avisos").replaceChildren(...(filas.length ? filas : [UI.filaVacia(4, "Sin avisos todavía")]));
+    bloque.hidden = false;
   }
 
   async function modificarLinea(linea, cambios) {

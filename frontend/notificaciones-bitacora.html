@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bitácora de avisos · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Bitácora de avisos</h1>
+          <p class="topbar-subtitulo">Lo que se envió, se simuló, se omitió o falló, con su contenido</p>
+        </div>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <section class="tarjeta" id="herramientas" hidden>
+          <form class="filtros" id="filtros">
+            <div class="campo">
+              <label for="filtro-evento">Evento</label>
+              <select class="select" id="filtro-evento" name="evento"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-estado">Estado</label>
+              <select class="select" id="filtro-estado" name="estado">
+                <option value="">Todos</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="ENVIADO">Enviado</option>
+                <option value="SIMULADO">Simulado</option>
+                <option value="OMITIDO">Omitido</option>
+                <option value="FALLIDO">Fallido</option>
+                <option value="CANCELADO">Cancelado</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="filtro-audiencia">Para</label>
+              <select class="select" id="filtro-audiencia" name="audiencia">
+                <option value="">Todos</option>
+                <option value="EXTERNA">Clientes</option>
+                <option value="INTERNA">Usuarios</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="filtro-canal">Canal</label>
+              <select class="select" id="filtro-canal" name="canal">
+                <option value="">Todos</option>
+                <option value="CORREO">Correo</option>
+                <option value="INTERNO">Campana</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="filtro-comercial">Comercial</label>
+              <select class="select" id="filtro-comercial" name="comercial_id"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-desde">Desde</label>
+              <input class="input" id="filtro-desde" name="desde" type="date">
+            </div>
+            <div class="campo">
+              <label for="filtro-hasta">Hasta</label>
+              <input class="input" id="filtro-hasta" name="hasta" type="date">
+            </div>
+          </form>
+          <table class="tabla">
+            <thead><tr><th>Fecha</th><th>Evento</th><th>Destinatario</th><th>Canal</th><th>Estado</th><th>Aviso</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-bitacora"></tbody>
+          </table>
+          <p class="ayuda">Se muestran las 200 más recientes con los filtros elegidos.</p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo dialogo-ancho" id="dialogo-aviso" aria-labelledby="titulo-aviso">
+    <h2 id="titulo-aviso">Aviso</h2>
+    <dl class="ficha" id="datos-aviso"></dl>
+    <h3>Contenido</h3>
+    <pre class="contenido-aviso" id="contenido-aviso"></pre>
+    <div class="acciones-form">
+      <button class="btn btn-secundario" type="button" data-cerrar>Cerrar</button>
+    </div>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/notificaciones-bitacora.js"></script>
+</body>
+</html>

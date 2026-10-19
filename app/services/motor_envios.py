@@ -110,6 +110,12 @@ def enviar_uno(db: Session, destinatario: CampanaDestinatario, preparado: dict[s
         destinatario.estado = "PENDIENTE"
     else:
         destinatario.estado = "FALLIDO"
+        from app.services import notificaciones  # E3: un aviso por campaña con fallos
+
+        notificaciones.envio_fallido(
+            db, "campana", campana.id, "fallos", f"Fallos en la campaña {campana.nombre}"[:200],
+            f"Hay correos fallidos en la campaña «{campana.nombre}»: {destinatario.ultimo_error}",
+            campana.enviado_por or campana.creado_por, f"/app/campana.html?id={campana.id}")
     return destinatario.estado
 
 
@@ -141,8 +147,11 @@ def _sincronizar_si_toca(db: Session) -> bool:
 
 
 def procesar_lote(db: Session) -> dict[str, Any]:
+    from app.services import notificaciones
+
     resumen: dict[str, Any] = {"sincronizo": _sincronizar_si_toca(db), "activadas": activar_programadas(db),
                                "enviados": 0, "rebotados": 0, "fallidos": 0, "omitidos": 0, "reintentos": 0}
+    resumen["avisos"] = notificaciones.entregar(db)  # E3: los avisos salen antes que las campañas (mismo cupo)
     fila = masivos.config(db)
     if not masivos.en_horario(fila):
         resumen["motivo"] = "FUERA_DEL_HORARIO_DE_ENVIO"

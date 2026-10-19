@@ -1397,3 +1397,81 @@ a {
 .grupo-permisos .nav-grupo {
   margin: var(--esp-2) 0 var(--esp-1);
 }
+
+/* ---------- E3: campana, notificaciones y línea de tiempo de avisos ---------- */
+
+.campana {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-md);
+  background: var(--superficie);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.campana:hover,
+.campana.activo {
+  border-color: var(--naranja);
+}
+
+.campana-contador {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--naranja);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.lista-notificaciones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lista-notificaciones li {
+  display: flex;
+  gap: var(--esp-3);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--esp-3) 0;
+  border-bottom: 1px solid var(--linea);
+}
+
+.lista-notificaciones li.no-leida .notificacion-titulo {
+  font-weight: 700;
+}
+
+.notificacion-texto {
+  white-space: pre-line;
+  color: var(--tinta-500);
+}
+
+.contenido-aviso {
+  max-height: 50vh;
+  overflow: auto;
+  padding: var(--esp-3);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-md);
+  background: var(--superficie);
+  white-space: pre-wrap;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+}
+
+.interruptor-modo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}

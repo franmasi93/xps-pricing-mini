@@ -62,6 +62,9 @@ PERMISOS_EXTENSIONES = {
     "boletines.listas.gestionar": {"admin", "pricing"},
     "boletines.campanas.gestionar": {"admin", "pricing"},
     "boletines.campanas.enviar": {"admin", "pricing"},
+    "notificaciones.ver": {"admin", "pricing", "comercial", "gerencia"},  # E3
+    "notificaciones.reglas.gestionar": {"admin"},
+    "notificaciones.bitacora.ver": {"admin", "pricing"},
 }
 
 

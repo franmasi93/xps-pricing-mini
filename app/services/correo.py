@@ -19,7 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core import cifrado, fechas
-from app.core.errors import ErrorNegocio, confirmar
+from app.core.errors import ErrorNegocio, confirmar, enviar
 from app.models import ConfigCorreo, ContactoCliente, Cotizacion, EnvioCorreo, EnvioCorreoPrueba, Usuario
 from app.services import auditoria, cotizaciones, pdf
 from app.services.proveedor_correo import (
@@ -526,6 +526,14 @@ def enviar_cotizacion(db: Session, actor: Usuario, cotizacion_id: int, cc_ids: l
             despues={"estado": "ENVIADA", "message_id": resultado.message_id},
             nota=f"ENVIAR {numero} a {destinatario}"[:300],
         )
+    if traduccion is not None:  # E3: aviso interno ENVIO_FALLIDO (outbox, en esta misma transacción)
+        from app.services import notificaciones
+
+        enviar(db)
+        notificaciones.envio_fallido(
+            db, "envio_correo", envio.id, "1", f"No se envió {numero}",
+            f"El correo de la cotización {numero} a {destinatario} falló: {traduccion.mensaje}",
+            auditoria.id_de(actor), f"/app/cotizacion.html?id={bloqueada.id}")
     confirmar(db)
     if traduccion is not None:
         raise ErrorNegocio(502, traduccion.codigo, traduccion.mensaje,

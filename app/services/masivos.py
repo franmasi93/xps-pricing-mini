@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core import fechas
 from app.core.errors import ErrorNegocio, confirmar
-from app.models import CampanaDestinatario, ConfigMasivos, EnvioCorreo, EnvioCorreoPrueba, Usuario
+from app.models import CampanaDestinatario, ConfigMasivos, EnvioCorreo, EnvioCorreoPrueba, Notificacion, Usuario
 from app.services import auditoria
 
 ZONA = ZoneInfo("America/Guayaquil")
@@ -138,6 +138,8 @@ def _contar(db: Session, desde: datetime) -> dict[str, int]:
             EnvioCorreo.estado == "ENVIADO", EnvioCorreo.fecha >= desde)) or 0,
         "pruebas": db.scalar(select(func.count()).select_from(EnvioCorreoPrueba).where(
             EnvioCorreoPrueba.estado == "ENVIADO", EnvioCorreoPrueba.fecha >= desde)) or 0,
+        "avisos": db.scalar(select(func.count()).select_from(Notificacion).where(  # E3
+            Notificacion.canal == "CORREO", Notificacion.estado == "ENVIADO", Notificacion.enviado_en >= desde)) or 0,
     }
 
 
@@ -163,3 +165,10 @@ def disponibles_para_boletines(db: Session, fila: ConfigMasivos) -> int:
     por_dia_total = tope_diario_efectivo(fila, fechas.hoy_ecuador()) - hoy["total"]
     por_hora = fila.tope_hora - enviados_ultima_hora(db)
     return max(0, min(por_dia_boletines, por_dia_total, por_hora))
+
+
+def disponibles_para_avisos(db: Session, fila: ConfigMasivos) -> int:
+    """E3: los avisos usan el tope total del día (incluida la reserva que los boletines no pueden tocar) y el tope por
+    hora."""
+    por_dia_total = tope_diario_efectivo(fila, fechas.hoy_ecuador()) - enviados_hoy(db)["total"]
+    return max(0, min(por_dia_total, fila.tope_hora - enviados_ultima_hora(db)))

@@ -55,6 +55,9 @@ def login(db: Session, email: str, password: str) -> tuple[str, bool]:
         if usuario.intentos_fallidos >= MAX_INTENTOS:
             usuario.intentos_fallidos = 0
             usuario.bloqueado_hasta = ahora + timedelta(minutes=MINUTOS_BLOQUEO)
+            from app.services import notificaciones  # E3: aviso al administrador (outbox)
+
+            notificaciones.usuario_bloqueado(db, usuario)
             confirmar(db)
             raise _cuenta_bloqueada(timedelta(minutes=MINUTOS_BLOQUEO))
         confirmar(db)

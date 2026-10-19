@@ -1302,6 +1302,9 @@ def emitir_cotizacion(db: Session, actor: Usuario, cotizacion_id: int, valida_ha
                      "valida_hasta": cotizacion.valida_hasta.isoformat()},
             nota=f"EMITIR {cotizacion.numero}",
         )
+    from app.services import notificaciones  # E3: margen bajo y reemplazo (outbox, en esta misma transacción)
+
+    notificaciones.al_emitir(db, cotizacion, sum(1 for l in incluidas if calculos[l.id].bajo_costo))
     confirmar(db)
     return _respuesta(db, actor, cotizacion.id)
 
@@ -1340,6 +1343,9 @@ def cambiar_estado(db: Session, actor: Usuario, cotizacion_id: int, datos: dict[
             db, actor, "cotizacion", cotizacion.id, "EDITAR", antes=antes,
             despues={"estado": nuevo, "motivo_rechazo": motivo, "detalle_rechazo": detalle}, nota=nota,
         )
+    from app.services import notificaciones  # E3: avisos (outbox, en esta misma transacción)
+
+    notificaciones.al_cerrar_cotizacion(db, cotizacion, nuevo)
     confirmar(db)
     return _respuesta(db, actor, cotizacion.id)
 

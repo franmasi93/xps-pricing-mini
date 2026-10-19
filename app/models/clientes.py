@@ -1,5 +1,5 @@
 """M6 Clientes y contactos. Tablas creadas por la migración 0003 (CHECK e índice parcial del principal allí)."""
-from sqlalchemy import Boolean, ForeignKey, Identity, String, Text, false
+from sqlalchemy import Boolean, ForeignKey, Identity, String, Text, false, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CatalogoMixin
@@ -19,6 +19,7 @@ class Cliente(CatalogoMixin, Base):
     telefono: Mapped[str | None] = mapped_column(String(40))
     comercial_asignado_id: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="RESTRICT"))
     notas: Mapped[str | None] = mapped_column(Text)
+    avisos_activos: Mapped[bool] = mapped_column(default=True, server_default=true())  # E3
 
     pais: Mapped[Pais] = relationship()
     comercial_asignado: Mapped[Usuario] = relationship(foreign_keys=[comercial_asignado_id])
@@ -35,3 +36,4 @@ class ContactoCliente(CatalogoMixin, Base):
     email: Mapped[str | None] = mapped_column(String(254))
     telefono: Mapped[str | None] = mapped_column(String(40))
     principal: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    recibir_avisos: Mapped[bool] = mapped_column(default=True, server_default=true())  # E3: avisos de sus cotizaciones
