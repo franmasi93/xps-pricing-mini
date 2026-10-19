@@ -58,7 +58,6 @@ class MasivosActualizar(Entrada):
     calentamiento_inicio: int | None = None
     calentamiento_incremento: int | None = None
     calentamiento_desde: date | None = None
-    url_publica: str | None = Field(default=None, max_length=300)
 
     _sin_null = sin_null("tamano_lote", "pausa_segundos", "tope_diario", "tope_hora", "reserva_pct", "adjuntar_pdf",
                          "limite_filas", "dias_envio", "hora_desde", "hora_hasta", "calentamiento",

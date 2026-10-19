@@ -1,7 +1,7 @@
 """Aplicación FastAPI: API en /v1 y pantallas en /app."""
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -31,6 +31,17 @@ RUTA_LOGIN = "/app/login.html"
 
 app = FastAPI(title="XPS Pricing Mini", version="1.0")
 registrar_manejadores(app)
+
+
+@app.middleware("http")
+async def sin_www(request: Request, siguiente):
+    """E4: www.<dominio> → <dominio> (301; 308 si no es GET/HEAD, para no perder el cuerpo). El sistema responde igual
+    con cualquier otro dominio (el de Cloud Run o el propio): no hay CORS ni cookies, y la API usa rutas relativas."""
+    host = request.headers.get("host", "")
+    if host.lower().startswith("www."):
+        destino = f"https://{host[4:]}{request.url.path}" + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(destino, status_code=301 if request.method in ("GET", "HEAD") else 308)
+    return await siguiente(request)
 
 api = APIRouter(prefix="/v1")
 api.include_router(salud.router)

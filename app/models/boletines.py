@@ -60,7 +60,6 @@ class ConfigMasivos(Base):
     calentamiento_inicio: Mapped[int] = mapped_column(Integer, default=100)
     calentamiento_incremento: Mapped[int] = mapped_column(Integer, default=50)
     calentamiento_desde: Mapped[date | None] = mapped_column(Date)
-    url_publica: Mapped[str] = mapped_column(String(300), default="")
     ultimo_lote_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ultima_sincronizacion: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     actualizado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))

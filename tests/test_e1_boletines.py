@@ -620,7 +620,7 @@ def test_configuracion_de_masivos(client, crear_usuario, headers_de, db_session)
     guardada = client.put("/v1/correo/masivos", json={"calentamiento": True, "calentamiento_inicio": 100,
                                                       "calentamiento_incremento": 50}, headers=h).json()
     assert guardada["tope_diario_efectivo"] == 100  # primer día del calentamiento
-    for malo in ({"tamano_lote": 0}, {"hora_desde": 20, "hora_hasta": 8}, {"dias_envio": "8"}, {"url_publica": "http://x"},
+    for malo in ({"tamano_lote": 0}, {"hora_desde": 20, "hora_hasta": 8}, {"dias_envio": "8"},
                  {"correos_prueba": "no-es-correo"}):
         assert client.put("/v1/correo/masivos", json=malo, headers=h).status_code == 422, malo
     assert client.get("/v1/correo/masivos", headers=headers_de(crear_usuario("pricing"))).status_code == 403

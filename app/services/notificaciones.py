@@ -311,17 +311,20 @@ def plantilla_lista(plantilla: PlantillaCorreo | None) -> bool:
 
 
 def _url(db: Session, ruta: str | None) -> str:
-    from app.services import masivos
+    """E4: los enlaces salen de la URL pública del sistema (config_sistema), nunca de una dirección fija."""
+    from app.services import sistema
 
-    return f"{masivos.config(db).url_publica.rstrip('/')}{ruta or '/app/inicio.html'}"
+    return sistema.enlace(db, ruta)
 
 
 def _enlace_plantilla(db: Session, plantilla: PlantillaCorreo | None, ruta: str | None) -> str:
     """Tencent pide el dominio fijo en la plantilla (https://dominio/{{enlace}}): entonces va solo la ruta; si la variable
     es el enlace completo (como en la 72752 y la 72753 de hoy), la URL entera."""
     html = (plantilla.html or "") if plantilla else ""
-    if re.search(r"https?://[^\"'\s{}]+/?\{\{\s*enlace\s*\}\}", html):
-        return (ruta or "/app/inicio.html").lstrip("/")
+    fijo = re.search(r"https?://[^\"'\s{}/]+(/?)\{\{\s*enlace\s*\}\}", html)
+    if fijo:  # con "dominio/{{enlace}}" va la ruta sin la barra; con "dominio{{enlace}}", con la barra
+        ruta = ruta or "/app/inicio.html"
+        return ruta.lstrip("/") if fijo.group(1) else "/" + ruta.lstrip("/")
     return _url(db, ruta)
 
 

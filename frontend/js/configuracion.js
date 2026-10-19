@@ -153,6 +153,27 @@
     document.getElementById("bloque-empresa").hidden = false;
   }
 
+  // ---------- E4: URL pública del sistema ----------
+
+  async function iniciarSistema() {
+    const form = document.getElementById("form-sistema");
+    const alertasSistema = document.getElementById("alertas-sistema");
+    form.elements.url_publica.value = (await XPS.api("/configuracion/sistema")).url_publica;
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      XPS.limpiarAlerta(alertasSistema);
+      const url = form.elements.url_publica.value.trim().replace(/\/+$/, "");
+      if (!window.confirm(`Todos los enlaces nuevos saldrán con ${url}. ¿El sistema ya abre en esa dirección con HTTPS?`)) return;
+      try {
+        form.elements.url_publica.value = (await XPS.api("/configuracion/sistema", { metodo: "PUT", cuerpo: { url_publica: url } })).url_publica;
+        XPS.mostrarAlerta(alertasSistema, "exito", "URL pública guardada.");
+      } catch (error) {
+        XPS.mostrarError(alertasSistema, error);
+      }
+    });
+    document.getElementById("bloque-sistema").hidden = false;
+  }
+
   // ---------- E2: textos del PDF y advertencias de Incoterm ----------
 
   const CAMPOS_TEXTOS_PDF = [
@@ -353,6 +374,7 @@
     pintar(await XPS.api("/configuracion"));
     lista.hidden = false;
     if (UI.tieneAlguno(yo, ["config.editar"])) {
+      await iniciarSistema();
       await iniciarEmpresa();
       await iniciarTextosPdf();
     }

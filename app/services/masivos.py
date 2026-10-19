@@ -24,7 +24,7 @@ PATRON_EMAIL = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$")
 CAMPOS = (
     "remitente", "reply_to", "tamano_lote", "pausa_segundos", "tope_diario", "tope_hora", "reserva_pct", "adjuntar_pdf",
     "limite_filas", "texto_legal", "correos_prueba", "dias_envio", "hora_desde", "hora_hasta", "calentamiento",
-    "calentamiento_inicio", "calentamiento_incremento", "calentamiento_desde", "url_publica",
+    "calentamiento_inicio", "calentamiento_incremento", "calentamiento_desde",
 )
 RANGOS = {
     "tamano_lote": (1, 200), "pausa_segundos": (0, 3600), "tope_diario": (1, 1_000_000), "tope_hora": (1, 100_000),
@@ -91,10 +91,6 @@ def actualizar(db: Session, actor: Usuario, cambios: dict[str, Any]) -> dict[str
     for correo in lista_correos(final["correos_prueba"]):
         if not PATRON_EMAIL.match(correo):
             raise ErrorNegocio(422, "MASIVOS_INVALIDO", f"Correo de prueba no válido: {correo}")
-    url = (final["url_publica"] or "").strip().rstrip("/")
-    if url and not url.startswith("https://"):
-        raise ErrorNegocio(422, "MASIVOS_INVALIDO", "La URL pública debe empezar con https://")
-    final["url_publica"] = url
     if final["calentamiento"] and final["calentamiento_desde"] is None:
         final["calentamiento_desde"] = fechas.hoy_ecuador()
     if isinstance(final["calentamiento_desde"], str):

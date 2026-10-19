@@ -12,13 +12,14 @@ from app.schemas.administracion import (
     MotivoRechazoActualizar,
     MotivoRechazoCrear,
     MotivoRechazoSalida,
+    SistemaActualizar,
     TextosPdf,
     TextosPdfActualizar,
     TipoIdentificacionActualizar,
     TipoIdentificacionCrear,
     TipoIdentificacionSalida,
 )
-from app.services import administracion
+from app.services import administracion, sistema
 
 router = APIRouter(tags=["administracion"])
 editor = require_permiso("config.editar")
@@ -57,6 +58,17 @@ def actualizar_tipo(
     tipo_id: int, datos: TipoIdentificacionActualizar, db: Session = Depends(get_db), actor: Usuario = Depends(editor)
 ):
     return administracion.actualizar_tipo_identificacion(db, actor, tipo_id, datos.model_dump(exclude_unset=True))
+
+
+@router.get("/configuracion/sistema", tags=["configuracion"], dependencies=[Depends(editor)])
+def leer_sistema(db: Session = Depends(get_db)):
+    """E4: URL pública del sistema (con la que se arman todos los enlaces)."""
+    return sistema.presentar(db)
+
+
+@router.put("/configuracion/sistema", tags=["configuracion"])
+def guardar_sistema(datos: SistemaActualizar, db: Session = Depends(get_db), actor: Usuario = Depends(editor)):
+    return sistema.actualizar(db, actor, datos.model_dump(exclude_unset=True))
 
 
 @router.get("/textos-pdf", response_model=TextosPdf, dependencies=[Depends(editor)])

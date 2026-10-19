@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorNegocio
 from app.models import BajaCorreo, Campana, CampanaDestinatario, PlantillaCorreo
-from app.services import boletines, campanas, correo, masivos, plantillas_correo
+from app.services import boletines, campanas, correo, masivos, plantillas_correo, sistema
 from app.services.proveedor_correo import Mensaje, traducir
 
 registro = logging.getLogger("xps.motor_envios")
@@ -68,9 +68,11 @@ def _preparado(db: Session, campana: Campana, cache: dict[int, Any]) -> dict[str
         fila = masivos.config(db)
         snapshot = campana.snapshot_tarifas
         fijas = campanas.variables_fijas(db, campana, snapshot, campanas._comercial_de(db, campana, None))
-        filas = campanas.ajustar_filas(plantilla, fijas, snapshot, fila.url_publica, campana.adjuntar_pdf, fila.limite_filas)
+        url = sistema.url_publica(db)  # E4: fuente única de los enlaces
+        filas = campanas.ajustar_filas(plantilla, fijas, snapshot, url, campana.adjuntar_pdf, fila.limite_filas)
         adjunto = db.scalar(select(Campana.adjunto_pdf).where(Campana.id == campana.id)) or b""
-        cache[campana.id] = {"plantilla": plantilla, "fijas": fijas, "filas": filas, "masivos": fila, "adjunto": adjunto}
+        cache[campana.id] = {"plantilla": plantilla, "fijas": fijas, "filas": filas, "masivos": fila, "adjunto": adjunto,
+                             "url_publica": url}
     return cache[campana.id]
 
 
@@ -84,7 +86,7 @@ def enviar_uno(db: Session, destinatario: CampanaDestinatario, preparado: dict[s
     plantilla = preparado["plantilla"]
     variables = campanas.variables_destinatario(
         preparado["fijas"], preparado["filas"], destinatario.nombre, destinatario.empresa,
-        campanas._url_baja(fila, destinatario.token_baja),
+        campanas._url_baja(preparado["url_publica"], destinatario.token_baja),
     )
     campana = destinatario.campana
     resultado = correo._llamar(vigente, Mensaje(

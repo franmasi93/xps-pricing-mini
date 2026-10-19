@@ -10,7 +10,7 @@
   const alertas = document.getElementById("alertas-masivos");
   const NUMEROS = ["tamano_lote", "pausa_segundos", "tope_diario", "tope_hora", "reserva_pct", "limite_filas", "hora_desde",
     "hora_hasta", "calentamiento_inicio", "calentamiento_incremento"];
-  const TEXTOS = ["reply_to", "dias_envio", "url_publica", "correos_prueba", "texto_legal"];
+  const TEXTOS = ["reply_to", "dias_envio", "correos_prueba", "texto_legal"];
   let actual = null;
 
   function contador(etiqueta, valor) {

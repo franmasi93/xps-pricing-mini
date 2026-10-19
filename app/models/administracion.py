@@ -60,3 +60,17 @@ class ConfigTextosPdf(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     actualizado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+
+
+class ConfigSistema(Base):
+    """E4 (0011): una sola fila. url_publica = dirección con la que se arman TODOS los enlaces (baja, avisos, botones de
+    las plantillas). Hoy la de Cloud Run; con el dominio propio, https://pricing.xpress.ec."""
+
+    __tablename__ = "config_sistema"
+
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, autoincrement=False)
+    url_publica: Mapped[str] = mapped_column(String(300))
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    actualizado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))

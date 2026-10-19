@@ -37,6 +37,23 @@
         <div id="alertas" hidden></div>
         <section class="tarjeta" id="lista-config" hidden></section>
 
+        <!-- E4: URL pública del sistema (config.editar): con ella se arman todos los enlaces que salen del sistema -->
+        <section class="tarjeta" id="bloque-sistema" hidden>
+          <h3>URL pública del sistema</h3>
+          <p class="ayuda">Con esta dirección se arman todos los enlaces que salen del sistema: la baja de los boletines y avisos, y los enlaces de los avisos internos y resúmenes. Cámbiela solo cuando el dominio nuevo ya abra el sistema con HTTPS.</p>
+          <div id="alertas-sistema" hidden></div>
+          <form id="form-sistema" novalidate>
+            <div class="campo">
+              <label for="sistema-url">URL pública</label>
+              <input class="input cifra" id="sistema-url" name="url_publica" type="url" maxlength="300" required placeholder="https://pricing.xpress.ec" aria-describedby="ayuda-sistema-url">
+              <p class="ayuda" id="ayuda-sistema-url">Solo el dominio, con https:// y sin barra final.</p>
+            </div>
+            <div class="config-acciones">
+              <button class="btn btn-primario btn-chico" type="submit">Guardar URL</button>
+            </div>
+          </form>
+        </section>
+
         <!-- A4 / C8: datos de la empresa para el PDF (config.editar) -->
         <section class="tarjeta" id="bloque-empresa" hidden>
           <h3>Datos de la empresa para el PDF</h3>
@@ -116,7 +133,6 @@
               <div class="campo"><label for="masivos-dias">Días de envío (1 = lunes … 7 = domingo)</label><input class="input cifra" id="masivos-dias" name="dias_envio" type="text" maxlength="20"></div>
               <div class="campo"><label for="masivos-desde">Desde la hora</label><input class="input cifra" id="masivos-desde" name="hora_desde" type="number" min="0" max="23"></div>
               <div class="campo"><label for="masivos-hasta">Hasta la hora</label><input class="input cifra" id="masivos-hasta" name="hora_hasta" type="number" min="0" max="23"></div>
-              <div class="campo"><label for="masivos-url">URL pública (enlace de baja)</label><input class="input" id="masivos-url" name="url_publica" type="url" maxlength="300"></div>
               <div class="campo"><label for="masivos-cal-inicio">Calentamiento: correos el primer día</label><input class="input cifra" id="masivos-cal-inicio" name="calentamiento_inicio" type="number" min="1"></div>
               <div class="campo"><label for="masivos-cal-incremento">Calentamiento: aumento por día</label><input class="input cifra" id="masivos-cal-incremento" name="calentamiento_incremento" type="number" min="0"></div>
             </div>

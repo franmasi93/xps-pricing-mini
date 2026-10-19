@@ -32,7 +32,9 @@ from app.models import (
     Tarifa,
     Usuario,
 )
-from app.services import auditoria, boletines, correo, masivos, pdf, plantillas_correo, plantillas_diseno, servicios
+from app.services import (
+    auditoria, boletines, correo, masivos, pdf, plantillas_correo, plantillas_diseno, servicios, sistema,
+)
 from app.services.configuracion import leer_config
 from app.services.empresa import whatsapp_numero
 from app.services.proveedor_correo import Mensaje
@@ -264,8 +266,9 @@ def _filas_de_plantilla(plantilla) -> list[str]:
                   key=lambda v: int(PATRON_FILA.match(v).group(1)))
 
 
-def _url_baja(fila_masivos, token: str) -> str:
-    return f"{fila_masivos.url_publica.rstrip('/')}/b/{token}"
+def _url_baja(url_publica: str, token: str) -> str:
+    """E4: la URL pública sale de config_sistema (sistema.url_publica), nunca fija."""
+    return f"{url_publica.rstrip('/')}/b/{token}"
 
 
 def datos_empresa(db: Session) -> dict[str, str]:
@@ -391,12 +394,11 @@ def preparar(db: Session, campana: Campana, actor: Usuario | None, fecha: date) 
     snapshot = campana.snapshot_tarifas if campana.estado != "BORRADOR" and campana.snapshot_tarifas else snapshot_de(
         db, campana, tarifas, fecha)
     fila = masivos.config(db)
-    if not fila.url_publica:
-        raise ErrorNegocio(422, "MASIVOS_SIN_URL", "Configure la URL pública (Configuración → Envíos masivos)")
+    url = sistema.url_publica(db)
     fijas = variables_fijas(db, campana, snapshot, _comercial_de(db, campana, actor))
-    filas = ajustar_filas(plantilla, fijas, snapshot, fila.url_publica, campana.adjuntar_pdf, fila.limite_filas)
+    filas = ajustar_filas(plantilla, fijas, snapshot, url, campana.adjuntar_pdf, fila.limite_filas)
     return {"plantilla": plantilla, "snapshot": snapshot, "fijas": fijas, "filas": filas, "avisos": avisos,
-            "masivos": fila}
+            "masivos": fila, "url_publica": url}
 
 
 def vista_previa(db: Session, actor: Usuario, campana_id: int) -> dict[str, Any]:
@@ -404,7 +406,7 @@ def vista_previa(db: Session, actor: Usuario, campana_id: int) -> dict[str, Any]
     hoy = fechas.hoy_ecuador()
     datos = preparar(db, campana, actor, hoy)
     ejemplo = variables_destinatario(datos["fijas"], datos["filas"], "Nombre del contacto", "Empresa del cliente",
-                                     _url_baja(datos["masivos"], "token-de-ejemplo"))
+                                     _url_baja(datos["url_publica"], "token-de-ejemplo"))
     plantilla = datos["plantilla"]
     if not plantilla.html:
         html = ("<p>Esta plantilla no tiene una copia del HTML en el sistema; la vista previa muestra solo las "
@@ -460,7 +462,7 @@ def enviar_prueba(db: Session, actor: Usuario, campana_id: int, email: str | Non
     datos = preparar(db, campana, actor, hoy)
     plantilla = plantillas_correo.plantilla_utilizable(db, campana.plantilla_id, "BOLETIN")
     variables = variables_destinatario(datos["fijas"], datos["filas"], actor.nombre, "Prueba interna",
-                                       _url_baja(fila, "prueba"))
+                                       _url_baja(datos["url_publica"], "prueba"))
     plantillas_correo.exigir_variables(plantilla, variables, OPCIONALES | set(_filas_de_plantilla(plantilla)))
     vigente = correo.config_vigente(db)
     if not vigente.configurado:
@@ -509,7 +511,7 @@ def enviar_o_programar(db: Session, actor: Usuario, campana_id: int, datos: dict
     plantilla = plantillas_correo.plantilla_utilizable(db, campana.plantilla_id, "BOLETIN")
     preparado = preparar(db, campana, actor, fecha_envio)
     fila = preparado["masivos"]
-    ejemplo = variables_destinatario(preparado["fijas"], preparado["filas"], "x", "x", _url_baja(fila, "x"))
+    ejemplo = variables_destinatario(preparado["fijas"], preparado["filas"], "x", "x", _url_baja(preparado["url_publica"], "x"))
     plantillas_correo.exigir_variables(plantilla, ejemplo, OPCIONALES | set(_filas_de_plantilla(plantilla)))
     unicos, duplicados = resolver_destinatarios(db, campana.listas_ids)
     emails = [c.email.strip().lower() for c, _ in unicos]

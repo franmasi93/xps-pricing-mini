@@ -1,4 +1,4 @@
-from app.models.administracion import ConfigTextosPdf, MotivoRechazo, TipoIdentificacion
+from app.models.administracion import ConfigSistema, ConfigTextosPdf, MotivoRechazo, TipoIdentificacion
 from app.models.base import Base
 from app.models.boletines import (
     BajaCorreo,
@@ -27,6 +27,7 @@ __all__ = [
     "Notificacion",
     "PreferenciaNotificacion",
     "ReglaNotificacion",
+    "ConfigSistema",
     "ConfigTextosPdf",
     "MotivoRechazo",
     "TipoIdentificacion",

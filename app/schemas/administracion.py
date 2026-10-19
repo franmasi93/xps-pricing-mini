@@ -107,3 +107,7 @@ class TextosPdfActualizar(Entrada):
         "aceptacion_titulo", "aceptacion_texto", "firma_fecha", "firma_firma", "firma_sello", "advertencia_ddp",
         "advertencia_exw",
     )
+
+
+class SistemaActualizar(Entrada):
+    url_publica: str = Field(max_length=300)
