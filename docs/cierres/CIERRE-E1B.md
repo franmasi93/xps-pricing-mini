@@ -8,7 +8,7 @@
 | Alcance | E1-B (perfil comercial + importación alineada con Tencent) y 6-B (historial de correos y columnas visibles) |
 | Migración | `0012_e1b_perfil_comercial` (0011 → 0012), probada ida y vuelta en local |
 | Respaldos | **1792425740361** (antes de migrar) · **1792427594017** (antes del segundo despliegue) |
-| Producción | https://pricing.xpress.ec · revisión **xps-pricing-00011-j9g** (⚠ le faltan 2 secretos: ver 8.1) |
+| Producción | https://pricing.xpress.ec · revisión **xps-pricing-00012-rks** (la 00011 con los 5 secretos restaurados por el gerente: ver 8.1) |
 | Pruebas | 818 (34 nuevas de E1-B); Regla 18 doble en verde |
 
 ## 1. Resumen en cristiano
@@ -137,7 +137,7 @@ Los 3 clientes que ya existían quedaron intactos, con "acepta promociones = SÍ
 | Prueba de oro, después de migrar | COT-2026-00001 **idéntica** (fila, líneas y PDF). Los 3 clientes y 3 contactos: datos de F2 **idénticos**; los 3 con acepta promociones, medio RELACION_COMERCIAL_PREVIA y estado ACTIVO; los 3 contactos reciben promociones |
 | Primer despliegue | **Falló el build:** `.dockerignore` excluía `docs/` y la plantilla no entraba a la imagen. Producción siguió en la 00009, sana (la 0012 es compatible con el código anterior) |
 | Despliegue | `xps-pricing-00010-pd7`, luego **`xps-pricing-00011-j9g`** (vista previa corregida, ver abajo), al 100 %. `/v1/salud` → `{"estado":"ok","bd":"ok"}`; 0 errores en los logs de la aplicación |
-| **Secretos** | ⚠ **Error mío:** desplegué con el comando de `docs/DESPLIEGUE.md`, que solo tenía 3 secretos, y `--set-secrets` reemplaza la lista. Las revisiones 00010 y 00011 no tienen `TAREAS_SECRETO` ni `TENCENT_EVENTOS_TOKEN`. Desde las 11:13, `procesar-lote` responde 503 cada minuto y un evento del callback (11:24) recibió 503. **No se envió nada indebido**: solo está detenido el trabajo programado. El arreglo (una línea, sin reconstruir) lo bloqueó el control de permisos: ver 8.1. La guía ya lleva los 5 secretos y una prueba lo vigila |
+| **Secretos** | ⚠ **Error mío:** desplegué con el comando de `docs/DESPLIEGUE.md`, que solo tenía 3 secretos, y `--set-secrets` reemplaza la lista. Las revisiones 00010 y 00011 no tenían `TAREAS_SECRETO` ni `TENCENT_EVENTOS_TOKEN`: `procesar-lote` respondió 503 de **11:21 a 12:36**, un evento del callback (11:24) y la evaluación de avisos de las 12:05 recibieron 503. **No se envió nada indebido**: solo se detuvo el trabajo programado. **Resuelto** por el gerente a las 12:35 (revisión 00012): ver 8.1. La guía ya lleva los 5 secretos y una prueba lo vigila |
 | Plantilla en pricing.xpress.ec | xlsx: hojas y columnas **iguales a la oficial**, 9 listas desplegables. CSV: encabezado oficial |
 | Importación por la pantalla (archivo PRUEBA) | 2 clientes ficticios ("PRUEBA E1B IMPORTADORA UNO/DOS"), contactos Ana Prueba y Luis Prueba, **solo con francois-ramart@outlook.com**: 2 creados, 2 contactos creados, 0 errores |
 | Lista por filtro tipo_cliente = IMPORTADOR | 2 contactos, los dos francois-ramart@outlook.com (1 recibiría: el mismo correo cuenta una vez). El script tenía un freno: si aparecía otro correo, no se enviaba nada |
@@ -146,7 +146,7 @@ Los 3 clientes que ya existían quedaron intactos, con "acepta promociones = SÍ
 | Limpieza | Borradores borrados; tarifas temporales, listas y **los 10 clientes PRUEBA desactivados** (5 corridas del script: 3 fallaron antes de enviar, por errores del propio script); usuarios de prueba desactivados. 0 destinatarios de campaña con contactos PRUEBA |
 | Capturas | En la carpeta de la sesión: `prod_e1b_1_vista_previa.png`, `prod_e1b_2_importacion.png`, `prod_e1b_3a_paso3.png`, `prod_e1b_3_prueba_boletin.png`, `prod_e1b_4_perfil.png` |
 | Instancia | Encendida (ALWAYS) dentro del horario; la apaga el horario de las 20:00. Proxy detenido al terminar |
-| Vuelta atrás, si hiciera falta | `gcloud run services update-traffic xps-pricing --region us-central1 --to-revisions=xps-pricing-00009-cmx=100` (la 00009 tiene los 5 secretos) y `alembic downgrade 0011` |
+| Vuelta atrás, si hiciera falta | `gcloud run services update-traffic xps-pricing --region us-central1 --to-revisions=xps-pricing-00009-cmx=100` (la 00009 y la 00012 tienen los 5 secretos) y `alembic downgrade 0011` |
 
 ## 7. Decisiones tomadas
 
@@ -163,15 +163,40 @@ Los 3 clientes que ya existían quedaron intactos, con "acepta promociones = SÍ
 
 ## 8. Pendientes del gerente
 
-### 8.1 Urgente: devolver los 2 secretos a Cloud Run
+### 8.1 Secretos de Cloud Run: RESUELTO
 
-Una sola línea, sin reconstruir la imagen; agrega y no borra los otros:
+El gerente devolvió los 2 secretos con una sola línea, sin reconstruir la imagen:
 
 ```
 gcloud run services update xps-pricing --project xps-reborn-v2 --region us-central1 --update-secrets=TAREAS_SECRETO=xps-pricing-tareas-secreto:latest,TENCENT_EVENTOS_TOKEN=xps-pricing-tencent-eventos-token:latest
 ```
 
-Después, en Cloud Run → Registros, `procesar-lote` debe volver a 200 al minuto siguiente.
+Se creó la revisión **xps-pricing-00012-rks**, con los 5 secretos y el 100 % del tráfico.
+
+**Tiempo caído, según los registros de Cloud Run (hora Ecuador):**
+
+| Momento | Hora |
+|---|---|
+| Último 200 de `procesar-lote` (revisión 00009) | 11:20 |
+| Primer 503 (revisión 00010) | 11:21 |
+| Evaluación de avisos con 503 (revisión 00011) | 12:05 (la siguiente, a las 13:05) |
+| Revisión 00012 creada | 12:35 |
+| Último 503 | 12:36 |
+| Primer 200 (revisión 00012) | 12:37 (17:37 UTC) |
+
+Fueron **unos 76 minutos** sin lote de boletines. Además se perdieron:
+- una corrida horaria de la evaluación de avisos (la siguiente la cubrió);
+- un evento del callback de Tencent (11:24).
+
+La nota del gerente decía de 11:13 a 12:56 (17:56 UTC):
+- las 11:13 fueron el inicio del despliegue: el servicio se cortó recién cuando la 00010 tomó el tráfico, a las 11:21;
+- a las 17:56 UTC ya respondía 200: el primero fue a las 17:37 UTC.
+
+**Regla desde ahora:**
+- antes de cualquier despliegue, comparar los secretos de la revisión vigente (`gcloud run services describe xps-pricing --region us-central1`) con los del comando;
+- al desplegar, usar **siempre los 5 secretos**: `DATABASE_URL`, `JWT_SECRET`, `CONFIG_CIFRADO_KEY`, `TAREAS_SECRETO` y `TENCENT_EVENTOS_TOKEN`.
+
+`docs/DESPLIEGUE.md` ya los trae, y `tests/test_e1b_perfil.py` falla si el comando de la guía pierde alguno.
 
 ### 8.2 Otros
 
