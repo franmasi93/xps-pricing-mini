@@ -1,5 +1,12 @@
 # E4 · Dominio propio pricing.xpress.ec
 
+> **Estado al 2026-10-19, 09:35: ACTIVO.**
+> - **Mapeos:** pricing.xpress.ec y www.pricing.xpress.ec están Ready.
+> - **Certificado:** de Google Trust Services, vigente hasta el 2027-01-17, con renovación automática.
+> - **URL pública del sistema:** https://pricing.xpress.ec.
+> - **Detalle:** ver `docs/cierres/CIERRE-E4.md`.
+> - Las secciones de abajo describen cómo se hizo. **No borre el TXT de verificación de Google.**
+
 **Objetivo:** abrir el sistema en **https://pricing.xpress.ec**, con **https://www.pricing.xpress.ec** redirigiendo a la principal. La dirección de Cloud Run (`https://xps-pricing-809824844407.us-central1.run.app`) sigue funcionando. Los correos siguen saliendo de notificaciones.xpress.ec por Tencent; este cambio no los toca.
 
 ## 1. Dónde se administra el DNS de xpress.ec (verificado el 2026-10-19)
