@@ -41,6 +41,14 @@ En esta carpeta hay una copia del HTML y del texto de cada plantilla, tal como e
 | 72752 | Xps interno aviso | Aviso interno | **Rechazada.** Motivo: `{{enlace}}` es una URL completa y `{{mensaje}}`/`{{detalle_*}}` son texto libre. Corrección sugerida por Tencent: `https://xpress.ec/{{enlace}}` con el dominio fijo, y campos controlados en vez de texto libre |
 | 72753 | Xps interno resumen | Resumen | **Rechazada.** Motivo: `{{enlace}}` lleva la URL completa y la proporción de variables es de 1:2,5. Corrección: dominio fijo (`https://xpress.ec/{{enlace}}`), más texto fijo y menos variables |
 
+## El dominio del enlace en 72752 y 72753
+
+Tencent sugiere `https://xpress.ec/{{enlace}}`. Sin embargo, el enlace tiene que llevar a la pantalla del sistema, así que el dominio fijo debe ser **el del sistema**:
+- `https://xps-pricing-809824844407.us-central1.run.app/{{enlace}}`;
+- o un dominio propio mapeado a Cloud Run, por ejemplo `https://pricing.xpress.ec/{{enlace}}`.
+
+Con el dominio fijo en la plantilla, el sistema envía en `{{enlace}}` solo la ruta (por ejemplo, `app/cotizacion.html?id=12`). Lo detecta solo al sincronizar.
+
 ## La llave API no puede crear plantillas
 
 La llave que usa el sistema no tiene permiso CAM para `ses:CreateEmailTemplate`, `ses:UpdateEmailTemplate` ni `ses:CreateEmailAddress`. Tencent responde AuthFailure.UnauthorizedOperation. Hay dos opciones:
