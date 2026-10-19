@@ -50,7 +50,7 @@ def leer_semillas() -> dict[str, str]:
 
 def actor(db, base_pruebas: bool) -> Usuario:
     admin = db.scalars(
-        select(Usuario).join(Rol).where(Rol.codigo == "admin", Usuario.activo.is_(True)).order_by(Usuario.id)
+        select(Usuario).join(Rol, Usuario.rol_id == Rol.id).where(Rol.codigo == "admin", Usuario.activo.is_(True)).order_by(Usuario.id)
     ).first()
     if admin is not None:
         return admin

@@ -248,7 +248,7 @@ def _capturar(archivo: Path, fecha: str | None) -> None:
     with Session(engine) as db:
         try:
             admin = db.scalars(
-                select(Usuario).join(Rol).where(Rol.codigo == "admin", Usuario.activo.is_(True)).order_by(Usuario.id)
+                select(Usuario).join(Rol, Usuario.rol_id == Rol.id).where(Rol.codigo == "admin", Usuario.activo.is_(True)).order_by(Usuario.id)
             ).first()
             if admin is None:  # base de pruebas: un administrador temporal que se va con el rollback
                 rol = db.scalars(select(Rol).where(Rol.codigo == "admin")).one()
