@@ -21,6 +21,7 @@ from app.models import (
     Cliente,
     Cotizacion,
     EnvioCorreo,
+    EnvioCorreoPrueba,
     Notificacion,
     PlantillaCorreo,
     TencentEvento,
@@ -52,7 +53,9 @@ def message_id_de(evento: dict[str, Any]) -> str:
 def vincular(db: Session, message_id: str) -> tuple[str, int | None]:
     if not message_id:
         return "SIN_VINCULAR", None
-    for origen, modelo in (("BOLETIN", CampanaDestinatario), ("AVISO", Notificacion), ("COTIZACION", EnvioCorreo)):
+    # "Enviarme una prueba" (EnvioCorreoPrueba) también se vincula: origen PRUEBA (migración 0013).
+    for origen, modelo in (("BOLETIN", CampanaDestinatario), ("AVISO", Notificacion), ("COTIZACION", EnvioCorreo),
+                           ("PRUEBA", EnvioCorreoPrueba)):
         encontrado = db.scalar(select(modelo.id).where(modelo.message_id == message_id).limit(1))
         if encontrado is not None:
             return origen, encontrado
@@ -72,7 +75,8 @@ def guardar_evento(db: Session, evento: dict[str, Any]) -> dict[str, Any]:
     if message_id:
         sentencia = sentencia.on_conflict_do_nothing(index_elements=["message_id", "evento"],
                                                      index_where=TencentEvento.message_id.is_not(None))
-    nuevo = (db.execute(sentencia).rowcount or 0) > 0
+    # RETURNING y no rowcount: con psycopg 3 este INSERT da rowcount = -1 (sin conflicto devuelve el id; con conflicto, nada).
+    nuevo = db.execute(sentencia.returning(TencentEvento.id)).scalar_one_or_none() is not None
     return {"origen": origen, "origen_id": origen_id, "evento": tipo, "nuevo": nuevo}
 
 

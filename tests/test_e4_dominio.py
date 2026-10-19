@@ -1,5 +1,6 @@
 """E4 Dominio propio (TE4-01 a TE4-08): URL pública del sistema como fuente única de los enlaces, www → dominio
 principal y el sistema funcionando igual con cualquier dominio (run.app o pricing.xpress.ec)."""
+import re
 from pathlib import Path
 
 import pytest
@@ -37,7 +38,8 @@ def test_siembra_y_ninguna_url_fija_en_el_codigo(db_session):  # TE4-01
     assert sistema.url_publica(db_session) == RUN_APP  # 0011 copia el valor de config_masivos (E1)
     fijas = [
         str(ruta.relative_to(RAIZ)) for carpeta in ("app", "frontend") for ruta in (RAIZ / carpeta).rglob("*")
-        if ruta.suffix in (".py", ".js", ".html") and "run.app" in ruta.read_text(encoding="utf-8", errors="ignore")
+        if ruta.suffix in (".py", ".js", ".html")
+        and re.search(r"https?://[\w.-]+\.run\.app", ruta.read_text(encoding="utf-8", errors="ignore"))
     ]
     assert fijas == []  # la URL run.app solo vive en la base (config_sistema) y en la migración que la siembra
 

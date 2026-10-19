@@ -5,9 +5,10 @@
 > - **Certificado:** de Google Trust Services, vigente hasta el 2027-01-17, con renovación automática.
 > - **URL pública del sistema:** https://pricing.xpress.ec.
 > - **Detalle:** ver `docs/cierres/CIERRE-E4.md`.
+> - **Desde el 2026-10-19, 13:35: la URL de Cloud Run está desactivada** (`--no-default-url`). El sistema se usa solo por https://pricing.xpress.ec. Cloud Scheduler y el callback de Tencent llaman al dominio propio. Ver "Baja de run.app" en `docs/cierres/CIERRE-E4.md`.
 > - Las secciones de abajo describen cómo se hizo. **No borre el TXT de verificación de Google.**
 
-**Objetivo:** abrir el sistema en **https://pricing.xpress.ec**, con **https://www.pricing.xpress.ec** redirigiendo a la principal. La dirección de Cloud Run (`https://xps-pricing-809824844407.us-central1.run.app`) sigue funcionando. Los correos siguen saliendo de notificaciones.xpress.ec por Tencent; este cambio no los toca.
+**Objetivo:** abrir el sistema en **https://pricing.xpress.ec**, con **https://www.pricing.xpress.ec** redirigiendo a la principal. La dirección de Cloud Run se dio de baja después (ver el estado arriba). Los correos siguen saliendo de notificaciones.xpress.ec por Tencent; este cambio no los toca.
 
 ## 1. Dónde se administra el DNS de xpress.ec (verificado el 2026-10-19)
 
@@ -86,11 +87,11 @@ Borrarlos es opcional y no cambia nada: cPanel → Dominios → Subdominios → 
 
 - **Configuración → URL pública del sistema** (tabla `config_sistema`, migración 0011, con auditoría y permiso `config.editar`):
   - es la única fuente de los enlaces: baja de boletines y avisos, enlaces de los avisos internos y resúmenes, y botones de las plantillas;
-  - **queda en la dirección de Cloud Run** hasta que pricing.xpress.ec abra con HTTPS.
-- **Ningún dominio está fijo en el código.** La prueba TE4-01 lo verifica: la URL de Cloud Run solo existe en la base y en la migración que la siembra.
-- **Funciona con cualquier dominio:** no hay CORS ni cookies (la sesión es un token y la API usa rutas relativas). TE4-08 prueba el ingreso con los dos dominios.
+  - es https://pricing.xpress.ec desde el 2026-10-19, 09:31.
+- **Ningún dominio está fijo en el código.** TE4-01 y TRA-07 lo verifican: ninguna URL `.run.app` en app/, frontend/, scripts/ ni en las plantillas.
+- **Funciona con cualquier dominio:** no hay CORS ni cookies (la sesión es un token y la API usa rutas relativas). TE4-08 prueba el ingreso con los dos dominios. Con la baja de run.app, si la URL por defecto se reactivara, la app redirige los GET a la URL pública y responde 410 a la escritura (salvo `/internal/*` y `/v1/salud`).
 - **www.pricing.xpress.ec redirige a pricing.xpress.ec:** 301 en GET, y 308 en POST para no perder el cuerpo.
-- **Callback de Tencent:** el endpoint es el mismo en los dos dominios. La URL de Cloud Run sigue aceptando callbacks.
+- **Callback de Tencent:** registrado por el gerente a nivel de cuenta con `https://pricing.xpress.ec/internal/tencent/eventos/<TOKEN>`.
 
 ## 6. Pasos que faltan (en orden)
 
@@ -120,4 +121,4 @@ Las demás plantillas no cambian: sus enlaces (por ejemplo, el de baja) salen de
 
 ## 8. Callback de Tencent
 
-La URL nueva es `https://pricing.xpress.ec/internal/tencent/eventos/<TOKEN>`. Se entrega copiada al portapapeles, sin mostrar el token. Se registra en la consola de SES (Callback) **después** de que pricing.xpress.ec abra con HTTPS. La dirección de Cloud Run sigue aceptando callbacks mientras tanto.
+La URL nueva es `https://pricing.xpress.ec/internal/tencent/eventos/<TOKEN>`. Se entrega copiada al portapapeles, sin mostrar el token. El gerente la registró en la consola de SES (Callback, a nivel de cuenta) el 2026-10-19. Ya no hay callbacks por la URL de Cloud Run, que está desactivada.

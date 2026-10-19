@@ -143,3 +143,96 @@ Las reglas temporales de la prueba (ids 20 y 21) quedaron desactivadas. Los avis
 4. [ ] **Revisar en su correo** el "aviso interno" de prueba (72752) y el "resumen diario" (72753).
 5. [ ] **Registrar el callback** en Tencent (Pendientes 1).
 6. [ ] **Elegir quién recibe los resúmenes** (Pendientes 2).
+
+## 13. Baja de run.app (2026-10-19, 13:04–13:45)
+
+**Resultado: la URL de Cloud Run quedó APAGADA.** El sistema se usa solo por https://pricing.xpress.ec. La dirección `https://xps-pricing-809824844407.us-central1.run.app` (dato histórico) responde 404 de Google. Siguen funcionando: boletines, avisos, callback de Tencent, login, PDF y baja pública.
+
+### 13.1 Inventario de usos de run.app
+
+| Dónde | Qué había | Qué se hizo |
+|---|---|---|
+| Cloud Scheduler `xps-boletines-lote` y `xps-notificaciones-evaluar` | llamaban a la URL run.app | **cambiados** a `https://pricing.xpress.ec/internal/...` |
+| Callback de Tencent | ya registrado a nivel de cuenta con pricing.xpress.ec | nada que cambiar (verificado en logs) |
+| Base: `config_sistema.url_publica` | ya era https://pricing.xpress.ec | nada |
+| Base: `auditoria` (5 y 4 filas) | la URL vieja en el historial de cambios | se deja: es historial |
+| Migraciones 0008 y 0011 | la URL como valor inicial | se dejan: ya aplicadas (historial) |
+| `docs/DESPLIEGUE.md` y `docs/extensiones/E4-DOMINIO.md` | la URL run.app como dirección del sistema | **actualizados** (solo pricing.xpress.ec; "Volver atrás" nuevo) |
+| Código (`app/`, `frontend/`), `scripts/`, plantillas | ninguna URL run.app | prueba TRA-07 que lo vigila |
+| Secret Manager | solo nombres revisados: ninguno es una URL | nada |
+| Otros jobs (`prender-db-reborn`, `apagar-db-reborn`) | no son de este sistema | **no se tocaron** |
+
+### 13.2 Cloud Scheduler: antes → después
+
+| Job | Antes | Después |
+|---|---|---|
+| `xps-boletines-lote` (`* 7-19 * * 1-5`, America/Guayaquil, POST, `X-Tarea-Secreto`) | `https://xps-pricing-809824844407.us-central1.run.app/internal/boletines/procesar-lote` | `https://pricing.xpress.ec/internal/boletines/procesar-lote` |
+| `xps-notificaciones-evaluar` (`5 7-19 * * 1-5`, America/Guayaquil, POST, `X-Tarea-Secreto`) | `https://xps-pricing-809824844407.us-central1.run.app/internal/notificaciones/evaluar` | `https://pricing.xpress.ec/internal/notificaciones/evaluar` |
+
+- **Qué cambió:** solo la URI (`gcloud scheduler jobs update http --uri`). La cabecera secreta, el horario, la zona horaria, el método y el cuerpo se conservaron. La configuración anterior se guardó, con el secreto tapado.
+- **Ejecutados a mano a las 13:11:** los dos respondieron 200 por pricing.xpress.ec.
+- **Después:** el lote respondió 200 cada minuto (13:12–13:17, y siguió así), también tras desplegar y después de apagar run.app (evaluar: 13:35 y 13:40; lote: cada minuto).
+
+### 13.3 Callback de Tencent
+
+- Desde las 09:49 **no llegó ningún evento por run.app**. Todos llegaron por pricing.xpress.ec:
+  - 3 con 200 (09:58–09:59);
+  - 2 con 503 durante la caída por los secretos (11:24 y 11:42), que se perdieron;
+  - 1 GET con 405 a las 09:49, la comprobación de Tencent al registrar el callback.
+- **Prueba:** "Enviarme una prueba" del boletín, solo a francois-ramart@outlook.com (0 pruebas en la hora anterior). El evento `delivered` llegó a las 13:33:50 por pricing.xpress.ec con 200 y quedó **vinculado al envío** (origen PRUEBA).
+- **Para eso se agregó la migración 0013:** los eventos de "Enviarme una prueba" se vinculan a su envío; antes quedaban "sin vincular".
+- **Defecto corregido de E1-B:** el indicador "evento nuevo" usaba `rowcount`, que con psycopg 3 vale -1; nunca marcaba un evento como nuevo. Ahora usa `RETURNING`.
+
+### 13.4 Redirección en la aplicación (red de seguridad)
+
+Un middleware nuevo actúa en las peticiones que llegan con un host terminado en `.run.app`. Hoy no llega ninguna, porque la URL está apagada; sirve por si se reactiva.
+- **GET y HEAD:** 301 a la misma ruta y query en la URL pública del sistema (sale de la base, nunca fija en el código).
+- **POST, PUT, PATCH y DELETE:** 410 con "Esta dirección ya no se usa. Use https://pricing.xpress.ec".
+- **Sin cambios:** `/internal/*` y `/v1/salud`. pricing.xpress.ec tampoco cambia.
+- **Si la URL pública también fuera run.app,** no redirige, para evitar un bucle.
+- **Pruebas:** `tests/test_baja_run_app.py` (TRA-01 a TRA-07). TE4-01 ahora busca URLs `https://….run.app` y no el sufijo, porque el middleware lo menciona.
+- **Verificado en producción antes de apagar:**
+  - run.app `/app/login.html?x=1` → 301 a `https://pricing.xpress.ec/app/login.html?x=1`;
+  - POST → 410;
+  - `/v1/salud` → 200.
+
+### 13.5 Apagado de la URL por defecto
+
+- **Fuente:** documentación oficial de Cloud Run ("Disabling the default URL", en Restrict endpoint ingress). Comando GA: `gcloud run services update xps-pricing --no-default-url`; para revertir, `--default-url`.
+- **Compatibilidad:** sigue entrando el tráfico del domain mapping; la URL propia es independiente.
+- **Advertencia de la documentación:** Cloud Scheduler y otros servicios fallan si llaman a run.app. Aquí ya no lo hacían.
+- **Apagada a las 13:35.** La revisión `xps-pricing-00013-gqs` siguió igual, con los 5 secretos. La "Service URL" quedó en `None`.
+- **Verificación inmediata: 21 de 21 OK.**
+  - pricing.xpress.ec: salud, login, COT-2026-00001 con su PDF (373.739 bytes), Boletines, Clientes (importación y exportación), Notificaciones y páginas;
+  - baja pública (307 a la página de baja);
+  - jobs con 200;
+  - run.app → 404.
+- **El comando de despliegue** de `docs/DESPLIEGUE.md` lleva ahora `--no-default-url`, para que un despliegue futuro no la vuelva a encender.
+
+### 13.6 Respaldo, revisión, pruebas y commits
+
+| Dato | Valor |
+|---|---|
+| Respaldo | **1792434396240** (SUCCESSFUL, antes de migrar a 0013 y desplegar) |
+| Migración | `0013_eventos_prueba` (0012 → 0013), probada ida y vuelta en local |
+| Secretos | comparados antes de desplegar: los mismos 5 en la revisión vigente y en el comando |
+| Revisión | **xps-pricing-00013-gqs** (al 100 %; 0 errores en sus logs) |
+| Prueba de oro | COT-2026-00001: fila, líneas y HTML del PDF **idénticos** antes y después |
+| Pruebas | Regla 18 doble: **829 passed** + **829 passed** |
+| Commits | el de esta baja (código, migración 0013, pruebas, guía, plan de E4 y esta acta) |
+
+### 13.7 Volver atrás
+
+1. **Reactivar la URL por defecto:** `gcloud run services update xps-pricing --region us-central1 --default-url`. No cambia los secretos.
+2. **Jobs a la URL anterior** (solo con la URL reactivada):
+   ```powershell
+   gcloud scheduler jobs update http xps-boletines-lote --location us-central1 --uri="https://xps-pricing-809824844407.us-central1.run.app/internal/boletines/procesar-lote"
+   gcloud scheduler jobs update http xps-notificaciones-evaluar --location us-central1 --uri="https://xps-pricing-809824844407.us-central1.run.app/internal/notificaciones/evaluar"
+   ```
+3. **Revisión anterior:** `gcloud run services update-traffic xps-pricing --region us-central1 --to-revisions=xps-pricing-00012-rks=100` (tiene los 5 secretos). La 0013 es compatible con ese código.
+4. **Migración:** `alembic downgrade 0012`. Los eventos de pruebas quedan como "sin vincular".
+
+### 13.8 Pendientes del gerente
+
+- **Ninguno bloqueante.** No quedó ningún comando bloqueado.
+- **Enlaces viejos:** los boletines de prueba de E1, enviados antes de las 09:31, tienen el enlace de baja con run.app, que ya no abre. Solo se enviaron al administrador.

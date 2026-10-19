@@ -16,7 +16,7 @@ Escrito para: François, para la sesión de despliegue P-A (unos 45 minutos). El
 | Servicio | `xps-pricing` |
 | Cuenta de servicio | `xps-pricing-run@xps-reborn-v2.iam.gserviceaccount.com` |
 | Base de trabajo | `xps_pricing` (nunca `xps_pricing_test`) |
-| Dirección (D-AUT-6) | la URL `*.run.app` que entrega Cloud Run |
+| Dirección | **https://pricing.xpress.ec** (domain mapping de Cloud Run). La URL por defecto de Cloud Run está **desactivada** desde el 2026-10-19 (`--no-default-url`) |
 
 ## 0. Preparar la sesión
 
@@ -117,16 +117,22 @@ $env:APP_ENV = "dev"; .\.venv\Scripts\python.exe -m alembic upgrade head; .\.ven
 
 1. Construir la imagen con Cloud Build y desplegar. Docker no está instalado en el equipo; Cloud Build construye con el `Dockerfile` del proyecto:
    ```powershell
-   gcloud run deploy xps-pricing --source . --region us-central1 --service-account xps-pricing-run@xps-reborn-v2.iam.gserviceaccount.com --add-cloudsql-instances xps-reborn-v2:us-central1:xpress-db-reborn-v2 --set-secrets "DATABASE_URL=xps-pricing-database-url:latest,JWT_SECRET=xps-pricing-jwt-secret:latest,CONFIG_CIFRADO_KEY=xps-pricing-config-cifrado-key:latest,TAREAS_SECRETO=xps-pricing-tareas-secreto:latest,TENCENT_EVENTOS_TOKEN=xps-pricing-tencent-eventos-token:latest" --set-env-vars "APP_ENV=prod,JWT_EXPIRA_MIN=480,PDF_NAVEGADOR=chromium" --memory 2Gi --cpu 1 --min-instances 0 --max-instances 2 --timeout 120 --allow-unauthenticated
+   gcloud run deploy xps-pricing --source . --region us-central1 --service-account xps-pricing-run@xps-reborn-v2.iam.gserviceaccount.com --add-cloudsql-instances xps-reborn-v2:us-central1:xpress-db-reborn-v2 --set-secrets "DATABASE_URL=xps-pricing-database-url:latest,JWT_SECRET=xps-pricing-jwt-secret:latest,CONFIG_CIFRADO_KEY=xps-pricing-config-cifrado-key:latest,TAREAS_SECRETO=xps-pricing-tareas-secreto:latest,TENCENT_EVENTOS_TOKEN=xps-pricing-tencent-eventos-token:latest" --set-env-vars "APP_ENV=prod,JWT_EXPIRA_MIN=480,PDF_NAVEGADOR=chromium" --memory 2Gi --cpu 1 --min-instances 0 --max-instances 2 --timeout 120 --allow-unauthenticated --no-default-url
    ```
    - Si pregunta por crear un repositorio de Artifact Registry, responder `Y`.
+   - **Antes de desplegar, compare los secretos** de la revisión vigente con los del comando (deben ser los mismos 5):
+     ```powershell
+     gcloud run services describe xps-pricing --region us-central1 --format="yaml(spec.template.spec.containers[0].env)"
+     ```
+   - `--no-default-url` mantiene apagada la URL `*.run.app`: el sistema solo se usa por https://pricing.xpress.ec.
    - **`--set-secrets` reemplaza la lista completa:** deben ir los 5 secretos (desde E1: `TAREAS_SECRETO` para Cloud Scheduler y `TENCENT_EVENTOS_TOKEN` para el callback). Si falta uno, los jobs y el callback responden 503. Para cambiar un solo secreto sin redesplegar, use `gcloud run services update xps-pricing --region us-central1 --update-secrets=NOMBRE=secreto:latest` (agrega sin borrar).
    - La construcción tarda varios minutos (instala Chromium para el PDF).
    - **Debe ver** al final:
      ```
      Service [xps-pricing] revision [xps-pricing-0000x-xxx] has been deployed and is serving 100 percent of traffic.
-     Service URL: https://xps-pricing-xxxxxxxxxx-uc.a.run.app
+     Service URL: None
      ```
+     (`None` es lo correcto: la URL por defecto está desactivada y el sistema se usa por https://pricing.xpress.ec.)
 
 2. Health check con `/v1/salud`:
    ```powershell
@@ -134,15 +140,32 @@ $env:APP_ENV = "dev"; .\.venv\Scripts\python.exe -m alembic upgrade head; .\.ven
    ```
    **Debe ver:** una revisión nueva sirviendo el 100 %.
 
-3. Verificar (reemplazar `<URL>` por la Service URL):
+3. Verificar:
    ```powershell
-   curl.exe -s <URL>/v1/salud
+   curl.exe -s https://pricing.xpress.ec/v1/salud
    ```
    **Debe ver:** `{"estado":"ok","bd":"ok"}`.
    - Fuera del horario de la base (L–V 07:00–20:00) verá `"bd":"error"`. La app está viva y la pantalla muestra "Sistema fuera de horario" (D-AUT-7).
 
-4. Abrir `<URL>/app/login.html` e ingresar con el administrador de la base de trabajo.
+4. Abrir `https://pricing.xpress.ec/app/login.html` e ingresar con el administrador de la base de trabajo.
    - Si no existe ninguno: `.\.venv\Scripts\python.exe scripts\crear_admin.py`.
+
+## 5-B. Volver atrás
+
+**Reactivar la URL por defecto de Cloud Run** (si hiciera falta un acceso de emergencia; la app redirige los GET a pricing.xpress.ec y responde 410 a la escritura, salvo `/internal/*` y `/v1/salud`):
+```powershell
+gcloud run services update xps-pricing --region us-central1 --default-url
+```
+Para apagarla de nuevo: `--no-default-url`. Ninguno de los dos cambia los secretos.
+
+**Devolver los jobs de Cloud Scheduler** a la URL anterior (solo con la URL por defecto reactivada). Cambia solo la dirección; la cabecera secreta, el horario y el cuerpo se conservan:
+```powershell
+gcloud scheduler jobs update http xps-boletines-lote --location us-central1 --uri="<URL de Cloud Run>/internal/boletines/procesar-lote"
+gcloud scheduler jobs update http xps-notificaciones-evaluar --location us-central1 --uri="<URL de Cloud Run>/internal/notificaciones/evaluar"
+```
+La URL de Cloud Run anterior está en `docs/cierres/CIERRE-E4.md` (sección "Baja de run.app"). Hoy los jobs llaman a `https://pricing.xpress.ec/internal/...`.
+
+**Volver a una revisión anterior:** `gcloud run services update-traffic xps-pricing --region us-central1 --to-revisions=<REVISIÓN>=100`. Antes, compare sus secretos con los 5 de arriba.
 
 ## 6. Logs
 

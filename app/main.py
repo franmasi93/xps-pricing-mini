@@ -1,11 +1,15 @@
 """Aplicación FastAPI: API en /v1 y pantallas en /app."""
 from pathlib import Path
 
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from app.core.errors import registrar_manejadores
+from app.db import get_db
 from app.routers import (
     administracion,
     auth,
@@ -43,6 +47,39 @@ async def sin_www(request: Request, siguiente):
         destino = f"https://{host[4:]}{request.url.path}" + (f"?{request.url.query}" if request.url.query else "")
         return RedirectResponse(destino, status_code=301 if request.method in ("GET", "HEAD") else 308)
     return await siguiente(request)
+
+
+def _url_publica(request: Request) -> str:
+    """La "URL pública del sistema" (config_sistema), con la misma sesión que usan las rutas (en las pruebas, la del test)."""
+    from app.services import sistema
+
+    proveedor = request.app.dependency_overrides.get(get_db, get_db)
+    generador = proveedor()
+    db = next(generador)
+    try:
+        return sistema.url_publica(db)
+    finally:
+        generador.close()
+
+
+@app.middleware("http")
+async def sin_run_app(request: Request, siguiente):
+    """Baja de run.app: por la URL de Cloud Run (*.run.app) solo siguen /internal/* (Cloud Scheduler y el callback de
+    Tencent, como red de seguridad) y /v1/salud. GET y HEAD → 301 a la misma ruta y query en la URL pública del sistema;
+    los demás métodos → 410 con el dominio a usar. El destino sale de config_sistema, nunca fijo en el código. Si la URL
+    pública también es run.app (por ejemplo, en la base de pruebas), no se redirige."""
+    host = request.headers.get("host", "").split(":")[0].lower()
+    ruta = request.url.path
+    if not host.endswith(".run.app") or ruta.startswith("/internal/") or ruta == "/v1/salud":
+        return await siguiente(request)
+    publica = await run_in_threadpool(_url_publica, request)
+    destino_host = (urlsplit(publica).hostname or "").lower()
+    if not destino_host or destino_host.endswith(".run.app") or destino_host == host:
+        return await siguiente(request)
+    if request.method in ("GET", "HEAD"):
+        return RedirectResponse(publica + ruta + (f"?{request.url.query}" if request.url.query else ""), status_code=301)
+    return JSONResponse(status_code=410, content={"detail": {
+        "codigo": "USE_DOMINIO_PROPIO", "mensaje": f"Esta dirección ya no se usa. Use {publica}"}})
 
 api = APIRouter(prefix="/v1")
 api.include_router(salud.router)
