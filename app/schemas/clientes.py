@@ -1,13 +1,10 @@
 """Schemas de M6 Clientes y contactos (sin datos de costo: no llevan gating)."""
 from datetime import datetime
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.comunes import Entrada, sin_null
 from app.schemas.geografia import PaisResumen
 
-TipoIdentificacion = Literal["RUC", "CEDULA", "PASAPORTE", "EXTRANJERO"]
 
 
 class ComercialRef(BaseModel):
@@ -61,7 +58,7 @@ class ContactoSalida(BaseModel):
 
 class ClienteCrear(Entrada):
     razon_social: str = Field(max_length=200)
-    tipo_id: TipoIdentificacion
+    tipo_id: str = Field(max_length=10)  # E2: catálogo tipo_identificacion
     ruc_o_id: str = Field(max_length=60)
     pais_id: int
     direccion: str | None = Field(default=None, max_length=250)
@@ -73,7 +70,7 @@ class ClienteCrear(Entrada):
 
 class ClienteActualizar(Entrada):
     razon_social: str | None = Field(default=None, max_length=200)
-    tipo_id: TipoIdentificacion | None = None
+    tipo_id: str | None = Field(default=None, max_length=10)
     ruc_o_id: str | None = Field(default=None, max_length=60)
     pais_id: int | None = None
     direccion: str | None = Field(default=None, max_length=250)

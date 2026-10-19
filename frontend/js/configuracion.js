@@ -153,6 +153,51 @@
     document.getElementById("bloque-empresa").hidden = false;
   }
 
+  // ---------- E2: textos del PDF y advertencias de Incoterm ----------
+
+  const CAMPOS_TEXTOS_PDF = [
+    ["aceptacion_titulo", "Título de la aceptación"],
+    ["aceptacion_texto", "Frase de aceptación"],
+    ["firma_fecha", "Línea de la fecha"],
+    ["firma_firma", "Línea de la firma"],
+    ["firma_sello", "Línea del sello"],
+    ["advertencia_ddp", "Advertencia DDP en importación"],
+    ["advertencia_exw", "Advertencia EXW en exportación"],
+  ];
+  const TEXTOS_LARGOS = new Set(["aceptacion_texto", "advertencia_ddp", "advertencia_exw"]);
+
+  async function iniciarTextosPdf() {
+    const datos = await XPS.api("/textos-pdf");
+    const campos = CAMPOS_TEXTOS_PDF.map(([clave, titulo]) => {
+      const id = `textos-${clave}`;
+      const control = TEXTOS_LARGOS.has(clave)
+        ? crear("textarea", { clase: "input", atributos: { id, name: clave, maxlength: 1000, rows: 2, required: "" } })
+        : crear("input", { clase: "input", atributos: { id, name: clave, type: "text", maxlength: 1000, required: "" } });
+      control.value = datos[clave] || "";
+      return crear("div", { clase: "campo" }, [crear("label", { texto: titulo, atributos: { for: id } }), control]);
+    });
+    document.getElementById("campos-textos-pdf").replaceChildren(...campos);
+    const form = document.getElementById("form-textos-pdf");
+    const alertasTextos = document.getElementById("alertas-textos-pdf");
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      XPS.limpiarAlerta(alertasTextos);
+      const cuerpo = Object.fromEntries(CAMPOS_TEXTOS_PDF.map(([clave]) => [clave, form.elements[clave].value.trim()]));
+      if (Object.values(cuerpo).some((valor) => !valor)) {
+        XPS.mostrarAlerta(alertasTextos, "error", "Ningún texto puede quedar vacío.");
+        return;
+      }
+      try {
+        const guardado = await XPS.api("/textos-pdf", { metodo: "PUT", cuerpo });
+        for (const [clave] of CAMPOS_TEXTOS_PDF) form.elements[clave].value = guardado[clave];
+        XPS.mostrarAlerta(alertasTextos, "exito", "Textos guardados. Se usan desde la próxima emisión.");
+      } catch (error) {
+        XPS.mostrarError(alertasTextos, error);
+      }
+    });
+    document.getElementById("bloque-textos-pdf").hidden = false;
+  }
+
   // ---------- Correo Tencent (B2, B3, B10) ----------
 
   const ESTADOS_CORREO = {
@@ -307,7 +352,10 @@
   try {
     pintar(await XPS.api("/configuracion"));
     lista.hidden = false;
-    if (UI.tieneAlguno(yo, ["config.editar"])) await iniciarEmpresa();
+    if (UI.tieneAlguno(yo, ["config.editar"])) {
+      await iniciarEmpresa();
+      await iniciarTextosPdf();
+    }
     if (UI.tieneAlguno(yo, ["usuario.admin"])) await iniciarCorreo();
   } catch (error) {
     XPS.mostrarError(alertas, error);

@@ -33,13 +33,14 @@
 
   // ---------- Utilidades ----------
 
-  function llenarRoles(select, conOpcionTodos) {
+  function llenarRoles(select, conOpcionTodos, rolActual = null) {
     select.replaceChildren();
     if (conOpcionTodos) {
       select.append(crear("option", { texto: "Todos", atributos: { value: "" } }));
     }
-    for (const rol of roles) {
-      select.append(crear("option", { texto: rol.nombre, atributos: { value: rol.codigo } }));
+    // E2: un rol desactivado no se asigna (se sigue viendo en el filtro y en el usuario que ya lo tiene).
+    for (const rol of roles.filter((r) => conOpcionTodos || r.activo || r.codigo === rolActual)) {
+      select.append(crear("option", { texto: rol.activo ? rol.nombre : `${rol.nombre} (inactivo)`, atributos: { value: rol.codigo } }));
     }
   }
 
@@ -143,7 +144,7 @@
     usuarioEnEdicion = usuario;
     XPS.limpiarAlerta(alertasEditar);
     document.getElementById("editar-email").textContent = usuario.email;
-    llenarRoles(formEditar.elements.rol, false);
+    llenarRoles(formEditar.elements.rol, false, usuario.rol.codigo);
     formEditar.elements.nombre.value = usuario.nombre;
     formEditar.elements.rol.value = usuario.rol.codigo;
     formEditar.elements.activo.checked = usuario.activo;

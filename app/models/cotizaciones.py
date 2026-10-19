@@ -21,7 +21,6 @@ from app.models.servicios import Servicio
 from app.models.tarifas import Recargo, Tarifa, TipoEquipo
 
 ESTADOS = ("BORRADOR", "EMITIDA", "ENVIADA", "ACEPTADA", "RECHAZADA")
-MOTIVOS_RECHAZO = ("PRECIO", "TIEMPO", "COMPETENCIA", "OTRO")
 BLOQUES_LINEA = (
     "RECOGIDA_ORIGEN",
     "DESPACHO_EXPORT",
@@ -75,7 +74,7 @@ class Cotizacion(CatalogoMixin, Base):
     margen_pct: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
     iva_tasa_aplicada: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     snapshot_emision: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    motivo_rechazo: Mapped[str | None] = mapped_column(String(11))
+    motivo_rechazo: Mapped[str | None] = mapped_column(ForeignKey("motivo_rechazo.codigo", ondelete="RESTRICT"))  # E2
     detalle_rechazo: Mapped[str | None] = mapped_column(Text)
     cotizacion_origen_id: Mapped[int | None] = mapped_column(ForeignKey("cotizacion.id", ondelete="RESTRICT"))
     transportista: Mapped[str | None] = mapped_column(Text)

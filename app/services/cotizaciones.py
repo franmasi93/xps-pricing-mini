@@ -15,7 +15,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, object_session, selectinload
 
 from app.config import get_settings
 from app.core import fechas
@@ -37,7 +37,7 @@ from app.models import (
     Usuario,
 )
 from app.models.cotizaciones import BLOQUES_LINEA
-from app.services import auditoria, clientes, cotizador, pdf, precio_venta, servicios
+from app.services import administracion, auditoria, clientes, cotizador, pdf, precio_venta, servicios
 from app.services.empresa import datos_empresa
 from app.services.configuracion import leer_config, leer_iva_tasa
 from app.services.cotizador import Bulto, Carga
@@ -1226,6 +1226,7 @@ def _snapshot(cotizacion: Cotizacion, condiciones: str, totales: cotizador.Total
         "transportista": cotizacion.transportista,
         "descripcion_carga": cotizacion.descripcion_carga,
         "datos_empresa": empresa,
+        "textos_pdf": administracion.textos_pdf(object_session(cotizacion)),  # E2: congelados al emitir
         "lineas": lineas,
         "totales": {
             "subtotal_recibo_caja": str(totales.subtotal_recibo_caja),
@@ -1324,8 +1325,9 @@ def cambiar_estado(db: Session, actor: Usuario, cotizacion_id: int, datos: dict[
     if nuevo == "RECHAZADA":
         if motivo is None:
             raise ErrorNegocio(422, "MOTIVO_RECHAZO_REQUERIDO", "Indique el motivo del rechazo")
-        if motivo == "OTRO" and detalle is None:
-            raise ErrorNegocio(422, "DETALLE_RECHAZO_REQUERIDO", "Con motivo OTRO, el detalle es obligatorio")
+        # E2: los motivos salen del catálogo motivo_rechazo; cada uno dice si exige detalle (OTRO siempre).
+        if administracion.motivo_utilizable(db, motivo).exige_detalle and detalle is None:
+            raise ErrorNegocio(422, "DETALLE_RECHAZO_REQUERIDO", f"Con motivo {motivo}, el detalle es obligatorio")
     else:
         motivo, detalle = None, None
     antes = {"estado": cotizacion.estado}

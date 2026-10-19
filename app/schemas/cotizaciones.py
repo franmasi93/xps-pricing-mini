@@ -14,7 +14,6 @@ from app.schemas.comunes import Entrada, sin_null
 Sentido = Literal["IMPORTACION", "EXPORTACION"]
 Modo = Annotated[str, Field(min_length=2, max_length=10)]  # E0: código de un servicio; lo valida el service
 UnidadPeso = Literal["KG", "LB"]
-MotivoRechazo = Literal["PRECIO", "TIEMPO", "COMPETENCIA", "OTRO"]
 
 
 class BultoEntrada(Entrada):
@@ -106,7 +105,7 @@ class EmitirEntrada(Entrada):
 
 class EstadoEntrada(Entrada):
     estado: str = Field(max_length=20)
-    motivo_rechazo: MotivoRechazo | None = None
+    motivo_rechazo: str | None = Field(default=None, max_length=30)  # E2: catálogo motivo_rechazo
     detalle_rechazo: str | None = Field(default=None, max_length=1000)
 
 

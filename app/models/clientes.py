@@ -6,15 +6,12 @@ from app.models.base import Base, CatalogoMixin
 from app.models.geografia import Pais
 from app.models.seguridad import Usuario
 
-TIPOS_IDENTIFICACION = ("RUC", "CEDULA", "PASAPORTE", "EXTRANJERO")
-
-
 class Cliente(CatalogoMixin, Base):
     __tablename__ = "cliente"
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     razon_social: Mapped[str] = mapped_column(String(200))
-    tipo_id: Mapped[str] = mapped_column(String(10))
+    tipo_id: Mapped[str] = mapped_column(ForeignKey("tipo_identificacion.codigo", ondelete="RESTRICT"))  # E2
     ruc_o_id: Mapped[str] = mapped_column(String(30))
     pais_id: Mapped[int] = mapped_column(ForeignKey("pais.id", ondelete="RESTRICT"))
     direccion: Mapped[str | None] = mapped_column(String(250))

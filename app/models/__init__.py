@@ -1,3 +1,4 @@
+from app.models.administracion import ConfigTextosPdf, MotivoRechazo, TipoIdentificacion
 from app.models.base import Base
 from app.models.boletines import (
     BajaCorreo,
@@ -21,6 +22,9 @@ from app.models.servicios import Servicio, ServicioTramo, incoterm_servicio
 from app.models.tarifas import Recargo, Tarifa, TipoEquipo, TramoAereo
 
 __all__ = [
+    "ConfigTextosPdf",
+    "MotivoRechazo",
+    "TipoIdentificacion",
     "BajaCorreo",
     "Campana",
     "CampanaDestinatario",

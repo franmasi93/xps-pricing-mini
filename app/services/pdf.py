@@ -223,6 +223,20 @@ def textos_servicio(datos: dict[str, Any]) -> dict[str, str]:
     return servicios.textos_pdf(datos["modo"])
 
 
+# Los textos fijos que tenía la plantilla hasta E2: un PDF emitido antes de E2 no los trae en su foto y sale con
+# estos, idénticos (los vigentes, editables, están en config_textos_pdf y se congelan al emitir).
+TEXTOS_PDF_ANTES_DE_E2 = {
+    "aceptacion_titulo": "Aceptación de la cotización",
+    "aceptacion_texto": (
+        "Yo, en representación de la empresa, acepto los términos y condiciones aquí establecidos y confirmo la "
+        "presente cotización."
+    ),
+    "firma_fecha": "Fecha: _______________",
+    "firma_firma": "Firma: _____________________",
+    "firma_sello": "Sello (opcional)",
+}
+
+
 def renderizar_html(datos: dict[str, Any], borrador: bool, *, marca: str | None = None) -> str:
     """marca: None (emitida), "borrador" o "prueba" (correo de prueba del administrador)."""
     if borrador and marca is None:
@@ -232,6 +246,7 @@ def renderizar_html(datos: dict[str, Any], borrador: bool, *, marca: str | None 
     return _entorno().get_template("cotizacion.html").render(
         d=datos,
         e=empresa,
+        t=datos.get("textos_pdf") or TEXTOS_PDF_ANTES_DE_E2,
         razon_social=RAZON_SOCIAL,
         marca=MARCAS.get(marca) if marca else None,
         bloques=bloques_fiscales(datos),

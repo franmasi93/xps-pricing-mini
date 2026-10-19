@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.errors import registrar_manejadores
 from app.routers import (
+    administracion,
     auth,
     boletines,
     catalogos,
@@ -45,6 +46,7 @@ api.include_router(clientes.router)
 api.include_router(cotizaciones.router)
 api.include_router(correo.router)
 api.include_router(boletines.router)
+api.include_router(administracion.router)  # E2
 app.include_router(api)
 app.include_router(internos.router_internos)  # E1: Cloud Scheduler y callback de Tencent (sin JWT)
 app.include_router(internos.router_publico)  # E1: baja pública

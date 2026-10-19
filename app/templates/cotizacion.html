@@ -191,9 +191,9 @@
   {% if e.clausula_fundamental %}<div class="clause"><b>Cláusula fundamental:</b> {{ e.clausula_fundamental | parrafos }}</div>{% endif %}
 
   <div class="acc">
-    <div class="ct">Aceptación de la cotización</div>
-    <p>Yo, en representación de la empresa, acepto los términos y condiciones aquí establecidos y confirmo la presente cotización.</p>
-    <div class="sig"><span>Fecha: _______________</span><span>Firma: _____________________</span><span>Sello (opcional)</span></div>
+    <div class="ct">{{ t.aceptacion_titulo }}</div>
+    <p>{{ t.aceptacion_texto }}</p>
+    <div class="sig"><span>{{ t.firma_fecha }}</span><span>{{ t.firma_firma }}</span><span>{{ t.firma_sello }}</span></div>
   </div>
 
   {% set contacto = e.empresa_telefono or e.empresa_celular or e.empresa_whatsapp %}

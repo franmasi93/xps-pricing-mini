@@ -1378,3 +1378,22 @@ a {
   font-size: 1.4rem;
   color: var(--navy);
 }
+
+/* ---------- E2: roles y permisos ---------- */
+
+.tabla-desplazable {
+  overflow-x: auto;
+}
+
+.grupo-permisos {
+  max-height: 46vh;
+  overflow-y: auto;
+  margin: 0 0 var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-md);
+}
+
+.grupo-permisos .nav-grupo {
+  margin: var(--esp-2) 0 var(--esp-1);
+}

@@ -32,6 +32,10 @@ class RolSalida(BaseModel):
     codigo: str
     nombre: str
     permisos: list[str]
+    # E2: editables por pantalla.
+    descripcion: str | None = None
+    protegido: bool = False
+    activo: bool = True
 
     @field_validator("permisos", mode="before")
     @classmethod

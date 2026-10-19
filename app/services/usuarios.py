@@ -16,6 +16,8 @@ def _rol_por_codigo(db: Session, codigo: str) -> Rol:
     rol = db.scalars(select(Rol).where(Rol.codigo == codigo)).one_or_none()
     if rol is None:
         raise ErrorNegocio(422, "ROL_INEXISTENTE", f"El rol '{codigo}' no existe")
+    if not rol.activo:  # E2: un rol desactivado no se asigna
+        raise ErrorNegocio(422, "ROL_INACTIVO", f"El rol '{rol.nombre}' está desactivado")
     return rol
 
 

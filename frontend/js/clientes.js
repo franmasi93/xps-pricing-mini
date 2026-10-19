@@ -5,7 +5,8 @@
 
 (async () => {
   const { crear } = XPS;
-  const TIPOS = { RUC: "RUC", CEDULA: "Cédula", PASAPORTE: "Pasaporte", EXTRANJERO: "Extranjero" };
+  let tipos = []; // E2: catálogo tipo_identificacion
+  const nombreTipo = (codigo) => (tipos.find((t) => t.codigo === codigo) || { nombre: codigo }).nombre;
 
   const alertas = document.getElementById("alertas");
   const herramientas = document.getElementById("herramientas");
@@ -45,7 +46,7 @@
       cuerpo.append(
         crear("tr", {}, [
           UI.celda("Razón social", [UI.texto(cliente.razon_social)]),
-          UI.celda("Identificación", [UI.texto(`${TIPOS[cliente.tipo_id]} ${cliente.ruc_o_id}`, "cifra")]),
+          UI.celda("Identificación", [UI.texto(`${nombreTipo(cliente.tipo_id)} ${cliente.ruc_o_id}`, "cifra")]),
           UI.celda("País", [UI.texto(cliente.pais.nombre)]),
           UI.celda("Comercial", [UI.texto(cliente.comercial_asignado.nombre)]),
           UI.celda("Contacto principal", [UI.texto(principal ? (principal.email ? `${principal.nombre} · ${principal.email}` : principal.nombre) : null)]),
@@ -86,6 +87,10 @@
     UI.opciones(formCliente.elements.pais_id, paises.filter((p) => p.activo || (cliente && p.id === cliente.pais.id)), {
       valor: (p) => p.id,
       texto: (p) => `${p.iso2} · ${p.nombre}`,
+    });
+    UI.opciones(formCliente.elements.tipo_id, tipos.filter((t) => t.activo || (cliente && t.codigo === cliente.tipo_id)), {
+      valor: (t) => t.codigo,
+      texto: (t) => `${t.nombre} (${t.formato})`,
     });
     document.getElementById("campo-comercial").hidden = !asignaComercial;
     if (asignaComercial) {
@@ -296,6 +301,7 @@
   });
 
   try {
+    tipos = await XPS.api("/tipos-identificacion");
     if (puedeEditar) {
       paises = await XPS.api("/paises");
     }

@@ -38,6 +38,15 @@ class Rol(Base):
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     codigo: Mapped[str] = mapped_column(String(30), unique=True)
     nombre: Mapped[str] = mapped_column(String(80))
+    # E2 (0009): editables por pantalla; el rol protegido (admin) no se desactiva ni pierde usuario.admin.
+    descripcion: Mapped[str | None] = mapped_column(String(300))
+    protegido: Mapped[bool] = mapped_column(default=False, server_default=false())
+    activo: Mapped[bool] = mapped_column(default=True, server_default=true())
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    creado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", name="fk_rol_creado_por_usuario"))
 
     permisos: Mapped[list["Permiso"]] = relationship(secondary=rol_permiso, order_by="Permiso.codigo")
 
@@ -76,4 +85,4 @@ class Usuario(Base):
     )
     creado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
 
-    rol: Mapped[Rol] = relationship()
+    rol: Mapped[Rol] = relationship(foreign_keys=[rol_id])

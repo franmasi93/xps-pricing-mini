@@ -16,21 +16,9 @@ from app.models import Cliente, ContactoCliente, Pais, Usuario
 from app.schemas.clientes import ClienteSalida, ComercialRef, ContactoPrincipalRef, ContactoSalida
 from app.schemas.geografia import PaisResumen
 from app.schemas.usuarios import email_valido, normalizar_email
-from app.services import auditoria
+from app.services import administracion, auditoria
 from app.services.tarifas import referencia_activa
 
-PATRONES_IDENTIFICACION = {
-    "RUC": re.compile(r"^[0-9]{10}001$"),
-    "CEDULA": re.compile(r"^[0-9]{10}$"),
-    "PASAPORTE": re.compile(r"^[A-Z0-9]{5,20}$"),
-    "EXTRANJERO": re.compile(r"^[A-Z0-9]{3,30}$"),
-}
-FORMATOS_IDENTIFICACION = {
-    "RUC": "13 dígitos terminados en 001",
-    "CEDULA": "10 dígitos",
-    "PASAPORTE": "de 5 a 20 letras o números",
-    "EXTRANJERO": "de 3 a 30 letras o números",
-}
 CAMPOS_CLIENTE = (
     "razon_social",
     "tipo_id",
@@ -79,13 +67,15 @@ def _texto(valor: str | None, campo: str, obligatorio: bool = False) -> str | No
     return valor
 
 
-def normalizar_identificacion(tipo_id: str, ruc_o_id: str) -> str:
-    """D-F2-6: mayúsculas y sin espacios; formato según el tipo (sin dígito verificador en V1)."""
+def normalizar_identificacion(db: Session, tipo_id: str, ruc_o_id: str, *, exigir_activo: bool = True) -> str:
+    """D-F2-6: mayúsculas y sin espacios; formato según el tipo (sin dígito verificador en V1).
+    E2: la regla (regex) y su formato salen del catálogo tipo_identificacion."""
+    tipo = administracion.tipo_identificacion(db, tipo_id)
+    if tipo is None or (exigir_activo and not tipo.activo):
+        raise ErrorNegocio(422, "TIPO_IDENTIFICACION_INVALIDO", "El tipo de identificación no existe o está desactivado")
     valor = "".join(ruc_o_id.split()).upper()
-    if not PATRONES_IDENTIFICACION[tipo_id].match(valor):
-        raise ErrorNegocio(
-            422, "IDENTIFICACION_INVALIDA", f"La identificación {tipo_id} debe tener {FORMATOS_IDENTIFICACION[tipo_id]}"
-        )
+    if not re.match(tipo.regex, valor):
+        raise ErrorNegocio(422, "IDENTIFICACION_INVALIDA", f"La identificación {tipo_id} debe tener {tipo.formato}")
     return valor
 
 
@@ -99,9 +89,12 @@ def _comercial_valido(db: Session, usuario_id: int) -> Usuario:
     return usuario
 
 
-def _validar_cliente(db: Session, datos: dict[str, Any]) -> dict[str, Any]:
+def _validar_cliente(db: Session, datos: dict[str, Any], *, validar_identificacion: bool = True) -> dict[str, Any]:
+    """validar_identificacion=False al editar otros campos: un cliente guardado no se traba si después se cambió la regla
+    o se desactivó su tipo de identificación (E2)."""
     datos["razon_social"] = _texto(datos["razon_social"], "La razón social", obligatorio=True)
-    datos["ruc_o_id"] = normalizar_identificacion(datos["tipo_id"], datos["ruc_o_id"])
+    if validar_identificacion:
+        datos["ruc_o_id"] = normalizar_identificacion(db, datos["tipo_id"], datos["ruc_o_id"])
     referencia_activa(db, Pais, datos["pais_id"], "el país", datos.get("activo", True))
     for campo in CAMPOS_OPCIONALES:
         datos[campo] = _texto(datos.get(campo), campo)
@@ -218,7 +211,8 @@ def actualizar_cliente(db: Session, actor: Usuario, cliente_id: int, cambios: di
         if cambios["comercial_asignado_id"] != cliente.comercial_asignado_id:
             _comercial_valido(db, cambios["comercial_asignado_id"])
             nota = f"reasignado del usuario #{cliente.comercial_asignado_id} al #{cambios['comercial_asignado_id']}"
-    final = _validar_cliente(db, _foto(cliente, CAMPOS_CLIENTE) | cambios)
+    identificacion_cambia = any(campo in cambios and cambios[campo] != getattr(cliente, campo) for campo in ("tipo_id", "ruc_o_id"))
+    final = _validar_cliente(db, _foto(cliente, CAMPOS_CLIENTE) | cambios, validar_identificacion=identificacion_cambia)
     antes = _foto(cliente, CAMPOS_CLIENTE)
     with db.no_autoflush:
         for campo in cambios:

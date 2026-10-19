@@ -50,6 +50,19 @@
           </form>
         </section>
 
+        <!-- E2: textos fijos del PDF y advertencias de Incoterm (config.editar) -->
+        <section class="tarjeta" id="bloque-textos-pdf" hidden>
+          <h3>Textos del PDF y advertencias</h3>
+          <p class="ayuda">La aceptación y la firma del PDF, y los avisos cuando un Incoterm no deja nada que cotizar. Se copian a la cotización al emitir: un PDF emitido no cambia.</p>
+          <div id="alertas-textos-pdf" hidden></div>
+          <form id="form-textos-pdf" novalidate>
+            <div class="grupo-campos" id="campos-textos-pdf"></div>
+            <div class="config-acciones">
+              <button class="btn btn-primario btn-chico" type="submit">Guardar textos</button>
+            </div>
+          </form>
+        </section>
+
         <!-- B / C8: correo Tencent (usuario.admin). Las llaves nunca se muestran: solo enmascaradas. -->
         <section class="tarjeta" id="bloque-correo" hidden>
           <h3>Correo Tencent</h3>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motivos de rechazo · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Motivos de rechazo</h1>
+          <p class="topbar-subtitulo">Los motivos que se eligen al marcar una cotización como rechazada</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo motivo</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <section class="tarjeta" id="herramientas" hidden>
+          <table class="tabla">
+            <thead><tr><th>Código</th><th>Nombre</th><th>Exige detalle</th><th>Orden</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-motivos"></tbody>
+          </table>
+          <p class="ayuda">El código no cambia: lo guardan las cotizaciones. Desactivar un motivo lo saca de la lista sin tocar las cotizaciones ya rechazadas. "Otro" siempre exige detalle y no se desactiva.</p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-motivo" aria-labelledby="titulo-motivo">
+    <h2 id="titulo-motivo">Motivo de rechazo</h2>
+    <div id="alertas-motivo" hidden></div>
+    <form id="form-motivo" novalidate>
+      <div class="campo">
+        <label for="motivo-codigo">Código</label>
+        <input class="input cifra" id="motivo-codigo" name="codigo" type="text" maxlength="30" autocomplete="off" required>
+      </div>
+      <div class="campo">
+        <label for="motivo-nombre">Nombre</label>
+        <input class="input" id="motivo-nombre" name="nombre" type="text" maxlength="80" required>
+      </div>
+      <div class="campo">
+        <label for="motivo-orden">Orden en la lista</label>
+        <input class="input cifra" id="motivo-orden" name="orden" type="number" min="0" max="999" step="1" value="0">
+      </div>
+      <label class="campo-check" for="motivo-detalle">
+        <input id="motivo-detalle" name="exige_detalle" type="checkbox">
+        Exige escribir el detalle del rechazo
+      </label>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/motivos-rechazo.js"></script>
+</body>
+</html>

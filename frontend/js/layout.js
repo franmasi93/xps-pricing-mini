@@ -53,6 +53,10 @@ const GRUPOS_MENU = [
       // E1: catálogo de plantillas de Tencent, solo el administrador.
       { texto: "Plantillas de correo", archivo: "plantillas-correo.html", permisos: ["usuario.admin"] },
       { texto: "Usuarios", archivo: "usuarios.html", permisos: ["usuario.admin"] },
+      // E2: roles y matriz de permisos (usuario.admin); motivos de rechazo y tipos de identificación (config.editar).
+      { texto: "Roles y permisos", archivo: "roles.html", permisos: ["usuario.admin"] },
+      { texto: "Motivos de rechazo", archivo: "motivos-rechazo.html", permisos: ["config.editar"] },
+      { texto: "Tipos de identificación", archivo: "tipos-identificacion.html", permisos: ["config.editar"] },
       { texto: "Auditoría", archivo: "auditoria.html", permisos: ["auditoria.ver"] },
     ],
   },

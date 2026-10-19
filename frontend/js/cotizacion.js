@@ -24,6 +24,7 @@
   let yo = null;
   let cotizacion = null;
   let lineaEnAjuste = null;
+  let motivos = []; // E2: catálogo motivo_rechazo
 
   const puede = (permiso) => UI.tieneAlguno(yo, [permiso]);
 
@@ -55,7 +56,10 @@
     if (carga.valor_mercancia_usd) elementos.push(dato("Valor de la mercancía", `USD ${carga.valor_mercancia_usd}`));
     elementos.push(dato("Emisión", c.fecha_emision));
     elementos.push(dato("Válida hasta", c.valida_hasta || (c.valida_hasta_calculada ? `${c.valida_hasta_calculada} (calculada)` : null)));
-    if (c.motivo_rechazo) elementos.push(dato("Motivo de rechazo", `${c.motivo_rechazo}${c.detalle_rechazo ? ` · ${c.detalle_rechazo}` : ""}`));
+    if (c.motivo_rechazo) {
+      const motivo = motivos.find((m) => m.codigo === c.motivo_rechazo);
+      elementos.push(dato("Motivo de rechazo", `${motivo ? motivo.nombre : c.motivo_rechazo}${c.detalle_rechazo ? ` · ${c.detalle_rechazo}` : ""}`));
+    }
     if (c.notas_cliente) elementos.push(dato("Notas para el cliente", c.notas_cliente));
     if (c.notas_internas) elementos.push(dato("Notas internas", c.notas_internas));
     document.getElementById("ficha").replaceChildren(...elementos);
@@ -421,6 +425,10 @@
     document.getElementById("form-rechazo").addEventListener("submit", rechazar);
     document.getElementById("form-enviar").addEventListener("submit", enviar);
     await ejecutar(async () => {
+      motivos = await XPS.api("/motivos-rechazo");
+      UI.opciones(document.getElementById("rechazo-motivo"), motivos.filter((m) => m.activo), {
+        valor: (m) => m.codigo, texto: (m) => (m.exige_detalle ? `${m.nombre} (con detalle)` : m.nombre), todos: "Elija un motivo…",
+      });
       cotizacion = await XPS.api(`/cotizaciones/${id}`);
       pintar();
     });
