@@ -27,27 +27,28 @@ En esta carpeta hay una copia del HTML y del texto de cada plantilla, tal como e
 | Enlaces con dominio fijo | No usar `{{enlace}}` como enlace completo: escribir `https://dominio/{{codigo}}`, con el dominio fijo |
 | Variables de texto libre demasiado amplias | Cambiar `{{mensaje}}`, `{{linea_01}}`… por campos concretos (fecha, cliente, monto) con su etiqueta fija |
 
-## Estado al 2026-10-19 (sincronizado)
+## Estado al 2026-10-19, tarde (leído de Tencent con GetEmailTemplate)
 
-| ID | Nombre | Uso | Estado |
-|---|---|---|---|
-| 72669 | Cotizacion_Pricing | Cotización (F4) | Aprobada |
-| 72746 | Xps boletin tarifas | Boletín | **Aprobada**, en uso. Probada con envíos reales al administrador |
-| 72747 | Xps aviso seguimiento | Aviso COT_SEGUIMIENTO | Aprobada |
-| 72748 | Xps aviso porvencer | Aviso COT_POR_VENCER | Aprobada |
-| 72749 | Xps aviso vencida | Aviso COT_VENCIDA | Aprobada |
-| 72750 | Xps aviso aceptada | Aviso COT_ACEPTADA_CLIENTE | Aprobada |
-| 72751 | Xps aviso tarifainteres | Aviso TARIFA_RUTA_INTERES | Aprobada |
-| 72752 | Xps interno aviso | Aviso interno | **Rechazada.** Motivo: `{{enlace}}` es una URL completa y `{{mensaje}}`/`{{detalle_*}}` son texto libre. Corrección sugerida por Tencent: `https://xpress.ec/{{enlace}}` con el dominio fijo, y campos controlados en vez de texto libre |
-| 72753 | Xps interno resumen | Resumen | **Rechazada.** Motivo: `{{enlace}}` lleva la URL completa y la proporción de variables es de 1:2,5. Corrección: dominio fijo (`https://xpress.ec/{{enlace}}`), más texto fijo y menos variables |
+| ID | Nombre | Uso | Estado | Variables reales |
+|---|---|---|---|---|
+| 72669 | Cotizacion_Pricing | Cotización (F4) | Aprobada | Las de F4 |
+| 72746 | Xps boletin tarifas | Boletín | Aprobada, en uso | `titulo`, `nombre_contacto`, `texto_intro`, `fila_01…15`, `mas_tarifas`, `vigencia`, `comercial`, empresa_* y `enlace_baja` |
+| 72747 | Xps aviso seguimiento | COT_SEGUIMIENTO | Aprobada | De la cotización y de la empresa |
+| 72748 | Xps aviso porvencer | COT_POR_VENCER | Aprobada | De la cotización y de la empresa |
+| 72749 | Xps aviso vencida | COT_VENCIDA | Aprobada | De la cotización y de la empresa |
+| 72750 | Xps aviso aceptada | COT_ACEPTADA_CLIENTE | Aprobada | Las de la cotización y `paso_1…3` |
+| 72751 | Xps aviso tarifainteres | TARIFA_RUTA_INTERES | Aprobada | Las de la tarifa y `enlace_baja` |
+| 72752 | Xps interno aviso | Avisos internos | **Aprobada** | **`evento`, `referencia`, `fecha`** |
+| 72753 | Xps interno resumen | Resúmenes | **Aprobada** | **`periodo`, `kpi_emitidas`, `kpi_enviadas`, `kpi_aceptadas`, `kpi_rechazadas`, `kpi_tasa_cierre`, `kpi_monto`, `kpi_margen`** |
+| 71711 | XP_B2B_Tarifario_Aereo_mia_ec_sept26_v1 | Tarifario antiguo | Aprobada en Tencent; **no se usa** (inactiva en el catálogo) | — |
 
-## El dominio del enlace en 72752 y 72753
+Copias del HTML aprobado: `72752_Xps_interno_aviso.html` y `72753_Xps_interno_resumen.html`, descargadas de Tencent. Las `.txt` son la versión de texto que arma el sistema (Tencent no devolvió parte de texto).
 
-Tencent sugiere `https://xpress.ec/{{enlace}}`. Sin embargo, el enlace tiene que llevar a la pantalla del sistema, así que el dominio fijo debe ser **el del sistema**:
-- `https://xps-pricing-809824844407.us-central1.run.app/{{enlace}}`;
-- o un dominio propio mapeado a Cloud Run, por ejemplo `https://pricing.xpress.ec/{{enlace}}`.
+## El botón de 72752 y 72753 no tiene enlace
 
-Con el dominio fijo en la plantilla, el sistema envía en `{{enlace}}` solo la ruta (por ejemplo, `app/cotizacion.html?id=12`). Lo detecta solo al sincronizar.
+En las versiones aprobadas, los botones "Revisar en el sistema" y "Ver el detalle en el sistema" **no tienen `href`**: Tencent quitó el enlace. Se ven, pero no llevan a ninguna pantalla, ni de pricing.xpress.ec ni de la URL de Cloud Run.
+- El sistema ya envía `{{enlace}}` como **ruta interna** (por ejemplo, `/app/cotizacion.html?id=12`) cuando la plantilla la tenga.
+- **Mejora opcional:** editar en Tencent el botón como `href="https://pricing.xpress.ec{{enlace}}"`. Tencent sugirió el dominio fijo cuando rechazó la versión anterior, que llevaba la URL completa en la variable. Ojo: editarla la devuelve a revisión, y mientras tanto esos correos no salen (quedan OMITIDO; la campana llega igual).
 
 ## La llave API no puede crear plantillas
 

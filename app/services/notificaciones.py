@@ -317,15 +317,55 @@ def _url(db: Session, ruta: str | None) -> str:
     return sistema.enlace(db, ruta)
 
 
-def _enlace_plantilla(db: Session, plantilla: PlantillaCorreo | None, ruta: str | None) -> str:
-    """Tencent pide el dominio fijo en la plantilla (https://dominio/{{enlace}}): entonces va solo la ruta; si la variable
-    es el enlace completo (como en la 72752 y la 72753 de hoy), la URL entera."""
-    html = (plantilla.html or "") if plantilla else ""
-    fijo = re.search(r"https?://[^\"'\s{}/]+(/?)\{\{\s*enlace\s*\}\}", html)
-    if fijo:  # con "dominio/{{enlace}}" va la ruta sin la barra; con "dominio{{enlace}}", con la barra
-        ruta = ruta or "/app/inicio.html"
-        return ruta.lstrip("/") if fijo.group(1) else "/" + ruta.lstrip("/")
-    return _url(db, ruta)
+# E4: nombre corto de cada aviso interno ({{evento}} de la 72752 aprobada).
+NOMBRE_CORTO = {
+    "COT_ACEPTADA": "Cotización aceptada", "COT_RECHAZADA": "Cotización rechazada",
+    "COT_SIN_RESPUESTA": "Cotización sin respuesta", "COT_MARGEN_BAJO": "Margen bajo",
+    "TARIFA_POR_VENCER": "Tarifa por vencer", "TARIFA_SIN_REEMPLAZO": "Tarifa sin reemplazo",
+    "TASA_DESACTUALIZADA": "Tasa desactualizada", "ENVIO_FALLIDO": "Envío fallido",
+    "CAMPANA_TERMINADA": "Campaña terminada", "CAMPANA_REBOTE_ALTO": "Campaña con rebote alto",
+    "CUOTA_TENCENT_CERCA": "Cupo de correo cerca del tope", "USUARIO_BLOQUEADO": "Usuario bloqueado",
+    "RESUMEN_DIARIO": "Resumen diario", "RESUMEN_SEMANAL": "Resumen semanal",
+}
+
+
+def ruta_interna(ruta: str | None) -> str:
+    """{{enlace}} de las plantillas internas: SOLO la ruta del sistema, empezando con "/" (el dominio lo pone la
+    plantilla). Las URL completas (baja de boletines y avisos) se arman con la URL pública del sistema."""
+    ruta = ruta or "/app/inicio.html"
+    return ruta if ruta.startswith("/") else "/" + ruta
+
+
+def referencia(db: Session, ocurrencia: Ocurrencia) -> str:
+    """{{referencia}}: el identificador del registro (COT-2026-00012, Tarifa GYE→MIA LATAM, Campaña …, el usuario…)."""
+    from app.models import Campana, Tarifa
+
+    if ocurrencia.referencia:
+        return ocurrencia.referencia[:120]
+    tipo, ident = ocurrencia.entidad_tipo, ocurrencia.entidad_id
+    try:
+        if tipo == "tarifa":
+            tarifa = db.get(Tarifa, int(ident))
+            if tarifa is not None:
+                quien = tarifa.transportista or tarifa.servicio.nombre
+                return f"Tarifa {tarifa.origen.codigo}→{tarifa.destino.codigo} {quien}"[:120]
+        if tipo == "campana":
+            campana = db.get(Campana, int(ident))
+            if campana is not None:
+                return f"Campaña {campana.nombre}"[:120]
+        if tipo == "usuario":
+            usuario = db.get(Usuario, int(ident))
+            if usuario is not None:
+                return usuario.email
+        if tipo == "cotizacion":
+            cotizacion = db.get(Cotizacion, int(ident))
+            if cotizacion is not None:
+                return cotizacion.numero or f"Cotización #{cotizacion.id}"
+        if tipo == "moneda":
+            return f"Moneda {ident}"
+    except (TypeError, ValueError):
+        pass
+    return ocurrencia.titulo[:120]
 
 
 def _variables(db: Session, regla: ReglaNotificacion, evento, ocurrencia: Ocurrencia, destino: Destino,
@@ -343,11 +383,14 @@ def _variables(db: Session, regla: ReglaNotificacion, evento, ocurrencia: Ocurre
         if token_baja:
             datos["enlace_baja"] = _url(db, f"/b/{token_baja}")
         return {clave: str(valor) for clave, valor in datos.items()}
-    enlace = _enlace_plantilla(db, plantilla, ocurrencia.enlace)
+    enlace = ruta_interna(ocurrencia.enlace)
     if ocurrencia.resumen:
         return dict(ocurrencia.variables) | {"enlace": enlace}
     detalles = list(ocurrencia.detalles)[:6]
-    return {"titulo": ocurrencia.titulo, "mensaje": ocurrencia.mensaje[:600], "enlace": enlace,
+    # 72752 aprobada: evento, referencia y fecha. Se mantienen las de la versión anterior (titulo, mensaje, detalle_NN):
+    # solo se envían las que tenga la plantilla del catálogo (entregar filtra por variables_esperadas).
+    return {"evento": NOMBRE_CORTO.get(evento.codigo, evento.nombre), "referencia": referencia(db, ocurrencia),
+            "titulo": ocurrencia.titulo, "mensaje": ocurrencia.mensaje[:600], "enlace": enlace,
             "fecha": fechas.ahora_ecuador().strftime("%d/%m/%Y %H:%M")} | {
         f"detalle_{n:02d}": (detalles[n - 1] if n <= len(detalles) else "") for n in range(1, 7)}
 

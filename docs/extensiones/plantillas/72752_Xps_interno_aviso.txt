@@ -1,0 +1,12 @@
+Aviso del sistema de Pricing
+Hola, le informamos que el sistema de cotizaciones de XPRESS LOGISTICS registró un evento que requiere su revisión. A continuación encontrará el tipo de evento, la referencia del registro relacionado y la fecha en que ocurrió.
+Tipo de evento{{evento}}
+Referencia{{referencia}}
+Fecha{{fecha}}
+Ingrese al sistema para revisar el detalle completo y tomar las acciones que correspondan. Si el evento ya fue atendido por otra persona del equipo, puede ignorar este mensaje.
+Revisar en el sistema
+Puede elegir qué avisos recibe por correo desde la opción Mis preferencias del sistema.
+XPRESS LOGISTICS XPS S.A. · Empresa autorizada por SENAE y MINTEL
+Departamento de Pricing · Sistema de importaciones y exportaciones
+Este correo es una notificación interna generada automáticamente por el sistema de Pricing. Es de uso exclusivo del personal de XPRESS LOGISTICS y no debe reenviarse a clientes ni a terceros.
+© XPRESS LOGISTICS XPS S.A. Todos los derechos reservados.

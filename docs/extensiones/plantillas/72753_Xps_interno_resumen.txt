@@ -1,0 +1,17 @@
+Resumen de cotizaciones
+Hola, este es el resumen de la actividad comercial del departamento de Pricing de XPRESS LOGISTICS. Las cifras corresponden al periodo indicado y se calculan con las cotizaciones registradas en el sistema.
+Periodo{{periodo}}
+Cotizaciones emitidas{{kpi_emitidas}}
+Cotizaciones enviadas a clientes{{kpi_enviadas}}
+Cotizaciones aceptadas{{kpi_aceptadas}}
+Cotizaciones rechazadas{{kpi_rechazadas}}
+Tasa de cierre{{kpi_tasa_cierre}}
+Monto total aceptado{{kpi_monto}}
+Margen promedio{{kpi_margen}}
+La tasa de cierre compara las cotizaciones aceptadas con las enviadas en el mismo periodo. El margen promedio se calcula sobre las cotizaciones emitidas. Los motivos de rechazo, las rutas más cotizadas, las tarifas por vencer y las campañas del periodo se pueden consultar en el sistema.
+Ver el detalle en el sistema
+Este resumen se envía de forma automática según la configuración de notificaciones del sistema.
+XPRESS LOGISTICS XPS S.A. · Empresa autorizada por SENAE y MINTEL
+Departamento de Pricing · Sistema de importaciones y exportaciones
+Este correo es una notificación interna generada automáticamente por el sistema de Pricing. Es de uso exclusivo del personal de XPRESS LOGISTICS y no debe reenviarse a clientes ni a terceros.
+© XPRESS LOGISTICS XPS S.A. Todos los derechos reservados.

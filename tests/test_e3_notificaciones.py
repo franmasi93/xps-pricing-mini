@@ -536,6 +536,48 @@ def test_configuracion(client, crear_usuario, headers_de, db_session):  # TE3-26
     assert client.put("/v1/notificaciones/config", json={"modo_externo": "SIMULACION"}, headers=h).json()["modo_externo"] == "SIMULACION"
 
 
+def test_variables_exactas_de_las_plantillas_internas_aprobadas(client, crear_usuario, headers_de, db_session, monkeypatch,
+                                                               correo_listo):  # TE3-28
+    """Con el HTML aprobado en Tencent (copias en docs/extensiones/plantillas), el sistema envía exactamente las variables de
+    cada plantilla: 72752 = evento, referencia y fecha; 72753 = periodo y los 7 KPI."""
+    import re
+    from pathlib import Path
+
+    from app.services import plantillas_diseno
+
+    carpeta = Path(__file__).resolve().parent.parent / "docs" / "extensiones" / "plantillas"
+    reales = {72752: "72752_Xps_interno_aviso.html", 72753: "72753_Xps_interno_resumen.html"}
+    for tencent_id, archivo in reales.items():
+        plantilla = db_session.scalars(select(PlantillaCorreo).where(PlantillaCorreo.tencent_id == tencent_id)).one()
+        plantilla.html = (carpeta / archivo).read_text(encoding="utf-8")
+        plantilla.variables_esperadas = plantillas_diseno.variables_de(plantilla.html)
+    db_session.commit()
+    esperadas = {t: db_session.scalars(select(PlantillaCorreo.variables_esperadas).where(PlantillaCorreo.tencent_id == t)).one()
+                 for t in reales}
+    assert esperadas[72752] == ["evento", "referencia", "fecha"]
+    assert esperadas[72753] == ["periodo", "kpi_emitidas", "kpi_enviadas", "kpi_aceptadas", "kpi_rechazadas",
+                                "kpi_tasa_cierre", "kpi_monto", "kpi_margen"]
+    gerente, comercial = crear_usuario("gerencia"), crear_usuario("comercial")
+    h = headers_de(comercial)
+    cotizacion, _ = _enviada(client, h, db_session, comercial)
+    client.patch(f"/v1/cotizaciones/{cotizacion.id}/estado", json={"estado": "ACEPTADA"}, headers=h)
+    notificaciones.entregar(db_session)
+    _reloj(monkeypatch, HOY + timedelta(days=1), hora=7)  # el resumen diario sale desde las 07:00
+    _evaluar(db_session)
+    por_plantilla = {}
+    for mensaje in correo_listo.enviados:
+        por_plantilla.setdefault(mensaje.plantilla_id, mensaje)
+    aviso, resumen = por_plantilla[72752], por_plantilla[72753]
+    assert list(aviso.datos_plantilla) == esperadas[72752]  # exactamente las de la plantilla, ni una más
+    assert list(resumen.datos_plantilla) == esperadas[72753]
+    assert aviso.datos_plantilla["evento"] == "Cotización aceptada"
+    assert aviso.datos_plantilla["referencia"] == cotizacion.numero
+    assert re.fullmatch(r"\d{2}/\d{2}/\d{4} \d{2}:\d{2}", aviso.datos_plantilla["fecha"])
+    assert resumen.datos_plantilla["kpi_monto"].startswith("USD ") and resumen.datos_plantilla["periodo"]
+    assert all(valor != "" for valor in resumen.datos_plantilla.values())
+    assert {m.destinatario for m in correo_listo.enviados if m.plantilla_id == 72753} == {gerente.email}
+
+
 @pytest.mark.parametrize("pagina", ["notificaciones-config", "notificaciones-bitacora", "mis-notificaciones"])
 def test_paginas_e3(client, pagina):  # TE3-27 (mismas reglas que T204 y T257)
     import re

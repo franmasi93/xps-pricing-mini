@@ -65,6 +65,7 @@ class Ocurrencia:
     actor_id: int | None = None  # "quien lo envió" o el creador de la campaña
     contactos: list[Any] = field(default_factory=list)  # destinatarios externos fuera de una cotización (TARIFA_RUTA_INTERES)
     resumen: bool = False
+    referencia: str = ""  # E4: identificador del registro para la plantilla interna 72752 ({{referencia}})
 
 
 @dataclass
@@ -155,7 +156,7 @@ def ocurrencia_cotizacion(cotizacion: Cotizacion, clave: str, titulo: str, mensa
         detalles=extra.pop("detalles", None) or detalles_cotizacion(cotizacion), enlace=enlace_cotizacion(cotizacion),
         variables=variables_cotizacion(cotizacion) | extra.pop("variables", {}),
         asunto={"numero": cotizacion.numero or ""}, cotizacion=cotizacion, cliente_id=cotizacion.cliente_id,
-        comercial_id=cotizacion.comercial_id, **extra,
+        comercial_id=cotizacion.comercial_id, referencia=cotizacion.numero or f"Cotización #{cotizacion.id}", **extra,
     )
 
 

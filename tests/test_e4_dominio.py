@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from app.models import Auditoria, ConfigSistema, Notificacion, PlantillaCorreo
+from app.models import Auditoria, ConfigSistema, Notificacion
 from app.services import eventos, notificaciones, sistema
 from test_e1_boletines import (  # noqa: F401 - fixtures y ayudas de E1
     _campana,
@@ -76,17 +76,10 @@ def test_enlace_de_baja_de_boletines_con_la_url_configurada(client, crear_usuari
     assert mensaje.datos_plantilla["enlace_baja"].startswith(f"{PROPIO}/b/")
 
 
-def test_enlaces_de_avisos_internos(db_session):  # TE4-05
-    _fijar_url(db_session, PROPIO)
-    plantilla = db_session.scalars(select(PlantillaCorreo).where(PlantillaCorreo.tencent_id == 72752)).one()
-    ruta = "/app/cotizacion.html?id=7"
-    plantilla.html = '<a href="{{enlace}}">Abrir</a>'  # la versión rechazada: la variable es la URL completa
-    assert notificaciones._enlace_plantilla(db_session, plantilla, ruta) == f"{PROPIO}{ruta}"
-    plantilla.html = '<a href="https://pricing.xpress.ec{{enlace}}">Abrir</a>'  # E4: dominio fijo, sin barra
-    assert notificaciones._enlace_plantilla(db_session, plantilla, ruta) == ruta
-    plantilla.html = '<a href="https://pricing.xpress.ec/{{enlace}}">Abrir</a>'  # dominio fijo con barra
-    assert notificaciones._enlace_plantilla(db_session, plantilla, ruta) == ruta.lstrip("/")
-    db_session.rollback()
+def test_enlace_interno_es_solo_la_ruta():  # TE4-05: el dominio lo pone la plantilla
+    assert notificaciones.ruta_interna("/app/cotizacion.html?id=7") == "/app/cotizacion.html?id=7"
+    assert notificaciones.ruta_interna("app/tarifas.html") == "/app/tarifas.html"
+    assert notificaciones.ruta_interna(None) == "/app/inicio.html"
 
 
 def test_avisos_generados_con_la_url_configurada(db_session, crear_usuario):  # TE4-06
@@ -100,7 +93,8 @@ def test_avisos_generados_con_la_url_configurada(db_session, crear_usuario):  # 
     correo = db_session.scalars(select(Notificacion).where(Notificacion.evento == "USUARIO_BLOQUEADO",
                                                            Notificacion.canal == "CORREO",
                                                            Notificacion.usuario_id == admin.id)).one()
-    assert correo.variables["enlace"] == f"{PROPIO}/app/usuarios.html"
+    assert correo.variables["enlace"] == "/app/usuarios.html"  # solo la ruta (sin dominio)
+    assert correo.variables["referencia"] == admin.email and correo.variables["evento"] == "Usuario bloqueado"
 
 
 def test_www_redirige_al_dominio_principal(client):  # TE4-07
