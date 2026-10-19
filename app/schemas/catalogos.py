@@ -108,3 +108,23 @@ class EmpresaDatos(Entrada):
     pago_ruc: str | None = Field(default=None, max_length=2000)
     clausula_fundamental: str | None = Field(default=None, max_length=2000)
     texto_legal_pie: str | None = Field(default=None, max_length=2000)
+
+
+class EmpresaSalida(BaseModel):
+    """E1: los datos de la empresa más la vista previa del enlace de WhatsApp (https://wa.me/…), calculado."""
+
+    empresa_departamento: str | None = None
+    empresa_ciudad: str | None = None
+    empresa_telefono: str | None = None
+    empresa_celular: str | None = None
+    empresa_whatsapp: str | None = None
+    empresa_horario: str | None = None
+    empresa_direccion_matriz: str | None = None
+    pago_banco: str | None = None
+    pago_titular: str | None = None
+    pago_tipo_cuenta: str | None = None
+    pago_numero_cuenta: str | None = None
+    pago_ruc: str | None = None
+    clausula_fundamental: str | None = None
+    texto_legal_pie: str | None = None
+    whatsapp_enlace: str | None = None

@@ -28,7 +28,7 @@ CAMPOS = (
 )
 RANGOS = {
     "tamano_lote": (1, 200), "pausa_segundos": (0, 3600), "tope_diario": (1, 1_000_000), "tope_hora": (1, 100_000),
-    "reserva_pct": (0, 90), "limite_filas": (1, 8), "hora_desde": (0, 23), "hora_hasta": (0, 23),
+    "reserva_pct": (0, 90), "limite_filas": (1, 40), "hora_desde": (0, 23), "hora_hasta": (0, 23),
     "calentamiento_inicio": (1, 1_000_000), "calentamiento_incremento": (0, 1_000_000),
 }
 

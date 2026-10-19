@@ -3,7 +3,7 @@
 Regla de oro: no se duplican tarifas. El borrador guarda solo los IDs; al enviar o programar se congela una copia de
 venta (snapshot_tarifas) de lo que se manda. Nunca lleva costo, margen ni proveedor: solo la aerolínea o naviera.
 
-Variables (Tencent: todo el JSON ≤ 800 bytes; valores de texto plano, sin HTML): titulo, intro, vigencia, comercial,
+Variables (Tencent: valores de texto plano, sin HTML; todo el JSON ≤ plantillas_diseno.LIMITE_TEMPLATE_DATA): titulo, intro, vigencia, comercial,
 contacto, empresa, baja, f1…fN y mas. Las filas que no caben (o que superan las de la plantilla) van en el PDF adjunto.
 """
 import json
@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.services import auditoria, boletines, correo, masivos, pdf, plantillas_correo, plantillas_diseno, servicios
 from app.services.configuracion import leer_config
+from app.services.empresa import whatsapp_numero
 from app.services.proveedor_correo import Mensaje
 from app.services.tarifas import precio_venta_kg, precios_de
 
@@ -43,8 +44,9 @@ MAXIMO_INTRO = 160
 MAXIMO_TITULO = 80
 MAXIMO_CONTACTO = 40
 MAXIMO_EMPRESA = 50
-PATRON_FILA = re.compile(r"^f(\d+)$")
-OPCIONALES = {"mas"}
+PATRON_FILA = re.compile(r"^(?:f|fila_)(\d+)$")
+OPCIONALES = {"mas", "mas_tarifas", "empresa_direccion", "empresa_telefono", "empresa_whatsapp", "empresa_horario",
+              "whatsapp_numero"}
 
 
 # ---------- Foto de venta de una tarifa (para el boletín) ----------
@@ -249,7 +251,7 @@ def snapshot_de(db: Session, campana: Campana, tarifas: list[Tarifa], fecha: dat
     return {"fecha": fecha.isoformat(), "vigencia": vigencia.isoformat(), "tarifas": fotos}
 
 
-# ---------- Variables (≤ 800 bytes) ----------
+# ---------- Variables (texto plano, con tope de tamaño) ----------
 
 
 def _bytes(datos: dict[str, str]) -> int:
@@ -257,34 +259,59 @@ def _bytes(datos: dict[str, str]) -> int:
 
 
 def _filas_de_plantilla(plantilla) -> list[str]:
-    return sorted((v for v in plantilla.variables_esperadas if PATRON_FILA.match(v)), key=lambda v: int(v[1:]))
+    """Las variables de filas de la plantilla (fila_01…fila_15 en la 72746; f1…fN también sirve), en orden."""
+    return sorted((v for v in plantilla.variables_esperadas if PATRON_FILA.match(v)),
+                  key=lambda v: int(PATRON_FILA.match(v).group(1)))
 
 
 def _url_baja(fila_masivos, token: str) -> str:
     return f"{fila_masivos.url_publica.rstrip('/')}/b/{token}"
 
 
+def datos_empresa(db: Session) -> dict[str, str]:
+    """Las variables empresa_* y whatsapp_numero, desde los datos de la empresa de F4 (config_empresa)."""
+    from app.models import ConfigEmpresa
+
+    fila = db.get(ConfigEmpresa, 1)
+    valor = lambda campo: (getattr(fila, campo) or "").strip() if fila else ""  # noqa: E731
+    return {
+        "empresa_direccion": valor("empresa_direccion_matriz"),
+        "empresa_telefono": " · ".join(v for v in (valor("empresa_telefono"), valor("empresa_celular")) if v),
+        "empresa_whatsapp": valor("empresa_whatsapp"),
+        "empresa_horario": valor("empresa_horario"),
+        "whatsapp_numero": whatsapp_numero(valor("empresa_whatsapp")),
+    }
+
+
 def variables_fijas(db: Session, campana: Campana, snapshot: dict[str, Any], comercial: str) -> dict[str, str]:
+    intro = campana.texto_intro or "Le compartimos nuestras tarifas vigentes."
     return {
         "titulo": campana.asunto or campana.nombre,
-        "intro": campana.texto_intro or "Le compartimos nuestras tarifas vigentes.",
+        "texto_intro": intro, "intro": intro,
         "vigencia": date.fromisoformat(snapshot["vigencia"]).strftime("%d/%m/%Y"),
         "comercial": comercial[:MAXIMO_CONTACTO],
-    }
+    } | datos_empresa(db)
+
+
+def _con_alias(datos: dict[str, str]) -> dict[str, str]:
+    """Los nombres de variable que usan las plantillas (72746: nombre_contacto, enlace_baja, mas_tarifas)."""
+    return datos | {"nombre_contacto": datos.get("contacto", ""), "enlace_baja": datos.get("baja", ""),
+                    "mas_tarifas": datos.get("mas", "")}
 
 
 def ajustar_filas(plantilla, fijas: dict[str, str], snapshot: dict[str, Any], url_publica: str, adjuntar_pdf: bool,
                   limite_filas: int) -> dict[str, str]:
-    """Las filas que caben en 800 bytes con el peor caso de contacto, empresa y enlace de baja. Devuelve las
-    variables de filas y "mas"."""
+    """Las filas que caben en el tope de tamaño de Tencent con el peor caso de contacto, empresa y enlace de baja, contando
+    solo las variables que la plantilla tiene. Devuelve las filas (vacías las que no se usan) y "mas"."""
     huecos = _filas_de_plantilla(plantilla)[:limite_filas]
     peor = fijas | {"contacto": "x" * MAXIMO_CONTACTO, "empresa": "x" * MAXIMO_EMPRESA,
                     "baja": f"{url_publica.rstrip('/')}/b/" + "x" * 33}
     filas = {hueco: "" for hueco in _filas_de_plantilla(plantilla)}
-    textos = [t["fila"] for t in snapshot["tarifas"]]
+    textos = [f"• {t['fila']}" for t in snapshot["tarifas"]]
+    mas_peor = f"Y {len(textos)} tarifas más en el PDF adjunto"
     usadas = 0
     for hueco, texto in zip(huecos, textos):
-        prueba = peor | filas | {hueco: texto, "mas": "y 999 tarifas más en el PDF adjunto"}
+        prueba = solo_esperadas(plantilla, _con_alias(peor | filas | {hueco: texto, "mas": mas_peor}))
         if _bytes(prueba) > plantillas_diseno.LIMITE_TEMPLATE_DATA:
             break
         filas[hueco] = texto
@@ -293,20 +320,15 @@ def ajustar_filas(plantilla, fijas: dict[str, str], snapshot: dict[str, Any], ur
     if resto and not adjuntar_pdf:
         raise ErrorNegocio(
             422, "FILAS_INSUFICIENTES",
-            f"En el correo caben {usadas} de {len(textos)} tarifas (límite de 800 bytes de Tencent). Active "
+            f"En el correo caben {usadas} de {len(textos)} tarifas (límite de tamaño de las variables de Tencent). Active "
             "\"Adjuntar PDF\" o reduzca las tarifas.",
         )
-    if resto:
-        mas = f"y {resto} tarifas más en el PDF adjunto"
-    else:
-        mas = "Detalle completo en el PDF adjunto" if adjuntar_pdf else ""
-    return filas | {"mas": mas}
+    return filas | {"mas": f"Y {resto} tarifas más en el PDF adjunto" if resto else ""}
 
 
 def variables_destinatario(fijas: dict[str, str], filas: dict[str, str], nombre: str, empresa: str, baja: str) -> dict[str, str]:
-    datos = fijas | filas | {"contacto": (nombre or "cliente")[:MAXIMO_CONTACTO],
-                             "empresa": (empresa or "")[:MAXIMO_EMPRESA], "baja": baja}
-    return datos
+    return _con_alias(fijas | filas | {"contacto": (nombre or "cliente")[:MAXIMO_CONTACTO],
+                                       "empresa": (empresa or "")[:MAXIMO_EMPRESA], "baja": baja})
 
 
 def solo_esperadas(plantilla, datos: dict[str, str]) -> dict[str, str]:

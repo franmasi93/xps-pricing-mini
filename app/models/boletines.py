@@ -50,7 +50,7 @@ class ConfigMasivos(Base):
     tope_hora: Mapped[int] = mapped_column(Integer, default=200)
     reserva_pct: Mapped[int] = mapped_column(SmallInteger, default=20)
     adjuntar_pdf: Mapped[bool] = mapped_column(default=True)
-    limite_filas: Mapped[int] = mapped_column(SmallInteger, default=8)
+    limite_filas: Mapped[int] = mapped_column(SmallInteger, default=15)
     texto_legal: Mapped[str] = mapped_column(Text, default="")
     correos_prueba: Mapped[str] = mapped_column(Text, default="")
     dias_envio: Mapped[str] = mapped_column(String(20), default="1,2,3,4,5")

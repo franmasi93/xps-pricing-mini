@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Campaña · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1 id="titulo">Campaña</h1>
+          <p class="topbar-subtitulo" id="subtitulo">Contenido → tarifas → destinatarios → revisar y enviar</p>
+        </div>
+
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <div class="pasos" id="pasos" hidden>
+          <button class="paso activo" type="button" data-paso="1">1. Contenido</button>
+          <button class="paso" type="button" data-paso="2">2. Tarifas</button>
+          <button class="paso" type="button" data-paso="3">3. Destinatarios</button>
+          <button class="paso" type="button" data-paso="4">4. Revisar</button>
+        </div>
+
+        <section class="tarjeta" data-panel="1" hidden>
+          <h3>1. Contenido</h3>
+          <form id="form-contenido" novalidate>
+            <div class="grupo-campos">
+              <div class="campo">
+                <label for="campana-nombre">Nombre interno</label>
+                <input class="input" id="campana-nombre" name="nombre" type="text" maxlength="120" required>
+              </div>
+              <div class="campo">
+                <label for="campana-plantilla">Plantilla</label>
+                <select class="select" id="campana-plantilla" name="plantilla_id"></select>
+                <p class="ayuda" id="ayuda-plantilla"></p>
+              </div>
+            </div>
+            <div class="campo">
+              <label for="campana-asunto">Asunto (también es el título del correo)</label>
+              <input class="input" id="campana-asunto" name="asunto" type="text" maxlength="80">
+            </div>
+            <div class="campo">
+              <label for="campana-intro">Texto de introducción (máximo 160 caracteres)</label>
+              <textarea class="input" id="campana-intro" name="texto_intro" maxlength="160" rows="3"></textarea>
+            </div>
+            <label class="campo-check" for="campana-pdf"><input id="campana-pdf" name="adjuntar_pdf" type="checkbox"> Adjuntar PDF con todas las tarifas</label>
+            <div class="acciones-form"><button class="btn btn-primario" type="submit">Guardar y seguir</button></div>
+          </form>
+        </section>
+
+        <section class="tarjeta" data-panel="2" hidden>
+          <h3>2. Tarifas vigentes</h3>
+          <p class="ayuda">Solo se ofrecen las tarifas activas y vigentes. Las marcadas "vence pronto" vencen antes de la alerta configurada.</p>
+          <div class="pestanas" role="tablist" id="pestanas-servicios"></div>
+          <div class="filtros">
+            <div class="campo"><label for="filtro-origen">Origen</label><select class="select" id="filtro-origen"></select></div>
+            <div class="campo"><label for="filtro-destino">Destino</label><select class="select" id="filtro-destino"></select></div>
+            <div class="campo" id="campo-filtro-equipo"><label for="filtro-equipo">Tipo de equipo</label><select class="select" id="filtro-equipo"></select></div>
+            <div class="campo"><span class="etiqueta">&nbsp;</span><button class="btn btn-secundario" id="btn-todas" type="button">Incluir todas las vigentes de este servicio</button></div>
+          </div>
+          <table class="tabla">
+            <thead><tr><th></th><th>Ruta</th><th>Tarifa</th><th>Detalle</th><th>Vigencia</th><th>Transportista</th></tr></thead>
+            <tbody id="tabla-tarifas"></tbody>
+          </table>
+          <p class="texto-suave" id="resumen-tarifas"></p>
+          <div class="acciones-form"><button class="btn btn-primario" id="btn-guardar-tarifas" type="button">Guardar y seguir</button></div>
+        </section>
+
+        <section class="tarjeta" data-panel="3" hidden>
+          <h3>3. Destinatarios</h3>
+          <div class="grupo-checks" id="checks-listas"></div>
+          <div class="contadores" id="contadores"></div>
+          <div class="acciones-form"><button class="btn btn-primario" id="btn-guardar-listas" type="button">Guardar y seguir</button></div>
+        </section>
+
+        <section class="tarjeta" data-panel="4" hidden>
+          <h3>4. Revisar y enviar</h3>
+          <div id="avisos-revision"></div>
+          <div class="segmentado" role="group" aria-label="Vista">
+            <button type="button" class="activo" data-vista-correo="escritorio" aria-pressed="true">Escritorio</button>
+            <button type="button" data-vista-correo="movil" aria-pressed="false">Celular</button>
+          </div>
+          <p class="texto-suave" id="resumen-previa"></p>
+          <iframe class="vista-correo" id="vista-correo" title="Vista previa del correo" sandbox=""></iframe>
+          <div class="acciones-form">
+            <button class="btn btn-secundario" id="btn-prueba" type="button">Enviarme una prueba</button>
+            <input class="input" id="programar-para" type="datetime-local" aria-label="Fecha y hora para programar">
+            <button class="btn btn-secundario" id="btn-programar" type="button">Programar</button>
+            <button class="btn btn-primario" id="btn-enviar" type="button">Enviar ahora</button>
+          </div>
+        </section>
+
+        <section class="tarjeta" id="detalle" hidden>
+          <div class="contadores" id="contadores-detalle"></div>
+          <dl class="ficha" id="ficha-campana"></dl>
+          <div class="acciones-form" id="acciones-detalle"></div>
+          <h3>Tarifas enviadas (copia congelada)</h3>
+          <table class="tabla"><thead><tr><th>Servicio</th><th>Ruta</th><th>Tarifa</th><th>Vigencia</th><th>Transportista</th></tr></thead><tbody id="tabla-snapshot"></tbody></table>
+          <h3>Destinatarios</h3>
+          <div class="filtros">
+            <div class="campo"><label for="filtro-destinatario">Estado</label>
+              <select class="select" id="filtro-destinatario">
+                <option value="">Todos</option><option value="PENDIENTE">Pendiente</option><option value="ENVIADO">Enviado</option>
+                <option value="REBOTADO">Rebotado</option><option value="FALLIDO">Fallido</option><option value="OMITIDO_BAJA">Omitido por baja</option>
+                <option value="CANCELADO">Cancelado</option>
+              </select></div>
+          </div>
+          <table class="tabla"><thead><tr><th>Email</th><th>Contacto</th><th>Estado</th><th>Intentos</th><th>Último error</th><th>Enviado</th></tr></thead><tbody id="tabla-destinatarios"></tbody></table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-confirmar" aria-labelledby="titulo-confirmar">
+    <h2 id="titulo-confirmar">Confirmar envío</h2>
+    <div id="alertas-confirmar" hidden></div>
+    <p id="texto-confirmar"></p>
+    <div class="campo">
+      <label for="confirmar-numero">Escriba el número exacto de destinatarios para confirmar</label>
+      <input class="input cifra" id="confirmar-numero" type="number" min="1" step="1">
+    </div>
+    <div class="acciones-form">
+      <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-confirmar" type="button">Confirmar</button>
+    </div>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/campana.js"></script>
+</body>
+</html>

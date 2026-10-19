@@ -26,6 +26,15 @@ const GRUPOS_MENU = [
     ],
   },
   {
+    titulo: "Boletines",
+    opciones: [
+      // E1: boletines.ver para los 4 roles; editar depende de cada permiso de boletines.
+      { texto: "Campañas", archivo: "boletines.html", permisos: ["boletines.ver"] },
+      { texto: "Listas de envío", archivo: "listas.html", permisos: ["boletines.ver"] },
+      { texto: "Bajas de correo", archivo: "bajas.html", permisos: ["boletines.ver"] },
+    ],
+  },
+  {
     titulo: "Catálogos",
     opciones: [
       { texto: "Geografía", archivo: "geografia.html", permisos: ["catalogo.editar"] },
@@ -41,6 +50,8 @@ const GRUPOS_MENU = [
       // E0: solo el administrador los edita (configuracion.servicios.gestionar).
       { texto: "Servicios", archivo: "servicios.html", permisos: ["configuracion.servicios.gestionar"] },
       { texto: "Tipos de ubicación", archivo: "tipos-ubicacion.html", permisos: ["configuracion.servicios.gestionar"] },
+      // E1: catálogo de plantillas de Tencent, solo el administrador.
+      { texto: "Plantillas de correo", archivo: "plantillas-correo.html", permisos: ["usuario.admin"] },
       { texto: "Usuarios", archivo: "usuarios.html", permisos: ["usuario.admin"] },
       { texto: "Auditoría", archivo: "auditoria.html", permisos: ["auditoria.ver"] },
     ],

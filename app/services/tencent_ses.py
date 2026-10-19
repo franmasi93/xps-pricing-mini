@@ -82,6 +82,15 @@ class TencentSES:
         solicitud.TemplateContent = self._contenido(html, texto)
         self._llamar("UpdateEmailTemplate", solicitud)
 
+    def contenido_plantilla(self, plantilla_id: int) -> tuple[str, str, int | None]:
+        """(html, texto, estado) de una plantilla (GetEmailTemplate). Solo lectura."""
+        solicitud = models.GetEmailTemplateRequest()
+        solicitud.TemplateID = plantilla_id
+        respuesta = self._llamar("GetEmailTemplate", solicitud)
+        contenido = respuesta.TemplateContent
+        decodificar = lambda valor: base64.b64decode(valor).decode("utf-8") if valor else ""  # noqa: E731
+        return decodificar(contenido.Html if contenido else None), decodificar(contenido.Text if contenido else None),             respuesta.TemplateStatus
+
     def remitentes(self) -> list[str]:
         respuesta = self._llamar("ListEmailAddress", models.ListEmailAddressRequest())
         return [s.EmailAddress for s in respuesta.EmailSenders or [] if s.EmailAddress]

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Campañas · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1 id="titulo">Campañas</h1>
+          <p class="topbar-subtitulo" id="subtitulo">Boletines de tarifas vigentes a las listas de clientes</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nueva" type="button" hidden>Nueva campaña</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="pestanas" role="tablist">
+            <button class="pestana activa" type="button" role="tab" data-vista="todas">Todas</button>
+            <button class="pestana" type="button" role="tab" data-vista="PROGRAMADA">Programadas</button>
+          </div>
+          <div class="filtros">
+            <div class="campo">
+              <label for="filtro-estado">Estado</label>
+              <select class="select" id="filtro-estado">
+                <option value="">Todos</option>
+                <option value="BORRADOR">Borrador</option>
+                <option value="PROGRAMADA">Programada</option>
+                <option value="ENVIANDO">Enviando</option>
+                <option value="PAUSADA">Pausada</option>
+                <option value="ENVIADA">Enviada</option>
+                <option value="CANCELADA">Cancelada</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="filtro-servicio">Servicio</label>
+              <select class="select" id="filtro-servicio"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-desde">Desde</label>
+              <input class="input" id="filtro-desde" type="date">
+            </div>
+            <div class="campo">
+              <label for="filtro-hasta">Hasta</label>
+              <input class="input" id="filtro-hasta" type="date">
+            </div>
+          </div>
+          <table class="tabla">
+            <thead><tr><th>Campaña</th><th>Estado</th><th>Destinatarios</th><th>Enviados</th><th>Rebotes</th><th>Fecha</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-campanas"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/boletines.js"></script>
+</body>
+</html>

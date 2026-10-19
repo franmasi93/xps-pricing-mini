@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plantillas de correo · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1 id="titulo">Plantillas de correo</h1>
+          <p class="topbar-subtitulo" id="subtitulo">Plantillas de Tencent para cotizaciones, boletines y avisos</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nueva" type="button" hidden>Nueva plantilla</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <p class="nota-lectura">Las variables de Tencent son texto plano (sin HTML). Editar el contenido devuelve la plantilla a revisión en Tencent.</p>
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo"><label for="filtro-uso">Uso</label>
+              <select class="select" id="filtro-uso"><option value="">Todos</option><option value="COTIZACION">Cotización</option><option value="BOLETIN">Boletín</option><option value="AVISO">Aviso</option></select></div>
+            <div class="campo"><span class="etiqueta">&nbsp;</span><button class="btn btn-secundario" id="btn-sincronizar" type="button">Sincronizar con Tencent</button></div>
+          </div>
+          <table class="tabla">
+            <thead><tr><th>Plantilla</th><th>Uso</th><th>ID Tencent</th><th>Estado en Tencent</th><th>Variables</th><th>Activa</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-plantillas"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo dialogo-ancho" id="dialogo-plantilla" aria-labelledby="titulo-plantilla">
+    <h2 id="titulo-plantilla">Plantilla</h2>
+    <div id="alertas-plantilla" hidden></div>
+    <form id="form-plantilla" novalidate>
+      <div class="grupo-campos">
+        <div class="campo"><label for="plantilla-nombre">Nombre (en Tencent lleva el prefijo XPS-)</label><input class="input" id="plantilla-nombre" name="nombre" type="text" maxlength="120" required></div>
+        <div class="campo"><label for="plantilla-uso">Uso</label>
+          <select class="select" id="plantilla-uso" name="uso"><option value="BOLETIN">Boletín</option><option value="AVISO">Aviso</option><option value="COTIZACION">Cotización</option></select></div>
+        <div class="campo"><label for="plantilla-diseno">Diseño o forma de cobro</label>
+          <select class="select" id="plantilla-diseno" name="diseno">
+            <option value="GENERAL">General</option><option value="PESO_TRAMOS">Por peso</option><option value="VOLUMEN_WM">Por volumen</option>
+            <option value="UNIDAD_EQUIPO">Por equipo</option><option value="TARIFA_PLANA">Tarifa plana</option><option value="AVISO">Aviso</option><option value="LIBRE">Libre</option>
+          </select></div>
+        <div class="campo"><label for="plantilla-evento">Evento o servicio sugerido (opcional)</label><input class="input" id="plantilla-evento" name="evento_o_servicio" type="text" maxlength="40"></div>
+        <div class="campo"><label for="plantilla-asunto">Asunto sugerido (opcional)</label><input class="input" id="plantilla-asunto" name="asunto_sugerido" type="text" maxlength="200"></div>
+        <div class="campo"><label for="plantilla-tencent">ID de Tencent (si la creó en la consola)</label><input class="input cifra" id="plantilla-tencent" name="tencent_id" type="number" min="1" step="1"></div>
+      </div>
+      <div class="campo"><label for="plantilla-html">HTML (variables como {{nombre}})</label><textarea class="input cifra" id="plantilla-html" name="html" rows="10"></textarea></div>
+      <p class="ayuda" id="variables-detectadas"></p>
+      <div class="campo"><label for="plantilla-notas">Notas (opcional)</label><input class="input" id="plantilla-notas" name="notas" type="text" maxlength="2000"></div>
+      <p class="nota-lectura" id="aviso-revision" hidden>Al guardar un HTML distinto, la plantilla se actualiza en Tencent y vuelve a revisión: no podrá usarse hasta que Tencent la apruebe.</p>
+      <div class="acciones-form"><button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button><button class="btn btn-primario" type="submit">Guardar</button></div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/plantillas-correo.js"></script>
+</body>
+</html>

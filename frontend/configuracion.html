@@ -84,6 +84,37 @@
             </div>
           </form>
         </section>
+
+        <!-- E1: envíos masivos (usuario.admin), en el espacio de Tencent. -->
+        <section class="tarjeta" id="bloque-masivos" hidden>
+          <h3>Envíos masivos (boletines)</h3>
+          <div id="alertas-masivos" hidden></div>
+          <div class="contadores" id="cupos-masivos"></div>
+          <form id="form-masivos" novalidate>
+            <div class="grupo-campos">
+              <div class="campo"><label for="masivos-remitente">Remitente de masivos</label><select class="select" id="masivos-remitente" name="remitente"></select></div>
+              <div class="campo"><label for="masivos-reply-to">Responder a</label><input class="input" id="masivos-reply-to" name="reply_to" type="email" maxlength="254"></div>
+              <div class="campo"><label for="masivos-lote">Tamaño de lote</label><input class="input cifra" id="masivos-lote" name="tamano_lote" type="number" min="1" max="200"></div>
+              <div class="campo"><label for="masivos-pausa">Pausa entre lotes (segundos)</label><input class="input cifra" id="masivos-pausa" name="pausa_segundos" type="number" min="0" max="3600"></div>
+              <div class="campo"><label for="masivos-tope">Tope diario (cupo de Tencent)</label><input class="input cifra" id="masivos-tope" name="tope_diario" type="number" min="1"></div>
+              <div class="campo"><label for="masivos-tope-hora">Tope por hora</label><input class="input cifra" id="masivos-tope-hora" name="tope_hora" type="number" min="1"></div>
+              <div class="campo"><label for="masivos-reserva">Reserva para cotizaciones y avisos (%)</label><input class="input cifra" id="masivos-reserva" name="reserva_pct" type="number" min="0" max="90"></div>
+              <div class="campo"><label for="masivos-filas">Máximo de filas de tarifas en el correo</label><input class="input cifra" id="masivos-filas" name="limite_filas" type="number" min="1" max="40"></div>
+              <div class="campo"><label for="masivos-dias">Días de envío (1 = lunes … 7 = domingo)</label><input class="input cifra" id="masivos-dias" name="dias_envio" type="text" maxlength="20"></div>
+              <div class="campo"><label for="masivos-desde">Desde la hora</label><input class="input cifra" id="masivos-desde" name="hora_desde" type="number" min="0" max="23"></div>
+              <div class="campo"><label for="masivos-hasta">Hasta la hora</label><input class="input cifra" id="masivos-hasta" name="hora_hasta" type="number" min="0" max="23"></div>
+              <div class="campo"><label for="masivos-url">URL pública (enlace de baja)</label><input class="input" id="masivos-url" name="url_publica" type="url" maxlength="300"></div>
+              <div class="campo"><label for="masivos-cal-inicio">Calentamiento: correos el primer día</label><input class="input cifra" id="masivos-cal-inicio" name="calentamiento_inicio" type="number" min="1"></div>
+              <div class="campo"><label for="masivos-cal-incremento">Calentamiento: aumento por día</label><input class="input cifra" id="masivos-cal-incremento" name="calentamiento_incremento" type="number" min="0"></div>
+            </div>
+            <label class="campo-check"><input type="checkbox" id="masivos-pdf" name="adjuntar_pdf"> Adjuntar PDF de tarifas por defecto</label>
+            <label class="campo-check"><input type="checkbox" id="masivos-calentamiento" name="calentamiento"> Calentamiento activo (el tope sube de a poco para cuidar la reputación del dominio)</label>
+            <div class="campo"><label for="masivos-pruebas">Correos internos de prueba (separados por coma)</label><input class="input" id="masivos-pruebas" name="correos_prueba" type="text" maxlength="1000"></div>
+            <div class="campo"><label for="masivos-legal">Texto legal del pie</label><textarea class="input" id="masivos-legal" name="texto_legal" rows="3" maxlength="1000"></textarea></div>
+            <p class="ayuda">El nivel 1 de reputación de Tencent permite 500 correos por día por dominio; no ponga un tope mayor al cupo de su nivel.</p>
+            <div class="acciones-form"><button class="btn btn-primario btn-chico" type="submit">Guardar envíos masivos</button></div>
+          </form>
+        </section>
       </main>
     </div>
   </div>
@@ -92,5 +123,6 @@
   <script src="js/layout.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/configuracion.js"></script>
+  <script src="js/configuracion-masivos.js"></script>
 </body>
 </html>

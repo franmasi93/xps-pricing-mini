@@ -17,7 +17,7 @@ from app.schemas.catalogos import (
     IncotermActualizar,
     IncotermSalida,
 )
-from app.schemas.catalogos import EmpresaDatos
+from app.schemas.catalogos import EmpresaDatos, EmpresaSalida
 from app.services import auditoria as servicio_auditoria
 from app.services import configuracion as servicio_config
 from app.services import empresa as servicio_empresa
@@ -84,13 +84,13 @@ def listar_configuracion(db: Session = Depends(get_db), usuario: Usuario = Depen
     return [_config_salida(c, editable) for c, editable in servicio_config.listar_config(db, usuario)]
 
 
-@router.get("/configuracion/empresa", response_model=EmpresaDatos, tags=["configuracion"])
+@router.get("/configuracion/empresa", response_model=EmpresaSalida, tags=["configuracion"])
 def leer_empresa(db: Session = Depends(get_db), actor: Usuario = Depends(get_usuario_habilitado)):
     """A4: datos de la empresa para el PDF (config.editar)."""
     return servicio_empresa.leer_empresa(db, actor)
 
 
-@router.put("/configuracion/empresa", response_model=EmpresaDatos, tags=["configuracion"])
+@router.put("/configuracion/empresa", response_model=EmpresaSalida, tags=["configuracion"])
 def actualizar_empresa(
     datos: EmpresaDatos, db: Session = Depends(get_db), actor: Usuario = Depends(get_usuario_habilitado)
 ):

@@ -5,8 +5,8 @@ Revises: 0007
 Create Date: 2026-10-18
 
 Migración escrita a mano. No toca datos existentes: solo crea tablas, la fila de config_masivos (con el remitente y el
-reply-to del correo de F4), el catálogo de plantillas (la de cotizaciones de F4 ya aprobada en Tencent, y las 12 del
-sistema generadas con los datos de la empresa, SIN_REGISTRAR hasta que se carguen en Tencent) y 4 permisos:
+reply-to del correo de F4), el catálogo de plantillas (la de cotizaciones de F4 y las 8 que el gerente subió a Tencent:
+72746 boletín y 72747–72753 avisos, por ID) y 4 permisos:
 - boletines.ver: los 4 roles;
 - boletines.listas.gestionar, boletines.campanas.gestionar y boletines.campanas.enviar: admin y pricing.
 """
@@ -15,8 +15,6 @@ import json
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
-
-from app.services import plantillas_diseno
 
 revision = "0008"
 down_revision = "0007"
@@ -29,15 +27,28 @@ ESTADOS_DESTINATARIO = (
 )
 DISENOS = "'GENERAL', 'PESO_TRAMOS', 'VOLUMEN_WM', 'UNIDAD_EQUIPO', 'TARIFA_PLANA', 'AVISO', 'LIBRE'"
 ESTADOS_TENCENT = "'SIN_REGISTRAR', 'EN_REVISION', 'APROBADA', 'RECHAZADA', 'NO_ENCONTRADA'"
-CLAVES_EMPRESA = (
-    "empresa_departamento", "empresa_ciudad", "empresa_telefono", "empresa_celular", "empresa_whatsapp",
-    "empresa_horario", "empresa_direccion_matriz",
-)
-ASUNTOS = {
-    "GENERAL": "Tarifas vigentes – XPRESS LOGISTICS", "PESO_TRAMOS": "Tarifas por peso – XPRESS LOGISTICS",
-    "VOLUMEN_WM": "Tarifas de carga consolidada – XPRESS LOGISTICS",
-    "UNIDAD_EQUIPO": "Tarifas por contenedor – XPRESS LOGISTICS", "TARIFA_PLANA": "Tarifas por envío – XPRESS LOGISTICS",
-}
+_EMPRESA = ["comercial", "whatsapp_numero", "empresa_direccion", "empresa_telefono", "empresa_whatsapp", "empresa_horario"]
+_COTIZACION = ["nombre_contacto", "numero", "ruta", "servicio", "total", "valida_hasta"]
+# (ID en Tencent, nombre, uso, diseño, evento, asunto sugerido, variables) — las 8 subidas por el gerente el 2026-10-19.
+PLANTILLAS_GERENTE = [
+    (72746, "Xps boletin tarifas", "BOLETIN", "GENERAL", None, "Tarifas vigentes – XPRESS LOGISTICS",
+     ["titulo", "nombre_contacto", "texto_intro", *[f"fila_{n:02d}" for n in range(1, 16)], "mas_tarifas", "vigencia",
+      *_EMPRESA, "enlace_baja"]),
+    (72747, "Xps aviso seguimiento", "AVISO", "AVISO", "COT_SEGUIMIENTO", "¿Pudo revisar su cotización {numero}?",
+     _COTIZACION + _EMPRESA),
+    (72748, "Xps aviso porvencer", "AVISO", "AVISO", "COT_POR_VENCER", "Su cotización {numero} vence pronto",
+     _COTIZACION + _EMPRESA),
+    (72749, "Xps aviso vencida", "AVISO", "AVISO", "COT_VENCIDA", "Su cotización {numero} venció", _COTIZACION + _EMPRESA),
+    (72750, "Xps aviso aceptada", "AVISO", "AVISO", "COT_ACEPTADA_CLIENTE", "Gracias por aceptar la cotización {numero}",
+     _COTIZACION + ["paso_1", "paso_2", "paso_3"] + _EMPRESA),
+    (72751, "Xps aviso tarifainteres", "AVISO", "AVISO", "TARIFA_RUTA_INTERES", "Nueva tarifa en una ruta de su interés",
+     ["nombre_contacto", "servicio", "ruta", *[f"fila_{n:02d}" for n in range(1, 6)], "vigencia", *_EMPRESA, "enlace_baja"]),
+    (72752, "Xps interno aviso", "AVISO", "AVISO", "INTERNO", "Aviso de XPS Pricing",
+     ["titulo", "mensaje", *[f"detalle_{n:02d}" for n in range(1, 7)], "enlace", "fecha"]),
+    (72753, "Xps interno resumen", "AVISO", "AVISO", "RESUMEN", "Resumen de XPS Pricing",
+     ["periodo", "kpi_emitidas", "kpi_enviadas", "kpi_aceptadas", "kpi_rechazadas", "kpi_tasa_cierre", "kpi_monto",
+      "kpi_margen", *[f"linea_{n:02d}" for n in range(1, 13)], "enlace"]),
+]
 TEXTO_LEGAL = (
     "Recibe este correo porque es cliente o contacto comercial de XPRESS LOGISTICS XPS S.A. Las tarifas están "
     "sujetas a la vigencia indicada, a disponibilidad de espacio y a los recargos locales que correspondan."
@@ -77,7 +88,7 @@ def upgrade() -> None:
         sa.Column("tope_hora", sa.Integer(), nullable=False, server_default="200"),
         sa.Column("reserva_pct", sa.SmallInteger(), nullable=False, server_default="20"),
         sa.Column("adjuntar_pdf", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("limite_filas", sa.SmallInteger(), nullable=False, server_default="8"),
+        sa.Column("limite_filas", sa.SmallInteger(), nullable=False, server_default="15"),
         sa.Column("texto_legal", sa.Text(), nullable=False, server_default=""),
         sa.Column("correos_prueba", sa.Text(), nullable=False, server_default=""),
         sa.Column("dias_envio", sa.String(20), nullable=False, server_default="1,2,3,4,5"),
@@ -97,7 +108,7 @@ def upgrade() -> None:
         sa.CheckConstraint("tamano_lote BETWEEN 1 AND 200", name="ck_config_masivos_lote"),
         sa.CheckConstraint("pausa_segundos BETWEEN 0 AND 3600", name="ck_config_masivos_pausa"),
         sa.CheckConstraint("tope_diario BETWEEN 1 AND 1000000", name="ck_config_masivos_tope"),
-        sa.CheckConstraint("limite_filas BETWEEN 1 AND 8", name="ck_config_masivos_limite_filas"),
+        sa.CheckConstraint("limite_filas BETWEEN 1 AND 40", name="ck_config_masivos_limite_filas"),
         sa.CheckConstraint("tope_hora BETWEEN 1 AND 100000", name="ck_config_masivos_tope_hora"),
         sa.CheckConstraint("reserva_pct BETWEEN 0 AND 90", name="ck_config_masivos_reserva"),
         sa.CheckConstraint("hora_desde BETWEEN 0 AND 23 AND hora_hasta BETWEEN 0 AND 23 AND hora_desde <= hora_hasta",
@@ -273,30 +284,25 @@ def upgrade() -> None:
 
 
 def _sembrar_plantillas() -> None:
-    """La de cotizaciones de F4 (la que usa config_correo, aprobada) y las 12 del sistema, con los datos de la empresa."""
+    """La de cotizaciones de F4 (la que usa config_correo) y las 8 que el gerente subió a Tencent el 2026-10-19, por ID,
+    con su uso, su evento y sus variables reales. Quedan EN_REVISION: la sincronización con Tencent trae el estado, el
+    motivo y el HTML (las variables del HTML mandan)."""
     conexion = op.get_bind()
     insertar = sa.text(
-        "INSERT INTO plantilla_correo (nombre, uso, diseno, evento_o_servicio, asunto_sugerido, html, texto, "
-        "variables_esperadas, tencent_id, estado_tencent) VALUES (:nombre, :uso, :diseno, :evento, :asunto, :html, "
-        ":texto, CAST(:variables AS jsonb), :tencent_id, :estado)"
+        "INSERT INTO plantilla_correo (nombre, uso, diseno, evento_o_servicio, asunto_sugerido, variables_esperadas, "
+        "tencent_id, estado_tencent) VALUES (:nombre, :uso, :diseno, :evento, :asunto, CAST(:variables AS jsonb), "
+        ":tencent_id, :estado)"
     )
     cotizacion = conexion.execute(sa.text("SELECT plantilla_cotizacion_id FROM config_correo WHERE id = 1")).scalar()
+    filas = []
     if cotizacion:
-        conexion.execute(insertar, {
-            "nombre": "Cotización (F4)", "uso": "COTIZACION", "diseno": "LIBRE", "evento": None,
-            "asunto": "Cotización {numero} – XPRESS LOGISTICS XPS S.A.", "html": None, "texto": None,
-            "variables": json.dumps(["contacto", "numero", "valida_hasta", "comercial"]), "tencent_id": cotizacion,
-            "estado": "APROBADA",
-        })
-    fila = conexion.execute(sa.text(f"SELECT {', '.join(CLAVES_EMPRESA)} FROM config_empresa WHERE id = 1")).mappings().first()
-    empresa = {clave: (fila[clave] if fila else "") or "" for clave in CLAVES_EMPRESA}
-    for plantilla in plantillas_diseno.catalogo(empresa, TEXTO_LEGAL):
-        conexion.execute(insertar, {
-            "nombre": plantilla["nombre"], "uso": plantilla["uso"], "diseno": plantilla["diseno"],
-            "evento": plantilla["evento_o_servicio"], "asunto": ASUNTOS.get(plantilla["diseno"]),
-            "html": plantilla["html"], "texto": plantillas_diseno.texto_plano(plantilla["html"]),
-            "variables": json.dumps(plantilla["variables"]), "tencent_id": None, "estado": "SIN_REGISTRAR",
-        })
+        filas.append(("Cotizacion_Pricing", "COTIZACION", "LIBRE", None, "Cotización {numero} – XPRESS LOGISTICS XPS S.A.",
+                      ["numero", "contacto", "valida_hasta", "comercial"], cotizacion, "APROBADA"))
+    filas += [(nombre, uso, diseno, evento, asunto, variables, tencent_id, "EN_REVISION")
+              for tencent_id, nombre, uso, diseno, evento, asunto, variables in PLANTILLAS_GERENTE if tencent_id != cotizacion]
+    for nombre, uso, diseno, evento, asunto, variables, tencent_id, estado in filas:
+        conexion.execute(insertar, {"nombre": nombre, "uso": uso, "diseno": diseno, "evento": evento, "asunto": asunto,
+                                    "variables": json.dumps(variables), "tencent_id": tencent_id, "estado": estado})
 
 
 def downgrade() -> None:

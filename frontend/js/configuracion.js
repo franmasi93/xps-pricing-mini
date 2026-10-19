@@ -114,6 +114,29 @@
     document.getElementById("campos-empresa").replaceChildren(...campos);
     const form = document.getElementById("form-empresa");
     const alertasEmpresa = document.getElementById("alertas-empresa");
+    // E1: whatsapp_numero se calcula del WhatsApp (sin espacios, guiones, paréntesis ni "+"; 593 si no trae código).
+    const previaWhatsapp = crear("p", { clase: "ayuda", atributos: { id: "previa-whatsapp" } });
+    form.elements.empresa_whatsapp.closest(".campo").append(previaWhatsapp);
+    const numeroWhatsapp = (texto) => {
+      let digitos = (texto || "").replace(/[\s\-()+.]/g, "");
+      if (!digitos || digitos.startsWith("593")) return digitos;
+      if (digitos.startsWith("0")) return `593${digitos.slice(1)}`;
+      return digitos.length <= 9 ? `593${digitos}` : digitos;
+    };
+    const pintarWhatsapp = (enlace) => {
+      const numero = numeroWhatsapp(form.elements.empresa_whatsapp.value);
+      const valido = /^\d+$/.test(numero) && (numero.startsWith("593") ? numero.length === 12 : numero.length >= 11 && numero.length <= 15);
+      previaWhatsapp.replaceChildren();
+      if (!numero) return;
+      if (!valido) {
+        previaWhatsapp.textContent = "Este número no forma un enlace de WhatsApp válido.";
+        return;
+      }
+      const url = enlace || `https://wa.me/${numero}`;
+      previaWhatsapp.append("Enlace para probar: ", crear("a", { texto: url, atributos: { href: url, target: "_blank", rel: "noopener" } }));
+    };
+    form.elements.empresa_whatsapp.addEventListener("input", () => pintarWhatsapp(null));
+    pintarWhatsapp(datos.whatsapp_enlace);
     form.addEventListener("submit", async (evento) => {
       evento.preventDefault();
       XPS.limpiarAlerta(alertasEmpresa);
@@ -121,6 +144,7 @@
       try {
         const guardado = await XPS.api("/configuracion/empresa", { metodo: "PUT", cuerpo });
         for (const [clave] of CAMPOS_EMPRESA) form.elements[clave].value = guardado[clave];
+        pintarWhatsapp(guardado.whatsapp_enlace);
         XPS.mostrarAlerta(alertasEmpresa, "exito", "Datos de la empresa guardados.");
       } catch (error) {
         XPS.mostrarError(alertasEmpresa, error);
@@ -168,13 +192,14 @@
 
   async function cargarPlantillas() {
     const actual = String(configCorreo.plantilla_cotizacion_id);
+    // E1: la plantilla de cotización se elige del catálogo (uso COTIZACION, aprobada y activa); el valor no cambia.
     let plantillas = [];
-    if (configCorreo.estado !== "NO_CONFIGURADO") {
-      try {
-        plantillas = await XPS.api("/correo/plantillas");
-      } catch (error) {
-        XPS.mostrarError(alertasCorreo, error);
-      }
+    try {
+      plantillas = (await XPS.api("/plantillas-correo?uso=COTIZACION"))
+        .filter((p) => p.tencent_id && p.activo && p.estado_tencent === "APROBADA")
+        .map((p) => ({ id: p.tencent_id, nombre: p.nombre, estado_texto: "aprobada" }));
+    } catch (error) {
+      XPS.mostrarError(alertasCorreo, error);
     }
     if (!plantillas.some((p) => String(p.id) === actual)) {
       plantillas.unshift({ id: configCorreo.plantilla_cotizacion_id, nombre: "(actual)", estado_texto: "sin verificar" });

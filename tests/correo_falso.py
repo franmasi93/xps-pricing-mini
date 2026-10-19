@@ -24,6 +24,7 @@ class CorreoFalso:
     errores_por_email: dict[str, str] = field(default_factory=dict)  # E1: código de Tencent a simular por destinatario
     permiso_plantillas: bool = True  # E1: False simula una llave sin CAM para CreateEmailTemplate
     lista_remitentes: list[str] = field(default_factory=lambda: ["pricing@notificaciones.xpress.ec"])
+    contenidos: dict[int, str] = field(default_factory=dict)  # E1: HTML de cada plantilla (GetEmailTemplate)
     enviados: list[Mensaje] = field(default_factory=list)
     configs: list[ConfigProveedor] = field(default_factory=list)
     consultas: int = 0
@@ -95,6 +96,12 @@ class CorreoFalso:
 
     def aprobar(self, plantilla_id: int) -> None:
         self.lista_plantillas = [Plantilla(p.id, p.nombre, 0) if p.id == plantilla_id else p for p in self.lista_plantillas]
+
+    def contenido_plantilla(self, plantilla_id: int) -> tuple[str, str, int | None]:
+        self._consulta()
+        html = self.contenidos.get(plantilla_id, "")
+        estado = next((p.estado for p in self.lista_plantillas if p.id == plantilla_id), None)
+        return html, html, estado
 
     def remitentes(self) -> list[str]:
         self._consulta()

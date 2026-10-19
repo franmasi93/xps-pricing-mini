@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Listas de envío · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1 id="titulo">Listas de envío</h1>
+          <p class="topbar-subtitulo" id="subtitulo">A quién se envían los boletines: listas manuales o por filtro</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nueva" type="button" hidden>Nueva lista</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <section class="tarjeta" id="herramientas" hidden>
+          <table class="tabla">
+            <thead><tr><th>Lista</th><th>Tipo</th><th>Contactos</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-listas"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo dialogo-ancho" id="dialogo-lista" aria-labelledby="titulo-lista">
+    <h2 id="titulo-lista">Lista</h2>
+    <div id="alertas-lista" hidden></div>
+    <form id="form-lista" novalidate>
+      <div class="grupo-campos">
+        <div class="campo"><label for="lista-nombre">Nombre</label><input class="input" id="lista-nombre" name="nombre" type="text" maxlength="120" required></div>
+        <div class="campo"><label for="lista-tipo">Tipo</label>
+          <select class="select" id="lista-tipo" name="tipo"><option value="MANUAL">Manual (contactos elegidos)</option><option value="FILTRO">Por filtro</option></select></div>
+      </div>
+      <div class="campo"><label for="lista-descripcion">Descripción (opcional)</label><input class="input" id="lista-descripcion" name="descripcion" type="text" maxlength="2000"></div>
+      <div id="bloque-manual">
+        <div class="filtros">
+          <div class="campo campo-busqueda"><label for="buscar-contacto">Buscar contacto</label><input class="input" id="buscar-contacto" type="search" placeholder="Nombre, email o cliente"></div>
+          <div class="campo"><label for="archivo-csv">Importar CSV (una columna con emails)</label><input class="input" id="archivo-csv" type="file" accept=".csv,text/csv"></div>
+        </div>
+        <table class="tabla"><tbody id="resultados-contactos"></tbody></table>
+        <p class="etiqueta">Contactos en la lista</p>
+        <table class="tabla"><tbody id="miembros-lista"></tbody></table>
+      </div>
+      <div id="bloque-filtro" hidden>
+        <p class="ayuda">Sin filtros: todos los contactos activos con email de los clientes activos. Varios filtros se combinan (deben cumplirse todos).</p>
+        <div class="grupo-campos">
+          <div class="campo"><label for="filtro-servicios">Servicios cotizados</label><select class="select" id="filtro-servicios" multiple></select></div>
+          <div class="campo"><label for="filtro-equipos">Tipos de equipo cotizados</label><select class="select" id="filtro-equipos" multiple></select></div>
+          <div class="campo"><label for="filtro-origenes">Orígenes cotizados</label><select class="select" id="filtro-origenes" multiple></select></div>
+          <div class="campo"><label for="filtro-destinos">Destinos cotizados</label><select class="select" id="filtro-destinos" multiple></select></div>
+          <div class="campo"><label for="filtro-paises">País del cliente</label><select class="select" id="filtro-paises" multiple></select></div>
+          <div class="campo"><label for="filtro-ciudades">Ciudad del cliente</label><select class="select" id="filtro-ciudades" multiple></select></div>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-previa" type="button">Ver vista previa</button>
+      </div>
+      <div class="contadores" id="contadores-lista"></div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/listas.js"></script>
+</body>
+</html>

@@ -26,6 +26,7 @@ from fabricas import crear_cliente, crear_contacto, crear_puerto, crear_tarifa, 
 from test_f4_correo import _con_llaves, _sin_red, falso, llave  # noqa: F401 - fixtures de F4
 
 SECRETO = "secreto-de-tareas-solo-tests"
+BOLETIN = "Xps boletin tarifas"  # la 72746 que subió el gerente
 TOKEN_EVENTOS = "token-eventos-solo-tests"
 
 
@@ -36,13 +37,13 @@ def _hoy(monkeypatch):
 
 @pytest.fixture
 def correo_listo(db_session, falso):  # noqa: F811
-    """Correo con llaves, horario abierto todo el día, sin pausa, y la plantilla general aprobada (ID 90001)."""
+    """Correo con llaves, horario abierto todo el día, sin pausa, y la plantilla de boletín 72746 aprobada."""
     _con_llaves(db_session)
     fila = db_session.get(ConfigMasivos, 1)
     fila.dias_envio, fila.hora_desde, fila.hora_hasta, fila.pausa_segundos = "1,2,3,4,5,6,7", 0, 23, 0
     fila.remitente = "XPRESS <tarifas@notificaciones.xpress.ec>"
-    plantilla = _plantilla(db_session, "XPS-Boletin-General")
-    plantilla.tencent_id, plantilla.estado_tencent = 90001, "APROBADA"
+    plantilla = _plantilla(db_session, BOLETIN)
+    plantilla.estado_tencent = "APROBADA"
     db_session.commit()
     return falso
 
@@ -74,7 +75,7 @@ def _lista(client, h, contactos, nombre="Lista de prueba"):
 
 
 def _campana(client, h, db_session, tarifas, listas, **extra):
-    plantilla = _plantilla(db_session, "XPS-Boletin-General")
+    plantilla = _plantilla(db_session, BOLETIN)
     cuerpo = {"nombre": "Boletín de prueba", "asunto": "Tarifas de junio", "texto_intro": "Tarifas de la semana.",
               "plantilla_id": plantilla.id, "tarifas_ids": [t.id for t in tarifas], "listas_ids": [l["id"] for l in listas],
               "adjuntar_pdf": False} | extra
@@ -179,13 +180,33 @@ def test_plantilla_maximo_40_variables(client, crear_usuario, headers_de, db_ses
 
 
 def test_catalogo_sembrado_por_la_migracion(db_session):  # TE1-06
-    nombres = set(db_session.scalars(select(PlantillaCorreo.nombre)))
-    assert {"XPS-Boletin-General", "XPS-Boletin-Peso", "XPS-Boletin-Volumen", "XPS-Boletin-Equipo", "XPS-Boletin-Plana",
-            "XPS-Aviso-Seguimiento", "XPS-Aviso-Por-Vencer", "XPS-Aviso-Vencida", "XPS-Aviso-Aceptada",
-            "XPS-Aviso-Tarifa-Ruta", "XPS-Aviso-Interno", "XPS-Resumen", "Cotización (F4)"} <= nombres
-    general = _plantilla(db_session, "XPS-Boletin-General")
-    assert {"contacto", "empresa", "titulo", "intro", "vigencia", "comercial", "baja", "f1", "mas"} <= set(general.variables_esperadas)
-    assert "<" not in json.dumps(general.variables_esperadas)
+    sembradas = {p.tencent_id: (p.nombre, p.uso, p.evento_o_servicio) for p in db_session.scalars(select(PlantillaCorreo))}
+    assert sembradas == {
+        72669: ("Cotizacion_Pricing", "COTIZACION", None),
+        72746: ("Xps boletin tarifas", "BOLETIN", None),
+        72747: ("Xps aviso seguimiento", "AVISO", "COT_SEGUIMIENTO"),
+        72748: ("Xps aviso porvencer", "AVISO", "COT_POR_VENCER"),
+        72749: ("Xps aviso vencida", "AVISO", "COT_VENCIDA"),
+        72750: ("Xps aviso aceptada", "AVISO", "COT_ACEPTADA_CLIENTE"),
+        72751: ("Xps aviso tarifainteres", "AVISO", "TARIFA_RUTA_INTERES"),
+        72752: ("Xps interno aviso", "AVISO", "INTERNO"),
+        72753: ("Xps interno resumen", "AVISO", "RESUMEN"),
+    }
+    boletin = _plantilla(db_session, BOLETIN)
+    assert boletin.variables_esperadas[:3] == ["titulo", "nombre_contacto", "texto_intro"]
+    assert [v for v in boletin.variables_esperadas if v.startswith("fila_")] == [f"fila_{n:02d}" for n in range(1, 16)]
+    assert {"mas_tarifas", "vigencia", "comercial", "whatsapp_numero", "empresa_direccion", "enlace_baja"} <= set(boletin.variables_esperadas)
+
+
+def test_sincronizar_trae_el_contenido_real(client, crear_usuario, headers_de, db_session, falso):  # TE1-31
+    _con_llaves(db_session)
+    falso.lista_plantillas.append(type(falso.lista_plantillas[0])(72746, "Xps boletin tarifas", 0))
+    falso.contenidos = {72746: "<p>{{titulo}} {{nombre_contacto}} {{fila_01}} {{enlace_baja}}</p>"}
+    client.post("/v1/plantillas-correo/sincronizar", headers=headers_de(crear_usuario("admin")))
+    db_session.expire_all()
+    boletin = _plantilla(db_session, BOLETIN)
+    assert boletin.estado_tencent == "APROBADA"
+    assert boletin.variables_esperadas == ["titulo", "nombre_contacto", "fila_01", "enlace_baja"]  # las del HTML mandan
 
 
 # ---------- Listas y bajas (TE1-07 a TE1-10) ----------
@@ -263,8 +284,8 @@ def test_plantilla_no_aprobada_o_inactiva_bloquea(client, crear_usuario, headers
     h = headers_de(pricing)
     _, tarifa = _escenario(db_session, crear_usuario("comercial"))
     lista = _lista(client, h, _contactos(db_session, pricing, 1))
-    campana = _campana(client, h, db_session, [tarifa], [lista])
-    plantilla = _plantilla(db_session, "XPS-Boletin-General")
+    campana = _campana(client, h, db_session, [tarifa], [lista], adjuntar_pdf=True)
+    plantilla = _plantilla(db_session, BOLETIN)
     plantilla.estado_tencent = "EN_REVISION"
     db_session.commit()
     assert _codigo(_enviar(client, h, campana["id"], 1)) == "PLANTILLA_NO_DISPONIBLE"
@@ -331,11 +352,13 @@ def test_envio_completo_snapshot_congelado_y_sin_agentes(client, crear_usuario, 
     assert Decimal(detalle["snapshot_tarifas"]["tarifas"][0]["precio_venta"]) == Decimal("120.0000")
     assert len(correo_listo.enviados) == 2
     for mensaje in correo_listo.enviados:
-        assert mensaje.trigger_type == 0 and mensaje.plantilla_id == 90001
+        assert mensaje.trigger_type == 0 and mensaje.plantilla_id == 72746
         crudo = json.dumps(mensaje.datos_plantilla, ensure_ascii=False)
-        assert len(crudo.encode("utf-8")) <= 800 and "<" not in crudo
+        assert len(crudo.encode("utf-8")) <= 4000 and "<" not in crudo
         assert esc.proveedor.nombre not in crudo and "LATAM Cargo" in crudo
-        assert "/b/" in mensaje.datos_plantilla["baja"] and mensaje.datos_plantilla["comercial"] == "Pricing Prueba"
+        assert "/b/" in mensaje.datos_plantilla["enlace_baja"] and mensaje.datos_plantilla["comercial"] == "Pricing Prueba"
+        assert set(mensaje.datos_plantilla) == set(_plantilla(db_session, BOLETIN).variables_esperadas)  # nunca de más
+        assert mensaje.datos_plantilla["fila_01"].startswith("• ") and mensaje.datos_plantilla["mas_tarifas"] == ""
     estados = sorted(d.estado for d in db_session.scalars(select(CampanaDestinatario).where(
         CampanaDestinatario.campana_id == campana["id"])))
     assert estados == ["ENVIADO", "ENVIADO", "OMITIDO_BAJA"]
@@ -441,13 +464,21 @@ def test_pdf_adjunto_con_todas_las_tarifas(client, crear_usuario, headers_de, db
     pricing = crear_usuario("pricing")
     h = headers_de(pricing)
     esc, tarifa = _escenario(db_session, crear_usuario("comercial"))
-    tarifas = [tarifa] + [esc.nueva_tarifa(origen_puerto_id=crear_puerto(db_session, tipo="AEREO").id, transportista=f"Aerolínea {n}")
-                          for n in range(9)]
+    tarifas = [tarifa]
+    for n in range(16):  # copias de la tarifa con otro aeropuerto de origen (sin crear países nuevos)
+        copia = Tarifa(**{c: getattr(tarifa, c) for c in ("proveedor_id", "modo", "destino_puerto_id", "rate_unit", "costo",
+                                                         "moneda_id", "minimo", "metodo_venta", "parametro_venta",
+                                                         "valido_desde", "valido_hasta", "unidad_peso")},
+                       origen_puerto_id=crear_puerto(db_session, pais=esc.origen.pais, tipo="AEREO").id,
+                       transportista=f"Aerolínea {n}")
+        db_session.add(copia)
+        tarifas.append(copia)
+    db_session.commit()
     lista = _lista(client, h, _contactos(db_session, pricing, 1))
     campana = _campana(client, h, db_session, tarifas, [lista], adjuntar_pdf=True)
     previa = client.get(f"/v1/boletines/campanas/{campana['id']}/vista-previa", headers=h).json()
-    assert previa["tarifas"] == 10 and 0 < previa["filas_en_correo"] < 10 and previa["bytes"] <= 800
-    assert "tarifas más en el PDF adjunto" in previa["variables"]["mas"]
+    assert previa["tarifas"] == 17 and previa["filas_en_correo"] == 15 and previa["bytes"] <= 4000
+    assert previa["variables"]["mas_tarifas"] == "Y 2 tarifas más en el PDF adjunto"
     assert esc.proveedor.nombre not in previa["html"] and "Aerolínea 3" not in previa["html"] or True
     _enviar(client, h, campana["id"], 1)
     _lote(db_session)
@@ -465,7 +496,7 @@ def test_vista_previa_sin_agentes(client, crear_usuario, headers_de, db_session,
     campana = _campana(client, h, db_session, [tarifa], [lista])
     previa = client.get(f"/v1/boletines/campanas/{campana['id']}/vista-previa", headers=h).json()
     assert "Avianca Cargo" in previa["html"] and esc.proveedor.nombre not in previa["html"]
-    assert previa["plantilla"]["tencent_id"] == 90001
+    assert previa["plantilla"]["tencent_id"] == 72746
 
 
 # ---------- Prueba (TE1-23) ----------
@@ -595,6 +626,14 @@ def test_configuracion_de_masivos(client, crear_usuario, headers_de, db_session)
     assert client.get("/v1/correo/masivos", headers=headers_de(crear_usuario("pricing"))).status_code == 403
 
 
+def test_whatsapp_solo_digitos_con_codigo_de_pais():  # TE1-32
+    from app.services.empresa import whatsapp_numero
+
+    assert whatsapp_numero("098 915 4770") == "593989154770"
+    assert whatsapp_numero("+593 (98) 915-4770") == "593989154770"
+    assert whatsapp_numero("989154770") == "593989154770"
+
+
 def test_calentamiento_sube_con_los_dias(db_session):  # TE1-30
     fila = db_session.get(ConfigMasivos, 1)
     fila.calentamiento, fila.calentamiento_inicio, fila.calentamiento_incremento = True, 100, 50
@@ -602,3 +641,26 @@ def test_calentamiento_sube_con_los_dias(db_session):  # TE1-30
     assert masivos.tope_diario_efectivo(fila, date(2026, 6, 15)) == 350
     assert masivos.tope_diario_efectivo(fila, date(2026, 7, 30)) == 500  # nunca pasa el tope diario
     _ = tipo_equipo
+
+
+def test_whatsapp_de_la_empresa_se_valida_y_muestra_el_enlace(client, crear_usuario, headers_de):  # TE1-33
+    h = headers_de(crear_usuario("admin"))
+    bueno = client.put("/v1/configuracion/empresa", json={"empresa_whatsapp": "098 915 4770"}, headers=h)
+    assert (bueno.status_code, bueno.json()["whatsapp_enlace"]) == (200, "https://wa.me/593989154770")
+    malo = client.put("/v1/configuracion/empresa", json={"empresa_whatsapp": "12"}, headers=h)
+    assert (malo.status_code, malo.json()["detail"]["codigo"]) == (422, "WHATSAPP_INVALIDO")
+
+
+@pytest.mark.parametrize("pagina", ["boletines", "campana", "listas", "bajas", "plantillas-correo", "baja"])
+def test_paginas_e1(client, pagina):  # TE1-34 (mismas reglas que T204 y T257)
+    import re
+
+    from test_frontend import PATRONES_PROHIBIDOS_JS
+
+    respuesta = client.get(f"/app/{pagina}.html")
+    assert respuesta.status_code == 200
+    assert re.findall(r'<link rel="stylesheet" href="(?!https://)([^"]+)"', respuesta.text) == ["css/xps-pricing.css"]
+    assert "<style" not in respuesta.text and "style=" not in respuesta.text
+    script = client.get(f"/app/js/{pagina}.js")
+    assert script.status_code == 200
+    assert [patron for patron in PATRONES_PROHIBIDOS_JS if patron in script.text] == []

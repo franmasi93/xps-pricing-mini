@@ -223,12 +223,6 @@ def sincronizar(db: Session = Depends(get_db), actor: Usuario = Depends(admin)):
     return plantillas_correo.sincronizar(db, actor)
 
 
-@router.post("/plantillas-correo/regenerar", tags=["correo"])
-def regenerar(db: Session = Depends(get_db), actor: Usuario = Depends(admin)):
-    cambiadas, avisos = plantillas_correo.regenerar_sistema(db, actor)
-    return {"cambiadas": cambiadas, "avisos": avisos}
-
-
 # ---------- Envíos masivos (solo admin) ----------
 
 

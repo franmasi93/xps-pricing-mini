@@ -186,11 +186,23 @@ def actualizar(db: Session, actor: Usuario, plantilla_id: int, cambios: dict[str
 def _uso_importada(nombre: str, tencent_id: int, cotizacion_id: int) -> tuple[str, str, bool]:
     if tencent_id == cotizacion_id:
         return "COTIZACION", "LIBRE", True
-    if nombre.startswith("XPS-Boletin"):
+    minusculas = nombre.lower()
+    if "boletin" in minusculas:
         return "BOLETIN", "GENERAL", False
-    if nombre.startswith(("XPS-Aviso", "XPS-Resumen")):
+    if "aviso" in minusculas or "resumen" in minusculas:
         return "AVISO", "AVISO", False
     return "COTIZACION", "LIBRE", False
+
+
+def _traer_contenido(proveedor, plantilla: PlantillaCorreo) -> None:
+    """El HTML y el texto reales de Tencent (GetEmailTemplate): sus variables mandan sobre las registradas."""
+    try:
+        html, texto, _ = proveedor.contenido_plantilla(plantilla.tencent_id)
+    except (ErrorProveedor, AttributeError):
+        return
+    if html:
+        plantilla.html, plantilla.texto = html, texto or plantillas_diseno.texto_plano(html)
+        plantilla.variables_esperadas = plantillas_diseno.variables_de(html)
 
 
 def sincronizar(db: Session, actor: Usuario | None, *, silenciosa: bool = False) -> dict[str, Any]:
@@ -220,15 +232,18 @@ def sincronizar(db: Session, actor: Usuario | None, *, silenciosa: bool = False)
             nombre = remota.nombre or f"Plantilla {tencent_id}"
             if db.scalar(select(PlantillaCorreo.id).where(func.lower(PlantillaCorreo.nombre) == nombre.lower())):
                 nombre = f"{nombre} ({tencent_id})"
-            db.add(PlantillaCorreo(nombre=nombre, uso=uso, diseno=diseno, tencent_id=tencent_id, estado_tencent=estado,
-                                   motivo_tencent=remota.motivo or None, sincronizada_en=ahora, activo=activa,
-                                   notas="Importada desde la cuenta de Tencent"))
+            nueva = PlantillaCorreo(nombre=nombre, uso=uso, diseno=diseno, tencent_id=tencent_id, estado_tencent=estado,
+                                    motivo_tencent=remota.motivo or None, sincronizada_en=ahora, activo=activa,
+                                    notas="Importada desde la cuenta de Tencent")
+            _traer_contenido(proveedor, nueva)
+            db.add(nueva)
             importadas += 1
             continue
         local.tencent_id = tencent_id
         local.estado_tencent = estado
         local.motivo_tencent = remota.motivo or None
         local.sincronizada_en = ahora
+        _traer_contenido(proveedor, local)
         sincronizadas += 1
     for local in por_id.values():
         if local.tencent_id not in remotas:
@@ -270,23 +285,3 @@ def exigir_variables(plantilla: PlantillaCorreo, datos: dict[str, str], opcional
             f"La plantilla «{plantilla.nombre}» espera variables sin valor: {', '.join(faltan)}",
             extra={"variables": faltan},
         )
-
-
-def regenerar_sistema(db: Session, actor: Usuario) -> tuple[int, list[str]]:
-    """Vuelve a generar el HTML de las plantillas del sistema (XPS-…) con los datos actuales de la empresa."""
-    from app.models import ConfigEmpresa
-    from app.models.correo import CLAVES_EMPRESA
-    from app.services import masivos
-
-    fila = db.get(ConfigEmpresa, 1)
-    empresa = {clave: getattr(fila, clave) or "" for clave in CLAVES_EMPRESA} if fila else {}
-    legal = masivos.config(db).texto_legal
-    cambiadas, avisos = 0, []
-    for generada in plantillas_diseno.catalogo(empresa, legal):
-        local = db.scalars(select(PlantillaCorreo).where(func.lower(PlantillaCorreo.nombre) == generada["nombre"].lower())).one_or_none()
-        if local is None or local.html == generada["html"]:
-            continue
-        _, nuevos = actualizar(db, actor, local.id, {"html": generada["html"], "texto": None})
-        cambiadas += 1
-        avisos += [a for a in nuevos if a not in avisos]
-    return cambiadas, avisos

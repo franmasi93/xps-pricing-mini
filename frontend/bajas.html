@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bajas de correo · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1 id="titulo">Bajas de correo</h1>
+          <p class="topbar-subtitulo" id="subtitulo">Quienes no reciben boletines ni avisos comerciales</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nueva" type="button" hidden>Registrar baja</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo campo-busqueda"><label for="filtro-q">Buscar</label><input class="input" id="filtro-q" type="search" placeholder="Email"></div>
+            <div class="campo"><label for="filtro-revertida">Estado</label>
+              <select class="select" id="filtro-revertida"><option value="false">Vigentes</option><option value="true">Revertidas</option><option value="">Todas</option></select></div>
+          </div>
+          <table class="tabla">
+            <thead><tr><th>Email</th><th>Motivo</th><th>Fecha</th><th>Estado</th><th id="th-acciones">Acciones</th></tr></thead>
+            <tbody id="tabla-bajas"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-baja" aria-labelledby="titulo-baja">
+    <h2 id="titulo-baja">Registrar baja</h2>
+    <div id="alertas-baja" hidden></div>
+    <form id="form-baja" novalidate>
+      <div class="campo"><label for="baja-email">Email</label><input class="input" id="baja-email" name="email" type="email" maxlength="254" required></div>
+      <div class="acciones-form"><button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button><button class="btn btn-primario" type="submit">Registrar</button></div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/bajas.js"></script>
+</body>
+</html>
