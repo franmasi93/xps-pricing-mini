@@ -219,7 +219,7 @@ Un middleware nuevo actúa en las peticiones que llegan con un host terminado en
 | Revisión | **xps-pricing-00013-gqs** (al 100 %; 0 errores en sus logs) |
 | Prueba de oro | COT-2026-00001: fila, líneas y HTML del PDF **idénticos** antes y después |
 | Pruebas | Regla 18 doble: **829 passed** + **829 passed** |
-| Commits | el de esta baja (código, migración 0013, pruebas, guía, plan de E4 y esta acta) |
+| Commits | `9548a0c` (código, migración 0013, pruebas, guía, plan de E4 y esta acta) · el que agrega este hash |
 
 ### 13.7 Volver atrás
 
