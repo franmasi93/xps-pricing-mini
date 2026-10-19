@@ -1,0 +1,25 @@
+{{titulo}}
+Departamento de Pricing · Tarifas por peso
+{{titulo}}
+Estimado/a {{contacto}} ({{empresa}}):
+{{intro}}
+Tarifas vigentes al {{vigencia}}
+Ruta · tarifa por kg o lb según el peso · tránsito · vigencia · aerolínea
+{{f1}}
+{{f2}}
+{{f3}}
+{{f4}}
+{{f5}}
+{{f6}}
+{{f7}}
+{{f8}}
+{{mas}}
+¿Desea reservar o cotizar un embarque? Responda este correo y su mensaje llegará a nuestro equipo de Pricing. Le atiende {{comercial}}.
+XPRESS LOGISTICS XPS S.A.
+Empresa autorizada por SENAE y MINTEL
+Matriz: Edif. Brickell Tower, PB · Av. León F. Cordero Km 11.5, Daule
+Teléfonos: 2630102 · +593 98 915 4770
+WhatsApp: +593 98 159 3438
+Horario: 08h30 – 13h30 / 14h30 – 17h30
+Recibe este correo porque es cliente o contacto comercial de XPRESS LOGISTICS XPS S.A. Las tarifas están sujetas a la vigencia indicada, a disponibilidad de espacio y a los recargos locales que correspondan.
+Si no desea recibir más boletines, dese de baja aquí.

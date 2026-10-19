@@ -1,4 +1,13 @@
 from app.models.base import Base
+from app.models.boletines import (
+    BajaCorreo,
+    Campana,
+    CampanaDestinatario,
+    ConfigMasivos,
+    ListaEnvio,
+    PlantillaCorreo,
+    lista_envio_miembro,
+)
 from app.models.clientes import Cliente, ContactoCliente
 from app.models.configuracion import Auditoria, Configuracion
 from app.models.correo import ConfigCorreo, ConfigEmpresa, EnvioCorreo, EnvioCorreoPrueba
@@ -12,6 +21,13 @@ from app.models.servicios import Servicio, ServicioTramo, incoterm_servicio
 from app.models.tarifas import Recargo, Tarifa, TipoEquipo, TramoAereo
 
 __all__ = [
+    "BajaCorreo",
+    "Campana",
+    "CampanaDestinatario",
+    "ConfigMasivos",
+    "ListaEnvio",
+    "PlantillaCorreo",
+    "lista_envio_miembro",
     "Auditoria",
     "Base",
     "Cliente",

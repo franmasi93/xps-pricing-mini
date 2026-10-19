@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # Tencent vive en el .env: se administra desde la pantalla (bloque B).
     CONFIG_CIFRADO_KEY: SecretStr | None = None
 
+    # E1: secreto del encabezado X-Tarea-Secreto de los endpoints /internal (Cloud Scheduler) y token secreto de la
+    # URL del callback de Tencent. Opcionales: sin ellos, esos endpoints responden 503 (deshabilitados).
+    TAREAS_SECRETO: SecretStr | None = None
+    TENCENT_EVENTOS_TOKEN: SecretStr | None = None
+
     @field_validator("DATABASE_URL", "DATABASE_URL_TEST")
     @classmethod
     def _validar_url_bd(cls, valor: SecretStr | None) -> SecretStr | None:

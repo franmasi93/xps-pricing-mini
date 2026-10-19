@@ -1,0 +1,16 @@
+Su cotización venció
+Departamento de Pricing
+Su cotización venció
+Estimado/a {{contacto}}:
+La cotización que le enviamos ya no está vigente. Si todavía necesita el servicio, responda este correo y se la actualizamos con las tarifas de hoy.
+Cotización{{numero}}
+Ruta{{ruta}}
+Venció el{{valida_hasta}}
+¿Preguntas? Responda este correo. Le atiende {{comercial}}.
+XPRESS LOGISTICS XPS S.A.
+Empresa autorizada por SENAE y MINTEL
+Matriz: Edif. Brickell Tower, PB · Av. León F. Cordero Km 11.5, Daule
+Teléfonos: 2630102 · +593 98 915 4770
+WhatsApp: +593 98 159 3438
+Horario: 08h30 – 13h30 / 14h30 – 17h30
+Recibe este correo porque es cliente o contacto comercial de XPRESS LOGISTICS XPS S.A. Las tarifas están sujetas a la vigencia indicada, a disponibilidad de espacio y a los recargos locales que correspondan.

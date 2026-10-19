@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>{{ titulo }}</title>
+<style>
+  @font-face { font-family: "Inter"; src: url(data:font/ttf;base64,{{ fuente_inter }}) format("truetype"); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Inter", Arial, sans-serif; color: #131235; font-size: 9pt; }
+  .cabecera { display: flex; justify-content: space-between; align-items: center; background: #000771; color: #fff;
+              padding: 14px 18px; border-radius: 10px; }
+  .cabecera img { height: 34px; }
+  .cabecera h1 { margin: 0; font-size: 15pt; font-weight: 800; }
+  .cabecera p { margin: 2px 0 0; font-size: 8.5pt; color: #d9dbf5; }
+  h2 { margin: 18px 0 6px; font-size: 11pt; color: #000771; border-bottom: 2px solid #ED4C01; padding-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.04em; color: #6b6a8c;
+       border-bottom: 1px solid #e7e7f1; padding: 5px 6px; }
+  td { padding: 6px; border-bottom: 1px solid #f0f0f7; vertical-align: top; }
+  td.cifra { white-space: nowrap; font-weight: 600; color: #000771; }
+  .suave { color: #6b6a8c; font-size: 8pt; }
+  .nota { margin-top: 16px; font-size: 7.5pt; color: #9997b6; }
+</style>
+</head>
+<body>
+  <div class="cabecera">
+    <div>
+      <h1>{{ titulo }}</h1>
+      <p>Tarifas vigentes al {{ vigencia | fecha }} · emitido el {{ fecha | fecha }}</p>
+    </div>
+    <img src="data:image/png;base64,{{ logo }}" alt="XPRESS">
+  </div>
+  {% for seccion in secciones %}
+  <h2>{{ seccion.nombre }}</h2>
+  <table>
+    <thead><tr><th>Ruta</th><th>Tarifa</th><th>Detalle</th><th>Tránsito</th><th>Vigencia</th><th>{{ seccion.etiqueta }}</th></tr></thead>
+    <tbody>
+      {% for fila in seccion.filas %}
+      <tr>
+        <td>{{ fila.origen_nombre }} → {{ fila.destino_nombre }}<div class="suave">{{ fila.origen }} → {{ fila.destino }}</div></td>
+        <td class="cifra">{{ fila.texto_tarifa }}</td>
+        <td class="suave">{{ fila.detalle or "—" }}</td>
+        <td>{% if fila.transit_time_dias is not none %}{{ fila.transit_time_dias }} días{% else %}—{% endif %}</td>
+        <td>{{ fila.valido_hasta | fecha }}</td>
+        <td>{{ fila.transportista or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+  <p class="nota">{{ razon_social }} · Precios de venta por servicio; no incluyen recargos locales ni impuestos salvo que se indique. Sujetos a disponibilidad de espacio y a la vigencia indicada.</p>
+</body>
+</html>

@@ -57,7 +57,11 @@ MATRIZ_6_2 = {
 # Desvío D-E0-1: permisos que agregan las extensiones (E0–E3), fuera de §6.2: {código: roles que lo tienen}.
 # Las pruebas de §6.2 los excluyen (la matriz §6.2 sigue idéntica) y test_e0_servicios verifica estos aparte.
 PERMISOS_EXTENSIONES = {
-    "configuracion.servicios.gestionar": {"admin"},
+    "configuracion.servicios.gestionar": {"admin"},  # E0
+    "boletines.ver": {"admin", "pricing", "comercial", "gerencia"},  # E1
+    "boletines.listas.gestionar": {"admin", "pricing"},
+    "boletines.campanas.gestionar": {"admin", "pricing"},
+    "boletines.campanas.enviar": {"admin", "pricing"},
 }
 
 

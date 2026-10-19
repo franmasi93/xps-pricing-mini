@@ -9,11 +9,23 @@ claves de flete y columnas de tabla (boletines de E1). La lógica es la de F2–
 - UNIDAD_EQUIPO (antes FCL): por contenedor o equipo; un flete por tipo, todos del mismo proveedor.
 - TARIFA_PLANA: un precio por envío.
 """
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from app.core.errors import ErrorNegocio
 from app.services import cotizador
+
+UNIDAD_TEXTO = {"KG": "kg", "LB": "lb", "WM": "W/M", "CBM": "m³", "ENVIO": "envío"}
+
+
+def precio(valor: Any) -> str:
+    """Precio de venta para boletines: 2 decimales, separador de miles como el PDF de F4 (1,234.50)."""
+    return f"{Decimal(str(valor)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
+
+
+def numero_corto(valor: Any) -> str:
+    numero = Decimal(str(valor)).normalize()
+    return f"{numero:f}"
 
 
 class FormaCobro:
@@ -46,6 +58,21 @@ class FormaCobro:
         """(clave, tipo_equipo_id): una sola clave salvo que la forma cobre por tipo de equipo."""
         return [(codigo_servicio, None)]
 
+    # ---------- Boletines (E1): el formateador de cada forma de cobro ----------
+    # `datos` es la foto de venta de una tarifa (services/campanas._foto_tarifa): moneda, precio_venta, minimo_venta,
+    # rate_unit, unidad_peso, tramos [(desde, venta)], tipo_equipo. Nunca lleva costo ni proveedor.
+
+    def texto_tarifa(self, datos: dict[str, Any]) -> str:
+        """La tarifa en pocas palabras, para una fila del correo."""
+        unidad = UNIDAD_TEXTO.get(datos["rate_unit"], datos["rate_unit"].lower())
+        return f"{datos['moneda']} {precio(datos['precio_venta'])}/{unidad}"
+
+    def detalle(self, datos: dict[str, Any]) -> str:
+        """El detalle completo, para la tabla del PDF adjunto."""
+        if Decimal(str(datos.get("minimo_venta") or 0)) > 0:
+            return f"Mínimo {datos['moneda']} {precio(datos['minimo_venta'])}"
+        return ""
+
     def describir(self) -> dict[str, Any]:
         return {
             "codigo": self.codigo,
@@ -77,6 +104,29 @@ class PesoTramos(FormaCobro):
 
     def cantidad_cobrable(self, carga):
         return cotizador.peso_cobrable(carga)
+
+    def texto_tarifa(self, datos):
+        if datos["rate_unit"] != "KG":
+            return f"{datos['moneda']} {precio(datos['precio_venta'])} por envío"
+        unidad = UNIDAD_TEXTO[datos.get("unidad_peso") or "KG"]
+        tramos = datos.get("tramos") or []
+        if not tramos:
+            return f"{datos['moneda']} {precio(datos['precio_venta'])}/{unidad}"
+        desde, venta = min(tramos, key=lambda t: (Decimal(str(t[1])), -Decimal(str(t[0]))))
+        if Decimal(str(desde)) == 0:
+            return f"{datos['moneda']} {precio(venta)}/{unidad}"
+        return f"{datos['moneda']} {precio(venta)}/{unidad} desde {numero_corto(desde)} {unidad}"
+
+    def detalle(self, datos):
+        tramos = datos.get("tramos") or []
+        unidad = UNIDAD_TEXTO[datos.get("unidad_peso") or "KG"]
+        partes = []
+        for indice, (desde, venta) in enumerate(tramos):
+            siguiente = tramos[indice + 1][0] if indice + 1 < len(tramos) else None
+            etiqueta = f"−{numero_corto(siguiente)}" if Decimal(str(desde)) == 0 and siguiente is not None else f"+{numero_corto(desde)}"
+            partes.append(f"{etiqueta} {unidad}: {precio(venta)}")
+        base = super().detalle(datos)
+        return " · ".join(partes + ([base] if base else []))
 
     def datos_carga(self, carga):
         volumetrico = cotizador.peso_volumetrico(carga)
@@ -133,6 +183,16 @@ class UnidadEquipo(FormaCobro):
     def claves_flete(self, codigo_servicio, contenedores):
         return [(str(c.tipo_equipo_id), c.tipo_equipo_id) for c in contenedores]
 
+    def texto_tarifa(self, datos):
+        return f"{datos['moneda']} {precio(datos['precio_venta'])} por {datos.get('tipo_equipo') or 'equipo'}"
+
+    def detalle(self, datos):
+        partes = [datos.get("tipo_equipo_nombre") or ""]
+        if datos.get("dias_libres") is not None:
+            partes.append(f"{datos['dias_libres']} días libres")
+        base = super().detalle(datos)
+        return " · ".join(p for p in partes + [base] if p)
+
 
 class TarifaPlana(FormaCobro):
     codigo = "TARIFA_PLANA"
@@ -144,6 +204,9 @@ class TarifaPlana(FormaCobro):
 
     def cantidad_cobrable(self, carga):
         return Decimal("1")
+
+    def texto_tarifa(self, datos):
+        return f"{datos['moneda']} {precio(datos['precio_venta'])} por envío"
 
 
 FORMAS: dict[str, FormaCobro] = {forma.codigo: forma for forma in (PesoTramos(), VolumenWM(), UnidadEquipo(), TarifaPlana())}

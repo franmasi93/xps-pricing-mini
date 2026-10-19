@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Darse de baja · XPRESS LOGISTICS</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body class="pagina-publica">
+  <main class="publica">
+    <section class="tarjeta publica-tarjeta">
+      <img class="publica-logo" src="img/xpress-logo.png" alt="XPRESS LOGISTICS">
+      <h1 id="titulo">Boletines de tarifas</h1>
+      <div id="alertas" hidden></div>
+      <p class="texto-suave" id="mensaje">Cargando…</p>
+      <div class="acciones-form" id="acciones" hidden>
+        <button class="btn btn-primario" id="btn-baja" type="button" hidden>Darme de baja</button>
+        <button class="btn btn-secundario" id="btn-deshacer" type="button" hidden>Deshacer: seguir recibiendo boletines</button>
+      </div>
+      <p class="ayuda">XPRESS LOGISTICS XPS S.A. · Si tiene preguntas, responda el correo que recibió.</p>
+    </section>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/baja.js"></script>
+</body>
+</html>

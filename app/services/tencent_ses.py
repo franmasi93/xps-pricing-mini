@@ -46,18 +46,51 @@ class TencentSES:
         plantilla.TemplateID = mensaje.plantilla_id
         plantilla.TemplateData = json.dumps(mensaje.datos_plantilla, ensure_ascii=False)
         solicitud.Template = plantilla
-        adjunto = models.Attachment()
-        adjunto.FileName = mensaje.adjunto_nombre
-        adjunto.Content = base64.b64encode(mensaje.adjunto).decode("ascii")
-        solicitud.Attachments = [adjunto]
-        solicitud.TriggerType = 1
-        solicitud.Unsubscribe = "0"
+        if mensaje.adjunto:  # E1: un boletín puede ir sin PDF adjunto
+            adjunto = models.Attachment()
+            adjunto.FileName = mensaje.adjunto_nombre
+            adjunto.Content = base64.b64encode(mensaje.adjunto).decode("ascii")
+            solicitud.Attachments = [adjunto]
+        solicitud.TriggerType = mensaje.trigger_type
+        solicitud.Unsubscribe = "0"  # el enlace de baja es el propio del sistema (E1)
         try:
             respuesta = self._llamar("SendEmail", solicitud)
         except ErrorProveedor as error:
             return Resultado(ok=False, request_id=error.request_id, codigo_error=error.codigo,
                              mensaje_proveedor=error.mensaje)
         return Resultado(ok=True, message_id=respuesta.MessageId, request_id=respuesta.RequestId)
+
+    # ---------- E1: plantillas y remitentes (CreateEmailTemplate, UpdateEmailTemplate, CreateEmailAddress) ----------
+
+    @staticmethod
+    def _contenido(html: str, texto: str):
+        contenido = models.TemplateContent()
+        contenido.Html = base64.b64encode(html.encode("utf-8")).decode("ascii")
+        contenido.Text = base64.b64encode(texto.encode("utf-8")).decode("ascii")
+        return contenido
+
+    def crear_plantilla(self, nombre: str, html: str, texto: str) -> int:
+        solicitud = models.CreateEmailTemplateRequest()
+        solicitud.TemplateName = nombre
+        solicitud.TemplateContent = self._contenido(html, texto)
+        return int(self._llamar("CreateEmailTemplate", solicitud).TemplateID)
+
+    def actualizar_plantilla(self, plantilla_id: int, nombre: str, html: str, texto: str) -> None:
+        solicitud = models.UpdateEmailTemplateRequest()
+        solicitud.TemplateID = plantilla_id
+        solicitud.TemplateName = nombre
+        solicitud.TemplateContent = self._contenido(html, texto)
+        self._llamar("UpdateEmailTemplate", solicitud)
+
+    def remitentes(self) -> list[str]:
+        respuesta = self._llamar("ListEmailAddress", models.ListEmailAddressRequest())
+        return [s.EmailAddress for s in respuesta.EmailSenders or [] if s.EmailAddress]
+
+    def crear_remitente(self, email: str, alias: str) -> None:
+        solicitud = models.CreateEmailAddressRequest()
+        solicitud.EmailAddress = email
+        solicitud.EmailSenderName = alias
+        self._llamar("CreateEmailAddress", solicitud)
 
     def dominio_verificado(self, dominio: str) -> bool:
         solicitud = models.GetEmailIdentityRequest()
@@ -82,7 +115,7 @@ class TencentSES:
             solicitud.Offset = desplazamiento
             respuesta = self._llamar("ListEmailTemplates", solicitud)
             pagina = respuesta.TemplatesMetadata or []
-            salida += [Plantilla(p.TemplateID, p.TemplateName, p.TemplateStatus) for p in pagina]
+            salida += [Plantilla(p.TemplateID, p.TemplateName, p.TemplateStatus, p.ReviewReason or "") for p in pagina]
             desplazamiento += len(pagina)
             if not pagina or desplazamiento >= (respuesta.TotalCount or 0):
                 return salida

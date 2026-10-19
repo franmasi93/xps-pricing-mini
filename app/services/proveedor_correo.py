@@ -30,6 +30,7 @@ class Mensaje:
     adjunto: bytes
     cc: tuple[str, ...] = ()
     bcc: tuple[str, ...] = ()
+    trigger_type: int = 1  # E1: 0 = marketing (boletines); 1 = inmediato (cotizaciones y avisos)
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,7 @@ class Plantilla:
     id: int
     nombre: str
     estado: int  # 0 aprobada · 1 en revisión · 2 rechazada
+    motivo: str = ""  # E1: motivo de la revisión de Tencent (ReviewReason)
 
 
 @dataclass
@@ -68,6 +70,15 @@ class ProveedorCorreo(Protocol):
     def estado_plantilla(self, plantilla_id: int) -> int | None: ...
 
     def plantillas(self) -> list[Plantilla]: ...
+
+    # E1: catálogo de plantillas sincronizado con Tencent y remitentes de masivos.
+    def crear_plantilla(self, nombre: str, html: str, texto: str) -> int: ...
+
+    def actualizar_plantilla(self, plantilla_id: int, nombre: str, html: str, texto: str) -> None: ...
+
+    def remitentes(self) -> list[str]: ...
+
+    def crear_remitente(self, email: str, alias: str) -> None: ...
 
 
 # ---------- B9: traducción por código, nunca por el texto ----------
