@@ -1,7 +1,7 @@
 """M6 Clientes y contactos. Leer: cliente.ver (con alcance); escribir: cliente.editar.
 Rutas fijas (/clientes/buscar) antes de /{id}. Sin DELETE (405).
 """
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.rbac import require_permiso
@@ -27,10 +27,20 @@ editor = require_permiso("cliente.editar")
 def listar(
     activo: bool | None = None,
     comercial: int | None = None,
+    estado: str | None = None,
+    tipo: str | None = None,
+    sector: str | None = None,
+    servicio_interes: str | None = Query(default=None, alias="servicio"),
+    ruta: str | None = None,
+    etiqueta: str | None = None,
+    acepta_promociones: str | None = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(lector),
 ):
-    return servicio.listar_clientes(db, usuario, activo=activo, comercial=comercial)
+    """E1-B: filtros del perfil comercial (varios valores separados por |, combinados con Y entre filtros)."""
+    filtros = {"estado": estado, "tipo": tipo, "sector": sector, "servicio": servicio_interes, "ruta": ruta, "etiqueta": etiqueta,
+               "acepta_promociones": acepta_promociones}
+    return servicio.listar_clientes(db, usuario, activo=activo, comercial=comercial, filtros=filtros)
 
 
 @router.get("/buscar", response_model=list[ClienteSalida])

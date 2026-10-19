@@ -144,7 +144,8 @@ def variables_cotizacion(cotizacion: Cotizacion) -> dict[str, str]:
         "servicio": cotizacion.servicio.nombre,
         "total": dinero(cotizacion.total_general),
         "valida_hasta": fecha(cotizacion.valida_hasta),
-        "comercial": cotizacion.comercial.nombre,
+        # E1-B: el comercial asignado al cliente (si no tiene, el de la cotización).
+        "comercial": (cotizacion.cliente.comercial_asignado or cotizacion.comercial).nombre,
     }
 
 
@@ -321,7 +322,9 @@ def _ruta_interes(db: Session, regla: ReglaNotificacion, contexto: Contexto) -> 
         )
         contactos = {}
         for cotizacion in cotizadas:
-            if cotizacion.cliente.avisos_activos and cotizacion.contacto and cotizacion.contacto.activo:
+            # E1-B: promocional: solo contactos con consentimiento (cliente acepta y contacto recibe promociones).
+            if (cotizacion.cliente.avisos_activos and cotizacion.cliente.acepta_promociones and cotizacion.contacto
+                    and cotizacion.contacto.activo and cotizacion.contacto.recibe_promociones):
                 contactos.setdefault(cotizacion.contacto.id, (cotizacion.contacto, cotizacion))
         if not contactos:
             continue
@@ -333,7 +336,7 @@ def _ruta_interes(db: Session, regla: ReglaNotificacion, contexto: Contexto) -> 
                 detalles=[fila], enlace="/app/tarifas.html",
                 variables={"nombre_contacto": contacto.nombre, "servicio": tarifa.servicio.nombre, "ruta": ruta(tarifa),
                            "fila_01": f"• {fila}", "vigencia": fecha(tarifa.valido_hasta),
-                           "comercial": cotizacion.comercial.nombre},
+                           "comercial": (cotizacion.cliente.comercial_asignado or cotizacion.comercial).nombre},
                 cliente_id=cotizacion.cliente_id, comercial_id=cotizacion.comercial_id, contactos=[contacto],
             ))
     return salida

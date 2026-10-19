@@ -58,6 +58,8 @@ const GRUPOS_MENU = [
       { texto: "Roles y permisos", archivo: "roles.html", permisos: ["usuario.admin"] },
       { texto: "Motivos de rechazo", archivo: "motivos-rechazo.html", permisos: ["config.editar"] },
       { texto: "Tipos de identificación", archivo: "tipos-identificacion.html", permisos: ["config.editar"] },
+      // E1-B: catálogos del perfil comercial (config.editar).
+      { texto: "Catálogos del perfil", archivo: "catalogos-perfil.html", permisos: ["config.editar"] },
       // E3: notificaciones y avisos.
       { texto: "Notificaciones", archivo: "notificaciones-config.html", permisos: ["notificaciones.reglas.gestionar"] },
       { texto: "Bitácora de avisos", archivo: "notificaciones-bitacora.html", permisos: ["notificaciones.bitacora.ver"] },
@@ -109,7 +111,7 @@ const ICONOS = {
   "tipos-equipo.html": "caja", "configuracion.html": "ajustes", "servicios.html": "capas", "tipos-ubicacion.html": "ancla",
   "plantillas-correo.html": "correo", "usuarios.html": "usuario", "roles.html": "escudo", "motivos-rechazo.html": "rechazo",
   "tipos-identificacion.html": "credencial", "notificaciones-config.html": "campana",
-  "notificaciones-bitacora.html": "bitacora", "auditoria.html": "ojo",
+  "notificaciones-bitacora.html": "bitacora", "auditoria.html": "ojo", "catalogos-perfil.html": "lista",
 };
 
 // Pantallas que no están en el menú pero pertenecen a un grupo (para dejarlo abierto y marcar la opción).

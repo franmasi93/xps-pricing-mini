@@ -30,7 +30,7 @@ from app.models import (
     Usuario,
     lista_envio_miembro,
 )
-from app.services import auditoria
+from app.services import auditoria, perfil_comercial
 
 PATRON_EMAIL = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$")
 CLAVES_FILTRO = ("servicios", "tipos_equipo", "origenes", "destinos", "paises", "ciudades")
@@ -121,8 +121,14 @@ def listar_bajas(db: Session, q: str | None = None, revertida: bool | None = Non
 # ---------- Listas ----------
 
 
-def _normalizar_filtros(filtros: dict[str, Any] | None) -> dict[str, list]:
-    filtros = filtros or {}
+def _normalizar_filtros(filtros: dict[str, Any] | None) -> dict[str, Any]:
+    """Los filtros de E1 (servicios, equipos, puertos, países y ciudades, siempre con Y) más, desde E1-B, "condiciones" del
+    perfil comercial y del interés calculado, combinadas con "combinar" = Y u O."""
+    filtros = dict(filtros or {})
+    condiciones = perfil_comercial.normalizar_condiciones(filtros.pop("condiciones", None))
+    combinar = str(filtros.pop("combinar", "Y") or "Y").upper()
+    if combinar not in ("Y", "O"):
+        raise ErrorNegocio(422, "FILTRO_INVALIDO", "Las condiciones se combinan con Y u O")
     desconocidas = set(filtros) - set(CLAVES_FILTRO)
     if desconocidas:
         raise ErrorNegocio(422, "FILTRO_INVALIDO", f"Filtros desconocidos: {', '.join(sorted(desconocidas))}")
@@ -135,6 +141,9 @@ def _normalizar_filtros(filtros: dict[str, Any] | None) -> dict[str, list]:
             valores = sorted({str(v).strip() for v in valores})
         if valores:
             salida[clave] = valores
+    if condiciones:
+        salida["condiciones"] = condiciones
+        salida["combinar"] = combinar
     return salida
 
 
@@ -163,6 +172,8 @@ def consulta_por_filtro(filtros: dict[str, list]):
     if condiciones:
         consulta = consulta.where(exists().where(Cotizacion.cliente_id == Cliente.id, Cotizacion.activo.is_(True),
                                                  *condiciones))
+    if filtros.get("condiciones"):  # E1-B: perfil comercial e interés calculado
+        consulta = consulta.where(perfil_comercial.combinar(filtros["condiciones"], filtros.get("combinar", "Y")))
     return consulta
 
 
@@ -282,11 +293,14 @@ def resumen_miembros(db: Session, miembros: list[ContactoCliente]) -> dict[str, 
     bajas = bajas_activas(db, emails)
     unicos = set(emails)
     clientes = {c.cliente_id: db.get(Cliente, c.cliente_id) for c in miembros[:MAXIMO_MUESTRA]}
+    sin_consentimiento = {c.email.strip().lower() for c in miembros
+                          if not (c.recibe_promociones and db.get(Cliente, c.cliente_id).acepta_promociones)}
     return {
         "total": len(miembros),
         "con_baja": len(unicos & bajas),
+        "sin_consentimiento": len((unicos - bajas) & sin_consentimiento),
         "duplicados": len(emails) - len(unicos),
-        "recibiran": len(unicos - bajas),
+        "recibiran": len(unicos - bajas - sin_consentimiento),
         "muestra": [
             {"id": c.id, "nombre": c.nombre, "email": c.email, "cliente": clientes[c.cliente_id].razon_social,
              "de_baja": c.email.strip().lower() in bajas}

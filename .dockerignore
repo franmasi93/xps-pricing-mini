@@ -11,6 +11,8 @@
 tests/
 salidas/
 docs/
+# E1-B: la plantilla oficial de importación sí entra a la imagen (la lee app/services/importacion_clientes.py).
+!docs/extensiones/importacion/
 start.txt
 *.json.key
 *credentials*.json

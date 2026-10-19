@@ -429,6 +429,8 @@ def _estado_externo(db: Session, evento, ocurrencia: Ocurrencia, destino: Destin
         return "OMITIDO", "Avisos desactivados para la cotización o el cliente"
     if destino.contacto is not None and not destino.contacto.recibir_avisos:
         return "OMITIDO", "El contacto no recibe avisos de sus cotizaciones"
+    if evento.comercial and destino.contacto is not None and not destino.contacto.recibe_promociones:
+        return "OMITIDO", "El contacto no recibe promociones"
     if evento.comercial and boletines.esta_de_baja(db, destino.email):
         return "OMITIDO", "Dado de baja de correos comerciales"
     if _tope_semanal_lleno(db, ocurrencia.cliente_id, contexto):

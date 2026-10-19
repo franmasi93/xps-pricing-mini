@@ -15,3 +15,5 @@ playwright==1.63.0
 cryptography==50.0.2
 tencentcloud-sdk-python-ses==3.1.135
 tencentcloud-sdk-python-common==3.1.188
+# E1-B: lectura y escritura de la plantilla oficial de importación de clientes (.xlsx con listas desplegables)
+openpyxl==3.1.5

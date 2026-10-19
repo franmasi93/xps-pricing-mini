@@ -1,7 +1,9 @@
 """E2 Catálogos de administración: motivos de rechazo, tipos de identificación y textos del PDF. Migración 0009."""
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Identity, SmallInteger, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, Integer, SmallInteger, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CatalogoMixin
@@ -70,7 +72,54 @@ class ConfigSistema(Base):
 
     id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, autoincrement=False)
     url_publica: Mapped[str] = mapped_column(String(300))
+    importacion_max_filas: Mapped[int] = mapped_column(Integer, default=2000)  # E1-B
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     actualizado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+
+
+# E1-B: tipos de catalogo_perfil. ESTADO_COMERCIAL es fijo (no se crean ni se editan sus códigos).
+TIPOS_CATALOGO_PERFIL = ("TIPO_CLIENTE", "ESTADO_COMERCIAL", "SECTOR", "TIPO_CARGA", "FRECUENCIA", "VOLUMEN",
+                         "ORIGEN_CLIENTE", "AREA_CONTACTO", "MEDIO_CONSENTIMIENTO")
+
+
+class CatalogoPerfil(CatalogoMixin, Base):
+    """E1-B (0012): los valores del perfil comercial (tipo de cliente, sector, tipo de carga…), por tipo."""
+
+    __tablename__ = "catalogo_perfil"
+
+    id: Mapped[int] = mapped_column(Identity(), primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(30))
+    codigo: Mapped[str] = mapped_column(String(40))
+    nombre: Mapped[str] = mapped_column(String(120))
+    orden: Mapped[int] = mapped_column(SmallInteger, default=0)
+    fijo: Mapped[bool] = mapped_column(default=False)
+
+
+class TencentEvento(Base):
+    """E1-B (0012): bitácora de eventos del callback de Tencent, vinculados por MessageId a su envío."""
+
+    __tablename__ = "tencent_evento"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    recibido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    message_id: Mapped[str | None] = mapped_column(String(120))
+    evento: Mapped[str] = mapped_column(String(30))
+    email: Mapped[str | None] = mapped_column(String(254))
+    origen: Mapped[str] = mapped_column(String(12))
+    origen_id: Mapped[int | None] = mapped_column(BigInteger)
+    datos: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class PreferenciaPantalla(Base):
+    """E1-B (0012): preferencias de pantalla por usuario (por ejemplo, las columnas visibles de Clientes)."""
+
+    __tablename__ = "preferencia_pantalla"
+
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="CASCADE"), primary_key=True)
+    clave: Mapped[str] = mapped_column(String(60), primary_key=True)
+    valor: Mapped[Any] = mapped_column(JSONB)
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

@@ -5,18 +5,19 @@ ajeno da 404 (no 403) para no revelar que existe, y la búsqueda nunca lo devuel
 Asignación: el comercial queda asignado al crear; quien tiene cotizacion.ver_todas debe indicarlo.
 """
 import re
+from datetime import date
 from typing import Any
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorNegocio, confirmar, enviar
 from app.core.rbac import permisos_de
-from app.models import Cliente, ContactoCliente, Pais, Usuario
+from app.models import CampanaDestinatario, Cliente, ContactoCliente, Cotizacion, EnvioCorreo, Pais, Usuario
 from app.schemas.clientes import ClienteSalida, ComercialRef, ContactoPrincipalRef, ContactoSalida
 from app.schemas.geografia import PaisResumen
 from app.schemas.usuarios import email_valido, normalizar_email
-from app.services import administracion, auditoria
+from app.services import administracion, auditoria, perfil_comercial
 from app.services.tarifas import referencia_activa
 
 CAMPOS_CLIENTE = (
@@ -32,7 +33,8 @@ CAMPOS_CLIENTE = (
     "activo",
 )
 CAMPOS_OPCIONALES = ("direccion", "ciudad", "telefono", "notas")
-CAMPOS_CONTACTO = ("nombre", "cargo", "email", "telefono", "principal", "activo")
+CAMPOS_CONTACTO = ("nombre", "cargo", "email", "telefono", "principal", "activo", "area", "recibe_promociones",
+                   "recibir_avisos")
 BUSQUEDA_MINIMA = 2
 BUSQUEDA_MAXIMA = 20
 
@@ -108,9 +110,11 @@ def _principal(cliente: Cliente) -> ContactoCliente | None:
     return next((c for c in cliente.contactos if c.principal and c.activo), None)
 
 
-def presentar_cliente(cliente: Cliente) -> ClienteSalida:
+def presentar_cliente(cliente: Cliente, extras: dict[str, Any] | None = None) -> ClienteSalida:
     principal = _principal(cliente)
     return ClienteSalida(
+        **{campo: getattr(cliente, campo) for campo in perfil_comercial.CAMPOS_PERFIL},
+        **(extras or {}),
         id=cliente.id,
         razon_social=cliente.razon_social,
         tipo_id=cliente.tipo_id,
@@ -148,15 +152,55 @@ def detalle_cliente(db: Session, usuario: Usuario, cliente_id: int) -> ClienteSa
     return presentar_cliente(obtener_cliente(db, usuario, cliente_id))
 
 
-def listar_clientes(
-    db: Session, usuario: Usuario, activo: bool | None = None, comercial: int | None = None
-) -> list[ClienteSalida]:
+FILTROS_LISTA = {  # parámetro de la lista de clientes → campo del motor de condiciones (E1-B)
+    "estado": "estado_comercial", "tipo": "tipo_cliente", "sector": "sector", "servicio": "servicios_interes",
+    "ruta": "rutas_interes", "etiqueta": "etiquetas", "acepta_promociones": "acepta_promociones",
+}
+
+
+def consulta_lista(usuario: Usuario, activo: bool | None = None, comercial: int | None = None,
+                   filtros: dict[str, str | None] | None = None):
+    """La consulta de la lista de clientes con sus filtros (la usan la pantalla y la exportación a Excel)."""
     consulta = _con_alcance(_consulta_clientes(), usuario)
     if activo is not None:
         consulta = consulta.where(Cliente.activo.is_(activo))
     if comercial is not None:
         consulta = consulta.where(Cliente.comercial_asignado_id == comercial)
-    return [presentar_cliente(c) for c in db.scalars(consulta.order_by(Cliente.razon_social, Cliente.id))]
+    condiciones = perfil_comercial.normalizar_condiciones(
+        [{"campo": FILTROS_LISTA[k], "valores": v} for k, v in (filtros or {}).items() if v not in (None, "")])
+    if condiciones:
+        consulta = consulta.where(perfil_comercial.combinar(condiciones, "Y"))
+    return consulta.order_by(Cliente.razon_social, Cliente.id)
+
+
+def _extras(db: Session, ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Último correo enviado a sus contactos y última cotización emitida (columnas de la lista)."""
+    if not ids:
+        return {}
+    salida: dict[int, dict[str, Any]] = {i: {"ultimo_envio": None, "ultima_cotizacion": None} for i in ids}
+    for cliente_id, ultima in db.execute(select(Cotizacion.cliente_id, func.max(Cotizacion.fecha_emision)).where(
+            Cotizacion.cliente_id.in_(ids), Cotizacion.estado != "BORRADOR").group_by(Cotizacion.cliente_id)):
+        salida[cliente_id]["ultima_cotizacion"] = ultima
+    for cliente_id, ultimo in db.execute(select(Cotizacion.cliente_id, func.max(EnvioCorreo.fecha)).join(
+            EnvioCorreo, EnvioCorreo.cotizacion_id == Cotizacion.id).where(
+            Cotizacion.cliente_id.in_(ids), EnvioCorreo.estado == "ENVIADO").group_by(Cotizacion.cliente_id)):
+        salida[cliente_id]["ultimo_envio"] = ultimo
+    for cliente_id, ultimo in db.execute(select(ContactoCliente.cliente_id, func.max(CampanaDestinatario.enviado_en)).join(
+            CampanaDestinatario, CampanaDestinatario.contacto_id == ContactoCliente.id).where(
+            ContactoCliente.cliente_id.in_(ids), CampanaDestinatario.estado == "ENVIADO").group_by(ContactoCliente.cliente_id)):
+        actual = salida[cliente_id]["ultimo_envio"]
+        if ultimo and (actual is None or ultimo > actual):
+            salida[cliente_id]["ultimo_envio"] = ultimo
+    return salida
+
+
+def listar_clientes(
+    db: Session, usuario: Usuario, activo: bool | None = None, comercial: int | None = None,
+    filtros: dict[str, str | None] | None = None,
+) -> list[ClienteSalida]:
+    clientes = list(db.scalars(consulta_lista(usuario, activo, comercial, filtros)))
+    extras = _extras(db, [c.id for c in clientes])
+    return [presentar_cliente(c, extras.get(c.id)) for c in clientes]
 
 
 def buscar_clientes(db: Session, usuario: Usuario, q: str) -> list[ClienteSalida]:
@@ -187,8 +231,10 @@ def crear_cliente(db: Session, actor: Usuario, datos: dict[str, Any]) -> Cliente
                 422, "ASIGNACION_NO_PERMITIDA", "El cliente queda asignado a usted; no puede elegir otro comercial"
             )
         comercial_id = actor_id
+    perfil = perfil_comercial.exigir_perfil(db, {k: v for k, v in datos.items() if k in perfil_comercial.CAMPOS_PERFIL})
     datos = _validar_cliente(db, dict(datos) | {"activo": True, "comercial_asignado_id": comercial_id})
-    cliente = Cliente(**{campo: datos.get(campo) for campo in CAMPOS_CLIENTE}, creado_por=actor_id)
+    cliente = Cliente(**{campo: datos.get(campo) for campo in CAMPOS_CLIENTE}, creado_por=actor_id,
+                      **{k: v for k, v in perfil.items() if v is not None})
     db.add(cliente)
     enviar(db)
     auditoria.registrar(db, actor, "cliente", cliente.id, "CREAR", despues=_foto(cliente, CAMPOS_CLIENTE))
@@ -196,8 +242,11 @@ def crear_cliente(db: Session, actor: Usuario, datos: dict[str, Any]) -> Cliente
     return detalle_cliente(db, actor, cliente.id)
 
 
+CAMPOS_PERFIL_FOTO = perfil_comercial.CAMPOS_PERFIL
+
+
 def _foto(objeto, campos) -> dict[str, Any]:
-    return {campo: getattr(objeto, campo) for campo in campos}
+    return {campo: (valor.isoformat() if isinstance(valor := getattr(objeto, campo), date) else valor) for campo in campos}
 
 
 def actualizar_cliente(db: Session, actor: Usuario, cliente_id: int, cambios: dict[str, Any]) -> ClienteSalida:
@@ -211,13 +260,17 @@ def actualizar_cliente(db: Session, actor: Usuario, cliente_id: int, cambios: di
         if cambios["comercial_asignado_id"] != cliente.comercial_asignado_id:
             _comercial_valido(db, cambios["comercial_asignado_id"])
             nota = f"reasignado del usuario #{cliente.comercial_asignado_id} al #{cambios['comercial_asignado_id']}"
+    perfil = perfil_comercial.exigir_perfil(db, {k: v for k, v in cambios.items() if k in perfil_comercial.CAMPOS_PERFIL})
+    cambios = {k: v for k, v in cambios.items() if k not in perfil}
     identificacion_cambia = any(campo in cambios and cambios[campo] != getattr(cliente, campo) for campo in ("tipo_id", "ruc_o_id"))
     final = _validar_cliente(db, _foto(cliente, CAMPOS_CLIENTE) | cambios, validar_identificacion=identificacion_cambia)
-    antes = _foto(cliente, CAMPOS_CLIENTE)
+    antes = _foto(cliente, CAMPOS_CLIENTE + CAMPOS_PERFIL_FOTO)
     with db.no_autoflush:
         for campo in cambios:
             setattr(cliente, campo, final[campo])
-        despues = _foto(cliente, CAMPOS_CLIENTE)
+        for campo, valor in perfil.items():
+            setattr(cliente, campo, valor)
+        despues = _foto(cliente, CAMPOS_CLIENTE + CAMPOS_PERFIL_FOTO)
         if despues != antes:
             accion = "DESACTIVAR" if antes["activo"] and not despues["activo"] else "EDITAR"
             auditoria.registrar(db, actor, "cliente", cliente_id, accion, antes=antes, despues=despues, nota=nota)
@@ -227,6 +280,15 @@ def actualizar_cliente(db: Session, actor: Usuario, cliente_id: int, cambios: di
 
 
 # ---------- Contactos ----------
+
+
+def _area(db: Session, valor: str | None) -> str | None:
+    if not valor:
+        return None
+    codigo = perfil_comercial.resolver(db, "AREA_CONTACTO", valor)
+    if codigo is None:
+        raise ErrorNegocio(422, "PERFIL_INVALIDO", f"area: «{valor}» no está en el catálogo de áreas")
+    return codigo
 
 
 def _email(email: str | None) -> str | None:
@@ -251,6 +313,9 @@ def presentar_contacto(contacto: ContactoCliente, cliente: Cliente) -> ContactoS
         creado_en=contacto.creado_en,
         actualizado_en=contacto.actualizado_en,
         cliente_tiene_principal=_principal(cliente) is not None,
+        area=contacto.area,
+        recibe_promociones=contacto.recibe_promociones,
+        recibe_cotizaciones=contacto.recibir_avisos,
     )
 
 
@@ -291,6 +356,9 @@ def crear_contacto(db: Session, actor: Usuario, cliente_id: int, datos: dict[str
         telefono=_texto(datos.get("telefono"), "El teléfono"),
         principal=principal,
         creado_por=actor_id,
+        area=_area(db, datos.get("area")),
+        recibe_promociones=datos.get("recibe_promociones", True),
+        recibir_avisos=datos.get("recibe_cotizaciones", True),
     )
     db.add(contacto)
     enviar(db)
@@ -323,6 +391,9 @@ def actualizar_contacto(
         "telefono": _texto(cambios["telefono"], "El teléfono") if "telefono" in cambios else contacto.telefono,
         "principal": principal,
         "activo": activo,
+        "area": _area(db, cambios["area"]) if "area" in cambios else contacto.area,
+        "recibe_promociones": cambios.get("recibe_promociones", contacto.recibe_promociones),
+        "recibir_avisos": cambios.get("recibe_cotizaciones", contacto.recibir_avisos),
     }
     antes = _foto(contacto, CAMPOS_CONTACTO)
     if principal and not contacto.principal:

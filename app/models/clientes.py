@@ -1,5 +1,8 @@
 """M6 Clientes y contactos. Tablas creadas por la migración 0003 (CHECK e índice parcial del principal allí)."""
-from sqlalchemy import Boolean, ForeignKey, Identity, String, Text, false, true
+from datetime import date
+
+from sqlalchemy import Boolean, Date, ForeignKey, Identity, String, Text, false, text, true
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CatalogoMixin
@@ -20,6 +23,21 @@ class Cliente(CatalogoMixin, Base):
     comercial_asignado_id: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="RESTRICT"))
     notas: Mapped[str | None] = mapped_column(Text)
     avisos_activos: Mapped[bool] = mapped_column(default=True, server_default=true())  # E3
+    # E1-B (0012): perfil comercial y consentimiento. Los códigos salen de catalogo_perfil.
+    nombre_comercial: Mapped[str | None] = mapped_column(String(200))
+    tipo_cliente: Mapped[str | None] = mapped_column(String(40))
+    estado_comercial: Mapped[str] = mapped_column(String(40), default="ACTIVO", server_default="ACTIVO")
+    sector: Mapped[str | None] = mapped_column(String(40))
+    servicios_interes: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    rutas_interes: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    tipos_carga: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    volumen_estimado: Mapped[str | None] = mapped_column(String(40))
+    frecuencia: Mapped[str | None] = mapped_column(String(40))
+    origen_cliente: Mapped[str | None] = mapped_column(String(40))
+    etiquetas: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    acepta_promociones: Mapped[bool] = mapped_column(default=True, server_default=true())
+    fecha_consentimiento: Mapped[date | None] = mapped_column(Date)
+    medio_consentimiento: Mapped[str | None] = mapped_column(String(40))
 
     pais: Mapped[Pais] = relationship()
     comercial_asignado: Mapped[Usuario] = relationship(foreign_keys=[comercial_asignado_id])
@@ -37,3 +55,6 @@ class ContactoCliente(CatalogoMixin, Base):
     telefono: Mapped[str | None] = mapped_column(String(40))
     principal: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     recibir_avisos: Mapped[bool] = mapped_column(default=True, server_default=true())  # E3: avisos de sus cotizaciones
+    # E1-B: "recibe_cotizaciones" de la plantilla oficial = recibir_avisos (la misma preferencia).
+    area: Mapped[str | None] = mapped_column(String(40))
+    recibe_promociones: Mapped[bool] = mapped_column(default=True, server_default=true())

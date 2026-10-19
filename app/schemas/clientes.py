@@ -1,5 +1,5 @@
 """Schemas de M6 Clientes y contactos (sin datos de costo: no llevan gating)."""
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.comunes import Entrada, sin_null
@@ -37,6 +37,23 @@ class ClienteSalida(BaseModel):
     activo: bool
     creado_en: datetime
     actualizado_en: datetime
+    # E1-B: perfil comercial, consentimiento y columnas calculadas de la lista.
+    nombre_comercial: str | None = None
+    tipo_cliente: str | None = None
+    estado_comercial: str = "ACTIVO"
+    sector: str | None = None
+    servicios_interes: list[str] = []
+    rutas_interes: list[str] = []
+    tipos_carga: list[str] = []
+    volumen_estimado: str | None = None
+    frecuencia: str | None = None
+    origen_cliente: str | None = None
+    etiquetas: list[str] = []
+    acepta_promociones: bool = True
+    fecha_consentimiento: date | None = None
+    medio_consentimiento: str | None = None
+    ultimo_envio: datetime | None = None
+    ultima_cotizacion: date | None = None
 
 
 class ContactoSalida(BaseModel):
@@ -54,6 +71,10 @@ class ContactoSalida(BaseModel):
     actualizado_en: datetime
     # Indica si el cliente quedó con un contacto principal activo (p. ej. tras desactivar el principal).
     cliente_tiene_principal: bool
+    # E1-B: área y consentimiento (recibe_cotizaciones = recibir_avisos de E3).
+    area: str | None = None
+    recibe_promociones: bool = True
+    recibe_cotizaciones: bool = True
 
 
 class ClienteCrear(Entrada):
@@ -66,6 +87,21 @@ class ClienteCrear(Entrada):
     telefono: str | None = Field(default=None, max_length=40)
     notas: str | None = Field(default=None, max_length=5000)
     comercial_asignado_id: int | None = None
+    # E1-B: perfil comercial (códigos de los catálogos; listas como arreglos).
+    nombre_comercial: str | None = Field(default=None, max_length=200)
+    tipo_cliente: str | None = Field(default=None, max_length=120)
+    estado_comercial: str | None = Field(default=None, max_length=120)
+    sector: str | None = Field(default=None, max_length=120)
+    servicios_interes: list[str] | None = Field(default=None, max_length=50)
+    rutas_interes: list[str] | None = Field(default=None, max_length=100)
+    tipos_carga: list[str] | None = Field(default=None, max_length=50)
+    volumen_estimado: str | None = Field(default=None, max_length=120)
+    frecuencia: str | None = Field(default=None, max_length=120)
+    origen_cliente: str | None = Field(default=None, max_length=120)
+    etiquetas: list[str] | None = Field(default=None, max_length=50)
+    acepta_promociones: bool | None = None
+    fecha_consentimiento: date | None = None
+    medio_consentimiento: str | None = Field(default=None, max_length=120)
 
 
 class ClienteActualizar(Entrada):
@@ -79,6 +115,21 @@ class ClienteActualizar(Entrada):
     notas: str | None = Field(default=None, max_length=5000)
     comercial_asignado_id: int | None = None
     activo: bool | None = None
+    # E1-B: perfil comercial (códigos de los catálogos; listas como arreglos).
+    nombre_comercial: str | None = Field(default=None, max_length=200)
+    tipo_cliente: str | None = Field(default=None, max_length=120)
+    estado_comercial: str | None = Field(default=None, max_length=120)
+    sector: str | None = Field(default=None, max_length=120)
+    servicios_interes: list[str] | None = Field(default=None, max_length=50)
+    rutas_interes: list[str] | None = Field(default=None, max_length=100)
+    tipos_carga: list[str] | None = Field(default=None, max_length=50)
+    volumen_estimado: str | None = Field(default=None, max_length=120)
+    frecuencia: str | None = Field(default=None, max_length=120)
+    origen_cliente: str | None = Field(default=None, max_length=120)
+    etiquetas: list[str] | None = Field(default=None, max_length=50)
+    acepta_promociones: bool | None = None
+    fecha_consentimiento: date | None = None
+    medio_consentimiento: str | None = Field(default=None, max_length=120)
 
     _sin_null = sin_null("razon_social", "tipo_id", "ruc_o_id", "pais_id", "comercial_asignado_id", "activo")
 
@@ -89,6 +140,9 @@ class ContactoCrear(Entrada):
     email: str | None = Field(default=None, max_length=254)
     telefono: str | None = Field(default=None, max_length=40)
     principal: bool = False
+    area: str | None = Field(default=None, max_length=120)
+    recibe_promociones: bool = True
+    recibe_cotizaciones: bool = True
 
 
 class ContactoActualizar(Entrada):
@@ -98,5 +152,8 @@ class ContactoActualizar(Entrada):
     telefono: str | None = Field(default=None, max_length=40)
     principal: bool | None = None
     activo: bool | None = None
+    area: str | None = Field(default=None, max_length=120)
+    recibe_promociones: bool | None = None
+    recibe_cotizaciones: bool | None = None
 
     _sin_null = sin_null("nombre", "principal", "activo")

@@ -59,7 +59,17 @@
       <div id="bloque-manual">
         <div class="filtros">
           <div class="campo campo-busqueda"><label for="buscar-contacto">Buscar contacto</label><input class="input" id="buscar-contacto" type="search" placeholder="Nombre, email o cliente"></div>
-          <div class="campo"><label for="archivo-csv">Importar CSV (una columna con emails)</label><input class="input" id="archivo-csv" type="file" accept=".csv,text/csv"></div>
+        </div>
+        <div class="config-acciones">
+          <button class="btn btn-secundario btn-chico" id="btn-importar-oficial" type="button">Importar clientes (plantilla oficial)</button>
+        </div>
+        <p class="ayuda">La plantilla oficial crea o actualiza los clientes y contactos y los agrega a esta lista. Para contactos que ya existen también puede pegar sus correos:</p>
+        <div class="campo">
+          <label for="pegar-emails">Correos de contactos existentes (separados por coma, punto y coma o línea)</label>
+          <textarea class="input" id="pegar-emails" rows="2" maxlength="20000"></textarea>
+        </div>
+        <div class="config-acciones">
+          <button class="btn btn-secundario btn-chico" id="btn-pegar-emails" type="button">Agregar estos correos</button>
         </div>
         <table class="tabla"><tbody id="resultados-contactos"></tbody></table>
         <p class="etiqueta">Contactos en la lista</p>
@@ -75,6 +85,21 @@
           <div class="campo"><label for="filtro-paises">País del cliente</label><select class="select" id="filtro-paises" multiple></select></div>
           <div class="campo"><label for="filtro-ciudades">Ciudad del cliente</label><select class="select" id="filtro-ciudades" multiple></select></div>
         </div>
+        <fieldset class="campo">
+          <legend>Perfil comercial e interés calculado</legend>
+          <div class="grupo-campos">
+            <div class="campo">
+              <label for="combinar-condiciones">Combinar las condiciones con</label>
+              <select class="select" id="combinar-condiciones">
+                <option value="Y">Y (deben cumplirse todas)</option>
+                <option value="O">O (basta una)</option>
+              </select>
+            </div>
+          </div>
+          <div class="grupo-condiciones" id="condiciones"></div>
+          <button class="btn btn-secundario btn-chico" id="btn-condicion" type="button">Agregar condición</button>
+          <p class="ayuda">Ejemplos: tipo de cliente = Importador; "cotizó FCL en los últimos 6 meses". Varios valores en una condición: basta uno.</p>
+        </fieldset>
         <button class="btn btn-secundario btn-chico" id="btn-previa" type="button">Ver vista previa</button>
       </div>
       <div class="contadores" id="contadores-lista"></div>
@@ -88,6 +113,7 @@
   <script src="js/api.js"></script>
   <script src="js/layout.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/importacion.js"></script>
   <script src="js/listas.js"></script>
 </body>
 </html>

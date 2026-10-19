@@ -117,9 +117,10 @@ $env:APP_ENV = "dev"; .\.venv\Scripts\python.exe -m alembic upgrade head; .\.ven
 
 1. Construir la imagen con Cloud Build y desplegar. Docker no está instalado en el equipo; Cloud Build construye con el `Dockerfile` del proyecto:
    ```powershell
-   gcloud run deploy xps-pricing --source . --region us-central1 --service-account xps-pricing-run@xps-reborn-v2.iam.gserviceaccount.com --add-cloudsql-instances xps-reborn-v2:us-central1:xpress-db-reborn-v2 --set-secrets "DATABASE_URL=xps-pricing-database-url:latest,JWT_SECRET=xps-pricing-jwt-secret:latest,CONFIG_CIFRADO_KEY=xps-pricing-config-cifrado-key:latest" --set-env-vars "APP_ENV=prod,JWT_EXPIRA_MIN=480,PDF_NAVEGADOR=chromium" --memory 2Gi --cpu 1 --min-instances 0 --max-instances 2 --timeout 120 --allow-unauthenticated
+   gcloud run deploy xps-pricing --source . --region us-central1 --service-account xps-pricing-run@xps-reborn-v2.iam.gserviceaccount.com --add-cloudsql-instances xps-reborn-v2:us-central1:xpress-db-reborn-v2 --set-secrets "DATABASE_URL=xps-pricing-database-url:latest,JWT_SECRET=xps-pricing-jwt-secret:latest,CONFIG_CIFRADO_KEY=xps-pricing-config-cifrado-key:latest,TAREAS_SECRETO=xps-pricing-tareas-secreto:latest,TENCENT_EVENTOS_TOKEN=xps-pricing-tencent-eventos-token:latest" --set-env-vars "APP_ENV=prod,JWT_EXPIRA_MIN=480,PDF_NAVEGADOR=chromium" --memory 2Gi --cpu 1 --min-instances 0 --max-instances 2 --timeout 120 --allow-unauthenticated
    ```
    - Si pregunta por crear un repositorio de Artifact Registry, responder `Y`.
+   - **`--set-secrets` reemplaza la lista completa:** deben ir los 5 secretos (desde E1: `TAREAS_SECRETO` para Cloud Scheduler y `TENCENT_EVENTOS_TOKEN` para el callback). Si falta uno, los jobs y el callback responden 503. Para cambiar un solo secreto sin redesplegar, use `gcloud run services update xps-pricing --region us-central1 --update-secrets=NOMBRE=secreto:latest` (agrega sin borrar).
    - La construcción tarda varios minutos (instala Chromium para el PDF).
    - **Debe ver** al final:
      ```

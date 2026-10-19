@@ -24,6 +24,8 @@ COPY alembic ./alembic
 COPY app ./app
 COPY frontend ./frontend
 COPY scripts ./scripts
+# E1-B: la plantilla oficial de importación de clientes (la lee app/services/importacion_clientes.py).
+COPY docs/extensiones/importacion ./docs/extensiones/importacion
 
 RUN useradd --create-home --uid 10001 xps \
     && chown -R xps:xps /app \

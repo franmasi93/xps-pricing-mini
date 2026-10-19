@@ -1,6 +1,7 @@
-/* E1 Listas de envío: manual (buscador de contactos e importación de un CSV con emails, leído en el navegador) o por
- * filtro (servicios, tipos de equipo, orígenes, destinos, país y ciudad) con vista previa. boletines.ver lee;
- * boletines.listas.gestionar edita. Los servicios y los tipos de equipo salen de sus catálogos.
+/* E1 Listas de envío: manual (buscador de contactos; importación con la plantilla oficial o correos pegados de contactos
+ * existentes) o por filtro (servicios, tipos de equipo, orígenes, destinos, país y ciudad) con vista previa.
+ * E1-B: condiciones del perfil comercial y del interés calculado, combinadas con Y u O. boletines.ver lee;
+ * boletines.listas.gestionar edita. Los valores salen de los catálogos.
  */
 "use strict";
 
@@ -17,6 +18,60 @@
   let puedeEditar = false;
   let enEdicion = null;
   let miembros = new Map();
+  let catalogos = {};
+  let servicios = [];
+  const CAMPOS = [
+    ["tipo_cliente", "Tipo de cliente", "TIPO_CLIENTE"], ["estado_comercial", "Estado comercial", "ESTADO_COMERCIAL"],
+    ["sector", "Sector", "SECTOR"], ["volumen_estimado", "Volumen", "VOLUMEN"], ["frecuencia", "Frecuencia", "FRECUENCIA"],
+    ["origen_cliente", "Cómo llegó", "ORIGEN_CLIENTE"], ["medio_consentimiento", "Medio de consentimiento", "MEDIO_CONSENTIMIENTO"],
+    ["servicios_interes", "Servicios de interés", "SERVICIOS"], ["tipos_carga", "Tipos de carga", "TIPO_CARGA"],
+    ["rutas_interes", "Rutas de interés (CN>EC)", null], ["etiquetas", "Etiquetas", null],
+    ["acepta_promociones", "Acepta promociones", "SI_NO"], ["pais", "País del cliente (ISO2)", null], ["ciudad", "Ciudad", null],
+    ["area_contacto", "Área del contacto", "AREA_CONTACTO"], ["cotizo_servicio", "Cotizó el servicio", "SERVICIOS"],
+    ["cotizo_ruta", "Cotizó la ruta (CN>EC o CNSHA>ECGYE)", null],
+  ];
+
+  function opcionesDe(tipo) {
+    if (tipo === "SERVICIOS") return servicios.map((s) => ({ codigo: s.codigo, nombre: s.nombre }));
+    if (tipo === "SI_NO") return [{ codigo: "SI", nombre: "Sí" }, { codigo: "NO", nombre: "No" }];
+    return catalogos[tipo] || [];
+  }
+
+  function filaCondicion(condicion = { campo: "tipo_cliente", valores: [] }) {
+    const fila = crear("div", { clase: "condicion" });
+    const campo = crear("select", { clase: "select", atributos: { "aria-label": "Campo" } });
+    UI.opciones(campo, CAMPOS, { valor: (c) => c[0], texto: (c) => c[1] });
+    campo.value = condicion.campo;
+    const valores = crear("div");
+    const meses = crear("input", { clase: "input cifra", atributos: { type: "number", min: 1, max: 60, value: condicion.meses || 6, "aria-label": "Meses hacia atrás", title: "Meses hacia atrás" } });
+    const quitar = UI.boton("Quitar", () => fila.remove());
+    const pintarValores = () => {
+      const definicion = CAMPOS.find((c) => c[0] === campo.value);
+      meses.hidden = !campo.value.startsWith("cotizo_");
+      if (definicion[2]) {
+        const select = crear("select", { clase: "select", atributos: { multiple: "", "aria-label": "Valores" } });
+        UI.opciones(select, opcionesDe(definicion[2]), { valor: (v) => v.codigo, texto: (v) => v.nombre });
+        for (const opcion of select.options) opcion.selected = (condicion.valores || []).includes(opcion.value);
+        valores.replaceChildren(select);
+      } else {
+        const entrada = crear("input", { clase: "input", atributos: { type: "text", placeholder: "Varios separados por |", "aria-label": "Valores" } });
+        entrada.value = (condicion.valores || []).join("|");
+        valores.replaceChildren(entrada);
+      }
+    };
+    campo.addEventListener("change", () => { condicion = { campo: campo.value, valores: [] }; pintarValores(); });
+    pintarValores();
+    fila.append(campo, valores, meses, quitar);
+    fila.leer = () => {
+      const control = valores.firstChild;
+      const lista = control.tagName === "SELECT" ? [...control.selectedOptions].map((o) => o.value)
+        : control.value.split("|").map((v) => v.trim()).filter(Boolean);
+      const salida = { campo: campo.value, valores: lista };
+      if (campo.value.startsWith("cotizo_")) salida.meses = Number(meses.value || 6);
+      return salida;
+    };
+    return fila;
+  }
 
   function contador(etiqueta, valor) {
     return crear("div", { clase: "contador" }, [crear("strong", { texto: String(valor) }), crear("span", { clase: "texto-suave", texto: etiqueta })]);
@@ -25,6 +80,7 @@
   function pintarResumen(resumen) {
     document.getElementById("contadores-lista").replaceChildren(
       contador("contactos", resumen.total), contador("con baja", resumen.con_baja),
+      contador("sin consentimiento", resumen.sin_consentimiento ?? 0),
       contador("duplicados", resumen.duplicados), contador("recibirían", resumen.recibiran));
   }
 
@@ -82,6 +138,11 @@
       const valores = [...document.getElementById(id).selectedOptions].map((o) => o.value);
       if (valores.length) filtros[clave] = valores;
     }
+    const condiciones = [...document.getElementById("condiciones").children].map((f) => f.leer()).filter((c) => c.valores.length);
+    if (condiciones.length) {
+      filtros.condiciones = condiciones;
+      filtros.combinar = document.getElementById("combinar-condiciones").value;
+    }
     return filtros;
   }
 
@@ -93,7 +154,11 @@
     document.getElementById("titulo-lista").textContent = lista ? `Editar ${lista.nombre}` : "Nueva lista";
     document.getElementById("contadores-lista").replaceChildren();
     document.getElementById("resultados-contactos").replaceChildren();
+    document.getElementById("condiciones").replaceChildren();
+    document.getElementById("combinar-condiciones").value = "Y";
     if (lista) {
+      for (const condicion of lista.filtros.condiciones || []) document.getElementById("condiciones").append(filaCondicion(condicion));
+      document.getElementById("combinar-condiciones").value = lista.filtros.combinar || "Y";
       form.elements.nombre.value = lista.nombre;
       form.elements.descripcion.value = lista.descripcion || "";
       form.elements.tipo.value = lista.tipo;
@@ -124,22 +189,36 @@
     }, alertasDialogo), 300);
   });
 
-  document.getElementById("archivo-csv").addEventListener("change", (evento) => seguro(async () => {
-    const archivo = evento.target.files[0];
-    if (!archivo) return;
-    if (!enEdicion) {
-      XPS.mostrarAlerta(alertasDialogo, "error", "Guarde la lista primero y luego importe el CSV.");
-      return;
-    }
-    const texto = await archivo.text();
-    const emails = texto.split(/[\r\n,;\t]+/).map((v) => v.trim().replace(/^"|"$/g, "")).filter((v) => v.includes("@"));
-    const resultado = await XPS.api(`/boletines/listas/${enEdicion.id}/importar`, { metodo: "POST", cuerpo: { emails } });
-    XPS.mostrarAlerta(alertasDialogo, "exito", `Agregados: ${resultado.agregados} · ya estaban: ${resultado.ya_estaban} · sin contacto: ${resultado.sin_contacto.length}`);
+  async function refrescarMiembros() {
     const detalle = await XPS.api(`/boletines/listas/${enEdicion.id}`);
     miembros = new Map(detalle.resumen.muestra.map((c) => [c.id, c]));
     pintarMiembros();
     pintarResumen(detalle.resumen);
+  }
+
+  document.getElementById("btn-importar-oficial").addEventListener("click", () => {
+    if (!enEdicion) {
+      XPS.mostrarAlerta(alertasDialogo, "error", "Guarde la lista primero y luego importe la plantilla.");
+      return;
+    }
+    Importacion.abrir({ listaId: enEdicion.id, titulo: `Importar clientes a «${enEdicion.nombre}»`,
+      alTerminar: () => seguro(refrescarMiembros, alertasDialogo) });
+  });
+
+  document.getElementById("btn-pegar-emails").addEventListener("click", () => seguro(async () => {
+    if (!enEdicion) {
+      XPS.mostrarAlerta(alertasDialogo, "error", "Guarde la lista primero y luego agregue los correos.");
+      return;
+    }
+    const texto = document.getElementById("pegar-emails").value;
+    const emails = texto.split(/[\r\n,;\t ]+/).map((v) => v.trim().replace(/^"|"$/g, "")).filter((v) => v.includes("@"));
+    const resultado = await XPS.api(`/boletines/listas/${enEdicion.id}/importar`, { metodo: "POST", cuerpo: { emails } });
+    XPS.mostrarAlerta(alertasDialogo, "exito", `Agregados: ${resultado.agregados} · ya estaban: ${resultado.ya_estaban} · sin contacto: ${resultado.sin_contacto.length}`);
+    document.getElementById("pegar-emails").value = "";
+    await refrescarMiembros();
   }, alertasDialogo));
+
+  document.getElementById("btn-condicion").addEventListener("click", () => document.getElementById("condiciones").append(filaCondicion()));
 
   document.getElementById("btn-previa").addEventListener("click", () => seguro(async () => {
     pintarResumen(await XPS.api("/boletines/listas/vista-previa", { metodo: "POST", cuerpo: { tipo: "FILTRO", filtros: filtrosDelFormulario() } }));
@@ -176,9 +255,12 @@
   const botonNueva = document.getElementById("btn-nueva");
   botonNueva.addEventListener("click", () => seguro(() => abrir()));
   try {
-    const [servicios, tipos, puertos, opciones] = await Promise.all([
+    const [listaServicios, tipos, puertos, opciones, listaCatalogos] = await Promise.all([
       XPS.api("/servicios"), XPS.api("/tipos-equipo"), XPS.api("/puertos?activo=true"), XPS.api("/boletines/filtros"),
+      XPS.api("/catalogos-perfil?activo=true"),
     ]);
+    servicios = listaServicios;
+    for (const item of listaCatalogos) (catalogos[item.tipo] = catalogos[item.tipo] || []).push(item);
     UI.opciones(document.getElementById("filtro-servicios"), servicios, { valor: (s) => s.codigo, texto: (s) => s.nombre });
     UI.opciones(document.getElementById("filtro-equipos"), tipos, { valor: (t) => t.id, texto: (t) => t.codigo });
     for (const id of ["filtro-origenes", "filtro-destinos"]) {

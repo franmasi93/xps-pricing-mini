@@ -88,6 +88,8 @@ def enviar_uno(db: Session, destinatario: CampanaDestinatario, preparado: dict[s
         preparado["fijas"], preparado["filas"], destinatario.nombre, destinatario.empresa,
         campanas._url_baja(preparado["url_publica"], destinatario.token_baja),
     )
+    # E1-B: {{comercial}} = el comercial asignado al cliente del destinatario (si no hay, quien envía la campaña).
+    variables["comercial"] = campanas.comercial_del_contacto(db, destinatario.contacto_id, variables.get("comercial", ""))
     campana = destinatario.campana
     resultado = correo._llamar(vigente, Mensaje(
         remitente=fila.remitente or vigente.remitente, destinatario=destinatario.email,
@@ -225,6 +227,9 @@ def registrar_evento(db: Session, evento: dict[str, Any]) -> dict[str, Any]:
         if not boletines.esta_de_baja(db, email):
             boletines.registrar_baja(db, email, "TENCENT", campana_id=destinatario.campana_id if destinatario else None)
             resultado["cambio"] = "BAJA"
+    from app.services import historial_correos
+
+    resultado["vinculo"] = historial_correos.guardar_evento(db, evento)  # E1-B: bitácora de eventos, vinculada al envío
     db.commit()
     return resultado
 

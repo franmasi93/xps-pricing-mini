@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catálogos del perfil comercial · XPS Pricing</title>
+  <link rel="icon" href="img/xpress-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/xps-pricing.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <img class="sidebar-logo" src="img/xpress-logo.png" alt="XPRESS">
+      <nav class="sidebar-nav" id="menu" aria-label="Menú principal"></nav>
+      <div class="perfil">
+        <span class="avatar" id="usuario-avatar" aria-hidden="true"></span>
+        <div class="perfil-datos">
+          <span class="perfil-nombre" id="usuario-nombre"></span>
+          <span class="perfil-rol" id="usuario-rol"></span>
+        </div>
+        <button class="btn btn-secundario btn-chico" id="btn-salir" type="button">Salir</button>
+      </div>
+    </aside>
+
+    <div class="area">
+      <header class="topbar">
+        <div>
+          <h1>Catálogos del perfil comercial</h1>
+          <p class="topbar-subtitulo">Valores de tipo de cliente, sector, tipo de carga, frecuencia, volumen, origen, área y consentimiento</p>
+        </div>
+        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo valor</button>
+      </header>
+
+      <main class="contenido">
+        <div id="alertas" hidden></div>
+        <section class="tarjeta" id="herramientas" hidden>
+          <div class="filtros">
+            <div class="campo">
+              <label for="filtro-tipo">Catálogo</label>
+              <select class="select" id="filtro-tipo"></select>
+            </div>
+          </div>
+          <table class="tabla">
+            <thead><tr><th>Código</th><th>Nombre</th><th>Orden</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-valores"></tbody>
+          </table>
+          <p class="ayuda">Estos valores llenan las listas desplegables de la plantilla de importación y de la ficha del cliente. El código no cambia (lo guardan los clientes); desactivar un valor lo saca de las listas nuevas. Los estados comerciales son fijos.</p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-valor" aria-labelledby="titulo-valor">
+    <h2 id="titulo-valor">Valor</h2>
+    <div id="alertas-valor" hidden></div>
+    <form id="form-valor" novalidate>
+      <div class="campo">
+        <label for="valor-codigo">Código</label>
+        <input class="input cifra" id="valor-codigo" name="codigo" type="text" maxlength="40" autocomplete="off" aria-describedby="ayuda-codigo">
+        <p class="ayuda" id="ayuda-codigo">Mayúsculas, números o _ (vacío: se arma del nombre). No cambia después.</p>
+      </div>
+      <div class="campo">
+        <label for="valor-nombre">Nombre</label>
+        <input class="input" id="valor-nombre" name="nombre" type="text" maxlength="120" required>
+      </div>
+      <div class="campo">
+        <label for="valor-orden">Orden</label>
+        <input class="input cifra" id="valor-orden" name="orden" type="number" min="0" max="999" step="1" value="0">
+      </div>
+      <div class="acciones-form">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/catalogos-perfil.js"></script>
+</body>
+</html>

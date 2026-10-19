@@ -18,6 +18,7 @@ from app.routers import (
     internos,
     monedas,
     notificaciones,
+    perfil,
     proveedores,
     roles,
     salud,
@@ -54,6 +55,7 @@ api.include_router(proveedores.router)
 api.include_router(catalogos.router)
 api.include_router(servicios.router)
 api.include_router(tarifas.router)
+api.include_router(perfil.router)  # E1-B: antes de clientes (rutas fijas /clientes/…)
 api.include_router(clientes.router)
 api.include_router(cotizaciones.router)
 api.include_router(correo.router)

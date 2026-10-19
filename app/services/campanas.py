@@ -33,7 +33,8 @@ from app.models import (
     Usuario,
 )
 from app.services import (
-    auditoria, boletines, correo, masivos, pdf, plantillas_correo, plantillas_diseno, servicios, sistema,
+    auditoria, boletines, correo, historial_correos, masivos, pdf, plantillas_correo, plantillas_diseno, servicios,
+    sistema,
 )
 from app.services.configuracion import leer_config
 from app.services.empresa import whatsapp_numero
@@ -341,6 +342,26 @@ def solo_esperadas(plantilla, datos: dict[str, str]) -> dict[str, str]:
 # ---------- Destinatarios ----------
 
 
+def con_consentimiento(contacto: ContactoCliente, cliente: Cliente | None) -> bool:
+    """E1-B: boletines solo a contactos que reciben promociones, de clientes que aceptan promociones."""
+    return bool(contacto.recibe_promociones and (cliente is None or cliente.acepta_promociones))
+
+
+def comercial_del_contacto(db: Session, contacto_id: int | None, por_defecto: str) -> str:
+    """E1-B {{comercial}}: el comercial asignado al cliente del destinatario; si no hay, quien envía la campaña."""
+    contacto = db.get(ContactoCliente, contacto_id) if contacto_id else None
+    cliente = db.get(Cliente, contacto.cliente_id) if contacto else None
+    usuario = db.get(Usuario, cliente.comercial_asignado_id) if cliente and cliente.comercial_asignado_id else None
+    return (usuario.nombre if usuario else por_defecto)[:MAXIMO_CONTACTO]
+
+
+def resolver_con_consentimiento(db: Session, listas_ids: list[int]) -> tuple[list[tuple[ContactoCliente, Cliente]], int, int]:
+    """(únicos con consentimiento, duplicados, omitidos por consentimiento)."""
+    unicos, duplicados = resolver_destinatarios(db, listas_ids)
+    con = [(c, cl) for c, cl in unicos if con_consentimiento(c, cl)]
+    return con, duplicados, len(unicos) - len(con)
+
+
 def resolver_destinatarios(db: Session, listas_ids: list[int]) -> tuple[list[tuple[ContactoCliente, Cliente]], int]:
     """Contactos de las listas activas, deduplicados por email (el primero gana). Devuelve (únicos, duplicados)."""
     if not listas_ids:
@@ -364,11 +385,12 @@ def resolver_destinatarios(db: Session, listas_ids: list[int]) -> tuple[list[tup
 
 def conteo(db: Session, campana_id: int) -> dict[str, Any]:
     campana = obtener(db, campana_id)
-    unicos, duplicados = resolver_destinatarios(db, campana.listas_ids)
+    unicos, duplicados, sin_consentimiento = resolver_con_consentimiento(db, campana.listas_ids)
     emails = [c.email.strip().lower() for c, _ in unicos]
     bajas = boletines.bajas_activas(db, emails)
-    total = len(unicos) + duplicados
-    return {"total": total, "omitidos_baja": len(bajas), "duplicados": duplicados, "recibiran": len(unicos) - len(bajas)}
+    total = len(unicos) + duplicados + sin_consentimiento
+    return {"total": total, "omitidos_baja": len(bajas), "omitidos_consentimiento": sin_consentimiento,
+            "duplicados": duplicados, "recibiran": len(unicos) - len(bajas)}
 
 
 # ---------- Vista previa y PDF ----------
@@ -401,12 +423,22 @@ def preparar(db: Session, campana: Campana, actor: Usuario | None, fecha: date) 
             "masivos": fila, "url_publica": url}
 
 
+def _como_primer_destinatario(db: Session, campana: Campana, datos: dict[str, Any], token_baja: str) -> dict[str, str]:
+    """E1-B: las variables tal como las recibirá el primer destinatario de las listas (su nombre y su comercial).
+    Sin listas o sin destinatarios, un ejemplo genérico con el comercial de quien envía."""
+    unicos = resolver_con_consentimiento(db, campana.listas_ids)[0] if campana.listas_ids else []
+    nombre, empresa = (unicos[0][0].nombre, unicos[0][1].razon_social) if unicos else ("Nombre del contacto", "Empresa del cliente")
+    variables = variables_destinatario(datos["fijas"], datos["filas"], nombre, empresa, _url_baja(datos["url_publica"], token_baja))
+    if unicos:
+        variables["comercial"] = comercial_del_contacto(db, unicos[0][0].id, variables.get("comercial", ""))
+    return variables
+
+
 def vista_previa(db: Session, actor: Usuario, campana_id: int) -> dict[str, Any]:
     campana = obtener(db, campana_id)
     hoy = fechas.hoy_ecuador()
     datos = preparar(db, campana, actor, hoy)
-    ejemplo = variables_destinatario(datos["fijas"], datos["filas"], "Nombre del contacto", "Empresa del cliente",
-                                     _url_baja(datos["url_publica"], "token-de-ejemplo"))
+    ejemplo = _como_primer_destinatario(db, campana, datos, "token-de-ejemplo")
     plantilla = datos["plantilla"]
     if not plantilla.html:
         html = ("<p>Esta plantilla no tiene una copia del HTML en el sistema; la vista previa muestra solo las "
@@ -414,6 +446,7 @@ def vista_previa(db: Session, actor: Usuario, campana_id: int) -> dict[str, Any]
     else:
         html = _render(plantilla, ejemplo)
     return {"html": html, "variables": solo_esperadas(plantilla, ejemplo), "bytes": _bytes(solo_esperadas(plantilla, ejemplo)),
+            "como": {"nombre_contacto": ejemplo.get("nombre_contacto", ""), "comercial": ejemplo.get("comercial", "")},
             "filas_en_correo": sum(1 for k, v in datos["filas"].items() if PATRON_FILA.match(k) and v),
             "tarifas": len(datos["snapshot"]["tarifas"]), "avisos": datos["avisos"],
             "plantilla": {"id": plantilla.id, "nombre": plantilla.nombre, "tencent_id": plantilla.tencent_id,
@@ -461,8 +494,12 @@ def enviar_prueba(db: Session, actor: Usuario, campana_id: int, email: str | Non
     hoy = fechas.hoy_ecuador()
     datos = preparar(db, campana, actor, hoy)
     plantilla = plantillas_correo.plantilla_utilizable(db, campana.plantilla_id, "BOLETIN")
-    variables = variables_destinatario(datos["fijas"], datos["filas"], actor.nombre, "Prueba interna",
-                                       _url_baja(datos["url_publica"], "prueba"))
+    # E1-B: la prueba muestra cómo lo verá el primer destinatario de las listas (su nombre y su comercial), igual que
+    # la vista previa de la pantalla.
+    variables = _como_primer_destinatario(db, campana, datos, "prueba")
+    if not campana.listas_ids:
+        variables = variables | {"contacto": actor.nombre[:MAXIMO_CONTACTO], "nombre_contacto": actor.nombre[:MAXIMO_CONTACTO],
+                                 "empresa": "Prueba interna"}
     plantillas_correo.exigir_variables(plantilla, variables, OPCIONALES | set(_filas_de_plantilla(plantilla)))
     vigente = correo.config_vigente(db)
     if not vigente.configurado:
@@ -490,7 +527,9 @@ def enviar_prueba(db: Session, actor: Usuario, campana_id: int, email: str | Non
     confirmar(db)
     if not resultado.ok:
         raise ErrorNegocio(422, traduccion.codigo, traduccion.mensaje, extra={"reintentable": traduccion.reintentable})
-    return {"ok": True, "destinatario": destino, "message_id": resultado.message_id}
+    return {"ok": True, "destinatario": destino, "message_id": resultado.message_id,
+            "como": {"nombre_contacto": variables.get("nombre_contacto", variables["contacto"]),
+                     "comercial": variables.get("comercial", ""), "empresa": variables["empresa"]}}
 
 
 # ---------- Enviar o programar ----------
@@ -513,7 +552,7 @@ def enviar_o_programar(db: Session, actor: Usuario, campana_id: int, datos: dict
     fila = preparado["masivos"]
     ejemplo = variables_destinatario(preparado["fijas"], preparado["filas"], "x", "x", _url_baja(preparado["url_publica"], "x"))
     plantillas_correo.exigir_variables(plantilla, ejemplo, OPCIONALES | set(_filas_de_plantilla(plantilla)))
-    unicos, duplicados = resolver_destinatarios(db, campana.listas_ids)
+    unicos, duplicados, sin_consentimiento = resolver_con_consentimiento(db, campana.listas_ids)
     emails = [c.email.strip().lower() for c, _ in unicos]
     bajas = boletines.bajas_activas(db, emails)
     recibiran = len(unicos) - len(bajas)
@@ -538,8 +577,8 @@ def enviar_o_programar(db: Session, actor: Usuario, campana_id: int, datos: dict
                 empresa=cliente.razon_social if cliente else "", token_baja=boletines.nuevo_token(),
                 estado="OMITIDO_BAJA" if email in bajas else "PENDIENTE",
             ))
-        campana.total_destinatarios = len(unicos) + duplicados
-        campana.omitidos = len(bajas) + duplicados
+        campana.total_destinatarios = len(unicos) + duplicados + sin_consentimiento
+        campana.omitidos = len(bajas) + duplicados + sin_consentimiento
         campana.enviado_por = auditoria.id_de(actor)
         campana.estado = "PROGRAMADA" if programar else "ENVIANDO"
         campana.programada_para = programar
@@ -608,6 +647,7 @@ def presentar(campana: Campana, db: Session) -> dict[str, Any]:
         "total_destinatarios": campana.total_destinatarios, "enviados": campana.enviados,
         "rebotados": campana.rebotados, "fallidos": campana.fallidos, "omitidos": campana.omitidos,
         "pendientes": pendientes,
+        **historial_correos.contadores_campana(db, campana.id),  # E1-B: entregados, abiertos y clics (callback)
         "plantilla": {"id": plantilla.id, "nombre": plantilla.nombre, "tencent_id": plantilla.tencent_id,
                       "estado_tencent": plantilla.estado_tencent} if plantilla else None,
         "snapshot_tarifas": campana.snapshot_tarifas,

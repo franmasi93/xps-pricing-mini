@@ -31,7 +31,11 @@
           <h1>Clientes</h1>
           <p class="topbar-subtitulo" id="subtitulo">Libreta de clientes y contactos</p>
         </div>
-        <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo cliente</button>
+        <div class="config-acciones">
+          <button class="btn btn-secundario" id="btn-importar" type="button" hidden>Importar desde Excel</button>
+          <button class="btn btn-secundario" id="btn-exportar" type="button" hidden>Exportar a Excel</button>
+          <button class="btn btn-primario" id="btn-nuevo" type="button" hidden>Nuevo cliente</button>
+        </div>
       </header>
 
       <main class="contenido">
@@ -45,84 +49,245 @@
               <input class="input" id="filtro-q" type="search" placeholder="Razón social o identificación (2 caracteres o más)">
             </div>
             <div class="campo">
-              <label for="filtro-activo">Estado</label>
+              <label for="filtro-activo">Registro</label>
               <select class="select" id="filtro-activo">
                 <option value="true">Activos</option>
                 <option value="false">Inactivos</option>
                 <option value="">Todos</option>
               </select>
             </div>
+            <div class="campo">
+              <label for="filtro-estado">Estado comercial</label>
+              <select class="select" id="filtro-estado" data-filtro="estado"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-tipo">Tipo de cliente</label>
+              <select class="select" id="filtro-tipo" data-filtro="tipo"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-sector">Sector</label>
+              <select class="select" id="filtro-sector" data-filtro="sector"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-servicio">Servicio de interés</label>
+              <select class="select" id="filtro-servicio" data-filtro="servicio"></select>
+            </div>
+            <div class="campo">
+              <label for="filtro-ruta">Ruta de interés</label>
+              <input class="input cifra" id="filtro-ruta" data-filtro="ruta" type="text" placeholder="CN>EC" maxlength="40">
+            </div>
+            <div class="campo">
+              <label for="filtro-etiqueta">Etiqueta</label>
+              <input class="input" id="filtro-etiqueta" data-filtro="etiqueta" type="text" placeholder="VIP" maxlength="40">
+            </div>
+            <div class="campo">
+              <label for="filtro-promociones">Acepta promociones</label>
+              <select class="select" id="filtro-promociones" data-filtro="acepta_promociones">
+                <option value="">Todos</option>
+                <option value="SI">Sí</option>
+                <option value="NO">No</option>
+              </select>
+            </div>
           </div>
-          <table class="tabla">
-            <thead>
-              <tr><th>Razón social</th><th>Identificación</th><th>País</th><th>Comercial</th><th>Contacto principal</th><th>Estado</th><th>Acciones</th></tr>
-            </thead>
-            <tbody id="tabla-clientes"></tbody>
-          </table>
+          <details class="selector-columnas" id="selector-columnas">
+            <summary class="btn btn-secundario btn-chico">Columnas</summary>
+            <div class="selector-columnas-lista" id="lista-columnas"></div>
+          </details>
+          <div class="tabla-desplazable">
+            <table class="tabla">
+              <thead><tr id="cabecera-clientes"></tr></thead>
+              <tbody id="tabla-clientes"></tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>
   </div>
 
-  <!-- Cliente -->
-  <dialog class="dialogo dialogo-ancho" id="dialogo-cliente" aria-labelledby="titulo-cliente">
+  <!-- Ficha del cliente: Datos, Perfil comercial y Correos -->
+  <dialog class="dialogo dialogo-ancho dialogo-ficha" id="dialogo-cliente" aria-labelledby="titulo-cliente">
     <h2 id="titulo-cliente">Nuevo cliente</h2>
+    <div class="pestanas" role="tablist">
+      <button class="pestana activa" type="button" role="tab" data-pestana="datos" aria-selected="true">Datos</button>
+      <button class="pestana" type="button" role="tab" data-pestana="perfil" aria-selected="false">Perfil comercial</button>
+      <button class="pestana" type="button" role="tab" data-pestana="correos" aria-selected="false" id="pestana-correos" hidden>Correos</button>
+    </div>
     <div id="alertas-cliente" hidden></div>
     <form id="form-cliente" novalidate>
-      <div class="grupo-campos">
-        <div class="campo">
-          <label for="cliente-razon">Razón social</label>
-          <input class="input" id="cliente-razon" name="razon_social" type="text" maxlength="200" required>
+      <div data-panel="datos">
+        <div class="grupo-campos">
+          <div class="campo">
+            <label for="cliente-razon">Razón social</label>
+            <input class="input" id="cliente-razon" name="razon_social" type="text" maxlength="200" required>
+          </div>
+          <div class="campo">
+            <label for="cliente-tipo">Tipo de identificación</label>
+            <select class="select" id="cliente-tipo" name="tipo_id" required></select>
+          </div>
+          <div class="campo">
+            <label for="cliente-identificacion">Número de identificación</label>
+            <input class="input cifra" id="cliente-identificacion" name="ruc_o_id" type="text" maxlength="40" autocomplete="off" required>
+          </div>
+          <div class="campo">
+            <label for="cliente-pais">País</label>
+            <select class="select" id="cliente-pais" name="pais_id" required></select>
+          </div>
+          <div class="campo">
+            <label for="cliente-ciudad">Ciudad</label>
+            <input class="input" id="cliente-ciudad" name="ciudad" type="text" maxlength="100">
+          </div>
+          <div class="campo">
+            <label for="cliente-telefono">Teléfono</label>
+            <input class="input" id="cliente-telefono" name="telefono" type="text" maxlength="40">
+          </div>
+          <div class="campo" id="campo-comercial" hidden>
+            <label for="cliente-comercial">Comercial asignado (obligatorio)</label>
+            <select class="select" id="cliente-comercial" name="comercial_asignado_id"></select>
+          </div>
         </div>
         <div class="campo">
-          <label for="cliente-tipo">Tipo de identificación</label>
-          <select class="select" id="cliente-tipo" name="tipo_id" required>
+          <label for="cliente-direccion">Dirección</label>
+          <input class="input" id="cliente-direccion" name="direccion" type="text" maxlength="250">
+        </div>
+        <div class="campo">
+          <label for="cliente-notas">Notas (opcional)</label>
+          <textarea class="input" id="cliente-notas" name="notas" maxlength="5000" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div data-panel="perfil" hidden>
+        <div class="grupo-campos">
+          <div class="campo">
+            <label for="perfil-nombre-comercial">Nombre comercial</label>
+            <input class="input" id="perfil-nombre-comercial" name="nombre_comercial" type="text" maxlength="200">
+          </div>
+          <div class="campo">
+            <label for="perfil-tipo">Tipo de cliente</label>
+            <select class="select" id="perfil-tipo" name="tipo_cliente" data-catalogo="TIPO_CLIENTE"></select>
+          </div>
+          <div class="campo">
+            <label for="perfil-estado">Estado comercial</label>
+            <select class="select" id="perfil-estado" name="estado_comercial" data-catalogo="ESTADO_COMERCIAL"></select>
+          </div>
+          <div class="campo">
+            <label for="perfil-sector">Sector</label>
+            <select class="select" id="perfil-sector" name="sector" data-catalogo="SECTOR"></select>
+          </div>
+          <div class="campo">
+            <label for="perfil-volumen">Volumen estimado</label>
+            <select class="select" id="perfil-volumen" name="volumen_estimado" data-catalogo="VOLUMEN"></select>
+          </div>
+          <div class="campo">
+            <label for="perfil-frecuencia">Frecuencia</label>
+            <select class="select" id="perfil-frecuencia" name="frecuencia" data-catalogo="FRECUENCIA"></select>
+          </div>
+          <div class="campo">
+            <label for="perfil-origen">Cómo llegó</label>
+            <select class="select" id="perfil-origen" name="origen_cliente" data-catalogo="ORIGEN_CLIENTE"></select>
+          </div>
+          <div class="campo">
+            <label for="perfil-rutas">Rutas de interés</label>
+            <input class="input cifra" id="perfil-rutas" name="rutas_interes" type="text" maxlength="400" placeholder="CN>EC|US>EC" aria-describedby="ayuda-rutas">
+            <p class="ayuda" id="ayuda-rutas">Origen>Destino por país (CN) o puerto (CNSHA); varias separadas por |.</p>
+          </div>
+          <div class="campo">
+            <label for="perfil-etiquetas">Etiquetas</label>
+            <input class="input" id="perfil-etiquetas" name="etiquetas" type="text" maxlength="400" placeholder="VIP|FERIA_2026">
+          </div>
+        </div>
+        <fieldset class="campo">
+          <legend>Servicios de interés</legend>
+          <div class="grupo-checks" id="perfil-servicios"></div>
+        </fieldset>
+        <fieldset class="campo">
+          <legend>Tipos de carga</legend>
+          <div class="grupo-checks" id="perfil-cargas"></div>
+        </fieldset>
+        <fieldset class="campo">
+          <legend>Consentimiento para boletines</legend>
+          <label class="campo-check" for="perfil-acepta"><input id="perfil-acepta" name="acepta_promociones" type="checkbox"> Acepta recibir boletines de tarifas</label>
+          <div class="grupo-campos">
+            <div class="campo">
+              <label for="perfil-fecha">Fecha del consentimiento</label>
+              <input class="input" id="perfil-fecha" name="fecha_consentimiento" type="date">
+            </div>
+            <div class="campo">
+              <label for="perfil-medio">Medio</label>
+              <select class="select" id="perfil-medio" name="medio_consentimiento" data-catalogo="MEDIO_CONSENTIMIENTO"></select>
+            </div>
+          </div>
+        </fieldset>
+        <div id="perfil-interes"></div>
+      </div>
+
+      <div class="acciones-form" id="acciones-cliente">
+        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
+        <button class="btn btn-primario" type="submit" id="guardar-cliente">Guardar</button>
+      </div>
+    </form>
+
+    <div data-panel="correos" hidden>
+      <div class="filtros">
+        <div class="campo">
+          <label for="correos-tipo">Tipo</label>
+          <select class="select" id="correos-tipo">
+            <option value="">Todos</option>
+            <option value="COTIZACION">Cotización</option>
+            <option value="BOLETIN">Boletín</option>
+            <option value="AVISO">Aviso</option>
           </select>
         </div>
         <div class="campo">
-          <label for="cliente-identificacion">Número de identificación</label>
-          <input class="input cifra" id="cliente-identificacion" name="ruc_o_id" type="text" maxlength="40" autocomplete="off" required>
-        </div>
-        <div class="campo">
-          <label for="cliente-pais">País</label>
-          <select class="select" id="cliente-pais" name="pais_id" required></select>
-        </div>
-        <div class="campo">
-          <label for="cliente-ciudad">Ciudad</label>
-          <input class="input" id="cliente-ciudad" name="ciudad" type="text" maxlength="100">
-        </div>
-        <div class="campo">
-          <label for="cliente-telefono">Teléfono</label>
-          <input class="input" id="cliente-telefono" name="telefono" type="text" maxlength="40">
-        </div>
-        <div class="campo" id="campo-comercial" hidden>
-          <label for="cliente-comercial">Comercial asignado (obligatorio)</label>
-          <select class="select" id="cliente-comercial" name="comercial_asignado_id"></select>
+          <label for="correos-estado">Estado</label>
+          <select class="select" id="correos-estado">
+            <option value="">Todos</option>
+            <option value="ENVIADO">Enviado</option>
+            <option value="FALLIDO">Fallido</option>
+            <option value="SIMULADO">Simulado</option>
+            <option value="ENTREGADO">Entregado</option>
+            <option value="ABIERTO">Abierto</option>
+            <option value="CLIC">Clic</option>
+            <option value="REBOTE_HARD">Rebote definitivo</option>
+            <option value="REBOTE_SOFT">Rebote temporal</option>
+            <option value="SPAM">Spam</option>
+            <option value="BAJA">Baja</option>
+          </select>
         </div>
       </div>
-      <div class="campo">
-        <label for="cliente-direccion">Dirección</label>
-        <input class="input" id="cliente-direccion" name="direccion" type="text" maxlength="250">
+      <div class="tabla-desplazable">
+        <table class="tabla">
+          <thead><tr><th>Fecha</th><th>Contacto</th><th>Tipo</th><th>Asunto o campaña</th><th>Plantilla</th><th>Envío</th><th>Entrega</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-correos"></tbody>
+        </table>
       </div>
-      <div class="campo">
-        <label for="cliente-notas">Notas (opcional)</label>
-        <textarea class="input" id="cliente-notas" name="notas" maxlength="5000" rows="2"></textarea>
+      <div id="vista-correo" hidden>
+        <h3 id="vista-correo-titulo"></h3>
+        <p class="ayuda" id="vista-correo-datos"></p>
+        <iframe class="vista-correo" id="vista-correo-marco" title="Vista previa del correo" sandbox=""></iframe>
+        <details class="variables-correo">
+          <summary>Variables enviadas</summary>
+          <table class="tabla">
+            <thead><tr><th>Variable</th><th>Valor</th></tr></thead>
+            <tbody id="vista-correo-variables"></tbody>
+          </table>
+        </details>
       </div>
       <div class="acciones-form">
-        <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
-        <button class="btn btn-primario" type="submit">Guardar</button>
+        <button class="btn btn-secundario" type="button" data-cerrar>Cerrar</button>
       </div>
-    </form>
+    </div>
   </dialog>
 
   <!-- Contactos -->
   <dialog class="dialogo dialogo-ancho" id="dialogo-contactos" aria-labelledby="titulo-contactos">
     <h2 id="titulo-contactos">Contactos</h2>
     <div id="alertas-contactos" hidden></div>
-    <table class="tabla">
-      <thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Teléfono</th><th>Principal</th><th>Estado</th><th>Avisos</th><th id="th-acciones-contacto">Acciones</th></tr></thead>
-      <tbody id="tabla-contactos"></tbody>
-    </table>
+    <div class="tabla-desplazable">
+      <table class="tabla">
+        <thead><tr><th>Nombre</th><th>Cargo</th><th>Área</th><th>Email</th><th>Teléfono</th><th>Principal</th><th>Promociones</th><th>Cotizaciones</th><th>Estado</th><th id="th-acciones-contacto">Acciones</th></tr></thead>
+        <tbody id="tabla-contactos"></tbody>
+      </table>
+    </div>
     <form id="form-contacto" novalidate hidden>
       <h3 id="titulo-form-contacto">Agregar contacto</h3>
       <div class="grupo-campos">
@@ -135,6 +300,10 @@
           <input class="input" id="contacto-cargo" name="cargo" type="text" maxlength="80">
         </div>
         <div class="campo">
+          <label for="contacto-area">Área</label>
+          <select class="select" id="contacto-area" name="area" data-catalogo="AREA_CONTACTO"></select>
+        </div>
+        <div class="campo">
           <label for="contacto-email">Email</label>
           <input class="input" id="contacto-email" name="email" type="email" maxlength="254">
         </div>
@@ -143,10 +312,9 @@
           <input class="input" id="contacto-telefono" name="telefono" type="text" maxlength="40">
         </div>
       </div>
-      <label class="campo-check" for="contacto-principal">
-        <input id="contacto-principal" name="principal" type="checkbox">
-        Contacto principal
-      </label>
+      <label class="campo-check" for="contacto-principal"><input id="contacto-principal" name="principal" type="checkbox"> Contacto principal</label>
+      <label class="campo-check" for="contacto-promociones"><input id="contacto-promociones" name="recibe_promociones" type="checkbox"> Recibe boletines (promociones)</label>
+      <label class="campo-check" for="contacto-cotizaciones"><input id="contacto-cotizaciones" name="recibe_cotizaciones" type="checkbox"> Recibe cotizaciones y avisos de seguimiento</label>
       <div class="acciones-form">
         <button class="btn btn-secundario" type="button" id="btn-cancelar-contacto">Limpiar</button>
         <button class="btn btn-primario" type="submit">Guardar contacto</button>
@@ -160,6 +328,7 @@
   <script src="js/api.js"></script>
   <script src="js/layout.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/importacion.js"></script>
   <script src="js/clientes.js"></script>
 </body>
 </html>

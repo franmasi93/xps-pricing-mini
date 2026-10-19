@@ -32,12 +32,22 @@ El envío corre por lotes desde Cloud Scheduler, dentro del horario de la base:
 | Fase | Peso | Estado |
 |---|---|---|
 | E1.0 Base | 3 % | Hecho: plan (`docs/extensiones/E1-PLAN.md`), verificación de Tencent, migración 0008 probada ida y vuelta |
-| E1.1 Listas y bajas | 5 % | Hecho: listas manuales (con buscador e importación CSV) y por filtro (servicio, tipo de equipo, origen, destino, país, ciudad); bajas que aplican a todo |
+| E1.1 Listas y bajas | 5 % | **Completada con E1-B (2026-10-19, ver la corrección abajo).** Listas manuales (buscador, plantilla oficial de importación y correos pegados) y por filtro (servicio, tipo de equipo, origen, destino, país, ciudad, perfil comercial e interés calculado, con Y/O); consentimiento por cliente y por contacto; bajas que aplican a todo |
 | E1.2 Campañas, plantillas y vista previa | 7 % | Hecho: catálogo de plantillas sincronizado con Tencent (los 8 ID del gerente y la 72669), asistente de 4 pasos, vista previa de escritorio y móvil |
 | E1.3 Motor de envío | 8 % | Hecho y **probado con Cloud Scheduler en producción** |
 | E1.4 Bitácora y baja pública | 4 % | Hecho: detalle por destinatario, página pública de baja, callback de Tencent preparado |
 | E1.5 Cierre | 3 % | Hecho: Regla 18 doble, despliegue, prueba real y esta acta |
-| **Total E1** | **30 %** | **30 %** |
+| **Total E1** | **30 %** | **30 %** (real desde E1-B) |
+
+### Corrección del 2026-10-19: E1.1 al 100 % real
+
+La revisión del gerente encontró que E1.1 no estaba completa (la dejó en 5 de 7 %). Esta acta la marcaba como hecha, pero le faltaba:
+- **Importación de clientes:** solo había un CSV de una columna con correos, que agregaba contactos ya existentes; no creaba clientes ni contactos.
+- **Perfil comercial:** las listas por filtro no podían segmentar por tipo de cliente, sector, servicios o rutas de interés, ni por lo que el cliente cotizó.
+- **Consentimiento:** no había "acepta promociones" por cliente ni "recibe promociones" por contacto; solo las bajas.
+- **Variables:** {{comercial}} era quien enviaba la campaña, no el comercial asignado al cliente.
+
+Todo eso se completó en **E1-B** (`docs/cierres/CIERRE-E1B.md`): plantilla oficial de importación, perfil comercial, listas por condiciones Y/O con interés calculado, consentimiento en boletines y avisos, {{nombre_contacto}} y {{comercial}} por destinatario, e historial de correos con los eventos de Tencent. Con eso, E1.1 queda al 100 % real y E1 completa.
 
 ## 3. Lo construido
 

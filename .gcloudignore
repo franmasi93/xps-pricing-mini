@@ -9,7 +9,11 @@
 .pytest_cache/
 **/__pycache__/
 *.pyc
-docs/
+# E1-B: de docs/ solo sube la plantilla oficial de importación (la lee app/services/importacion_clientes.py).
+docs/*
+!docs/extensiones/
+docs/extensiones/*
+!docs/extensiones/importacion/
 salidas/
 tests/
 start.txt

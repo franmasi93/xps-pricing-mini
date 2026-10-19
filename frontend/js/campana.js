@@ -212,6 +212,7 @@
     conteoActual = await XPS.api(`/boletines/campanas/${campanaId}/conteo`);
     document.getElementById("contadores").replaceChildren(
       contador("en las listas", conteoActual.total), contador("omitidos por baja", conteoActual.omitidos_baja),
+      contador("omitidos por consentimiento", conteoActual.omitidos_consentimiento ?? 0),
       contador("duplicados", conteoActual.duplicados), contador("recibirán", conteoActual.recibiran));
   }
 
@@ -228,7 +229,8 @@
     document.getElementById("resumen-previa").textContent =
       `Plantilla ${previa.plantilla.nombre} (Tencent ${previa.plantilla.tencent_id || "sin ID"}, ${previa.plantilla.estado_tencent.toLowerCase()}) · `
       + `${previa.filas_en_correo} de ${previa.tarifas} tarifas en el cuerpo del correo · ${previa.bytes} bytes de variables · `
-      + `recibirán ${conteoActual.recibiran} destinatarios.`;
+      + `recibirán ${conteoActual.recibiran} destinatarios. `
+      + `Vista como la recibirá ${previa.como?.nombre_contacto || "el destinatario"} (comercial: ${previa.como?.comercial || "—"}).`;
     if (previa.avisos.length) XPS.mostrarAlerta(avisos, "aviso", `Atención: ${previa.avisos.join(" · ")}.`);
     for (const id of ["btn-enviar", "btn-programar"]) document.getElementById(id).hidden = !permisos.enviar;
     document.getElementById("btn-prueba").hidden = !permisos.gestionar;
@@ -246,7 +248,9 @@
 
   document.getElementById("btn-prueba").addEventListener("click", () => seguro(async () => {
     const resultado = await XPS.api(`/boletines/campanas/${campanaId}/prueba`, { metodo: "POST", cuerpo: {} });
-    XPS.mostrarAlerta(alertas, "exito", `Prueba enviada a ${resultado.destinatario}. Revísela también en el celular.`);
+    const como = resultado.como || {};
+    XPS.mostrarAlerta(alertas, "exito", `Prueba enviada a ${resultado.destinatario}, como la verá ${como.nombre_contacto || "el destinatario"}`
+      + ` (comercial: ${como.comercial || "—"}). Revísela también en el celular.`);
   }));
 
   function abrirConfirmacion(programar) {
@@ -295,8 +299,9 @@
     document.getElementById("subtitulo").textContent = `Campaña ${campana.estado.toLowerCase()}`;
     document.getElementById("contadores-detalle").replaceChildren(
       contador("destinatarios", campana.total_destinatarios), contador("enviados", campana.enviados),
-      contador("pendientes", campana.pendientes), contador("rebotados", campana.rebotados),
-      contador("fallidos", campana.fallidos), contador("omitidos", campana.omitidos));
+      contador("entregados", campana.entregados ?? 0), contador("abiertos", campana.abiertos ?? 0),
+      contador("clics", campana.clics ?? 0), contador("pendientes", campana.pendientes),
+      contador("rebotados", campana.rebotados), contador("fallidos", campana.fallidos), contador("omitidos", campana.omitidos));
     const par = (etiqueta, valor) => crear("div", {}, [crear("dt", { texto: etiqueta }), crear("dd", {}, [UI.texto(valor)])]);
     document.getElementById("ficha-campana").replaceChildren(
       par("Asunto", campana.asunto), par("Estado", campana.estado),

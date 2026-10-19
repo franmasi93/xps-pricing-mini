@@ -376,8 +376,14 @@ a {
   gap: 0 var(--esp-4);
 }
 
-.dialogo-ancho {
+/* Más específica que .dialogo (definida después): si no, el ancho no se aplicaba. */
+.dialogo.dialogo-ancho {
   width: min(760px, calc(100vw - 32px));
+}
+
+/* E1-B: la ficha del cliente (pestaña Correos con 8 columnas). */
+.dialogo.dialogo-ficha {
+  width: min(1040px, calc(100vw - 32px));
 }
 
 /* ---------- Card ---------- */
@@ -1261,6 +1267,15 @@ a {
   max-width: 100%;
 }
 
+.variables-correo {
+  margin-top: 12px;
+}
+
+.variables-correo summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
 .pasos {
   display: flex;
   flex-wrap: wrap;
@@ -1891,5 +1906,70 @@ button.nav-grupo:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .indicador {
     transition: none;
+  }
+}
+
+/* ---------- E1-B: columnas de Clientes, importación e interés ---------- */
+
+.selector-columnas {
+  position: relative;
+  margin-bottom: var(--esp-3);
+}
+
+.selector-columnas > summary {
+  list-style: none;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.selector-columnas > summary::-webkit-details-marker {
+  display: none;
+}
+
+.selector-columnas-lista {
+  position: absolute;
+  z-index: 15;
+  display: grid;
+  gap: var(--esp-1);
+  min-width: 240px;
+  margin-top: var(--esp-1);
+  padding: var(--esp-3);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-md);
+  background: var(--superficie);
+  box-shadow: var(--sombra);
+}
+
+.lista-errores {
+  margin: 0;
+  padding-left: var(--esp-4);
+  color: var(--critico);
+  font-size: 0.85rem;
+}
+
+.lista-interes {
+  margin: 0;
+  padding-left: var(--esp-4);
+}
+
+.grupo-condiciones {
+  display: grid;
+  gap: var(--esp-2);
+}
+
+.condicion {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(200px, 2fr) 90px auto;
+  gap: var(--esp-2);
+  align-items: end;
+}
+
+@media (max-width: 760px) {
+  .condicion {
+    grid-template-columns: 1fr;
+  }
+
+  .selector-columnas-lista {
+    position: static;
   }
 }

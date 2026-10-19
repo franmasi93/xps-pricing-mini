@@ -337,7 +337,7 @@ def test_envio_completo_snapshot_congelado_y_sin_agentes(client, crear_usuario, 
     lista = _lista(client, h, contactos)
     campana = _campana(client, h, db_session, [tarifa], [lista, otra])
     conteo = client.get(f"/v1/boletines/campanas/{campana['id']}/conteo", headers=h).json()
-    assert conteo == {"total": 4, "omitidos_baja": 1, "duplicados": 1, "recibiran": 2}
+    assert conteo == {"total": 4, "omitidos_baja": 1, "omitidos_consentimiento": 0, "duplicados": 1, "recibiran": 2}
     enviada = _enviar(client, h, campana["id"], 2)
     assert enviada.status_code == 200, enviada.text
     assert enviada.json()["estado"] == "ENVIANDO"
