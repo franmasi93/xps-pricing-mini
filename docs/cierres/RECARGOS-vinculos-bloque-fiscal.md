@@ -6,7 +6,8 @@
 | Ejecutor | Claude Code |
 | Antes | FIX del cotizador (`1c7eb47`, acta `f70d7df`) desplegado y verificado: revisión `xps-pricing-00014-zdl` |
 | Migración | `0015_recargos_vinculos_bloque_fiscal` (0014 → 0015), escrita a mano |
-| Producción | PENDIENTE_REVISION |
+| Commits | `998fa52` (código, migración, pruebas y acta) · este cierre |
+| Producción | https://pricing.xpress.ec · revisión **xps-pricing-00015-j5g** · migración **0015** |
 
 ## 1. Decisiones de François
 
@@ -116,8 +117,26 @@
 
 ## 4. Producción
 
-PENDIENTE_PRODUCCION
+| Paso | Resultado |
+|---|---|
+| Respaldo | **1792606297099** (SUCCESSFUL, antes de migrar) |
+| Migración | `xps_pricing` 0014 → **0015**. Los 5 recargos quedaron con el bloque que les daba la regla (tabla de 2.3): **5 de 5 iguales** |
+| Secretos | comparados antes de desplegar: los mismos 5 en la revisión vigente y en el comando |
+| Despliegue | `docs/DESPLIEGUE.md` → **xps-pricing-00015-j5g** al 100 %; URL run.app sigue apagada; 0 errores en sus logs; `procesar-lote` responde 200 por pricing.xpress.ec |
+| Salud | `/v1/salud` → `{"estado":"ok","bd":"ok"}`; pricing.xpress.ec carga |
+| Regresión | **COT-2026-00002:** total 160.00, md5 del snapshot `fc1fe4d0ad7ff1c57d0e3e9355de9573`, idéntico. **COT-2026-00001:** fila, estado y HTML del PDF idénticos. Las líneas solo suman la columna nueva `vinculado` (falsa); sin ella, la huella es la de antes (6b3c24b1c8cc148e) |
+| Comprobación (administrador de prueba, BORRADOR duplicado de COT-2026-00002 y luego descartado) | Cotizador con la columna **Proveedor** (GLOVAL SHIPPING) solo para el admin; flete en Recibo de Caja; total 160.00. Recargos: columna "Va en" con los 5 bloques. La ficha de la tarifa 12 muestra "Recargos vinculados" (vacía). La advertencia nueva, con el recargo 5 tal como está, dice: "¿Seguro? Este gasto de destino está en un puerto de China (CNSHA)…". Sin errores de página a 1280 y 375 px. No se creó, vinculó, emitió ni envió nada. Usuarios de prueba desactivados |
 
 ## 5. Lo que François debe ajustar (no se tocó ningún dato)
 
-PENDIENTE_DATOS
+1. **"Servicio Logístico" (recargo 5, GLOVAL SHIPPING):** hoy está en CNSHA con lado DESTINO, y por eso no aparece en el cotizador. Quedó en **Recibo de Caja**, porque es lo que el motor le daba en China. Lo recomendado:
+   1. Recargos → Editar el recargo 5.
+   2. En "Puerto o aeropuerto", elegir **"De la tarifa vinculada"**.
+   3. En "Vincular a tarifas", elegir la **#12** (LCL GLOVAL SHIPPING CNSHA → ECGYE).
+   4. En "Va en", elegir lo que corresponde: probablemente **Factura** y, en "IVA de la factura", **Aplica IVA**, porque es un gasto en Guayaquil.
+   5. Guardar. Desde ahí sale primero al elegir esa tarifa, con la etiqueta "Vinculado".
+
+   Si en realidad es un gasto en China: lado ORIGEN, bloque "Gastos en origen" y Recibo de Caja.
+2. **Al cargar la próxima tarifa de GLOVAL,** duplicarla desde la #12: con la casilla "Copiar también los recargos vinculados", el recargo pasa solo.
+3. **Cargos propios de XPRESS:** no hay ninguno activo. Al crearlos, elegir en cada uno "Va en" Recibo de Caja o Factura.
+4. **Recargos 1 a 4:** son de prueba de F5 e inactivos; no hace falta tocarlos.
