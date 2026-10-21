@@ -5,6 +5,8 @@
 | Reportado por | François Ramírez, 2026-10-21 |
 | Problema | Al elegir una tarifa, no aparecen abajo los recargos del proveedor ni los cargos propios de XPRESS, separados en Recibo de Caja y Factura |
 | Base revisada | `xps_pricing` (producción), solo lectura, 2026-10-21 11:40 |
+| Commit | `1c7eb47` (FIX) · este acta |
+| Producción | https://pricing.xpress.ec · revisión **xps-pricing-00014-zdl** · migración **0014** |
 
 ## 1. Diagnóstico
 
@@ -127,7 +129,17 @@ Caso: COT-2026-00002, LCL, importación, FOB, CNSHA → ECGYE, tarifa 12 (GLOVAL
 
 ## 4. Producción
 
-PENDIENTE_PRODUCCION
+| Paso | Resultado |
+|---|---|
+| Respaldo | **1792604302374** (SUCCESSFUL, antes de migrar) |
+| Migración | `xps_pricing` 0013 → **0014** |
+| Secretos | comparados antes de desplegar: los mismos 5 en la revisión vigente y en el comando |
+| Despliegue | `docs/DESPLIEGUE.md` → **xps-pricing-00014-zdl** al 100 %; URL run.app sigue apagada (`None`); 0 errores en sus logs |
+| Salud | `/v1/salud` → `{"estado":"ok","bd":"ok"}`; pricing.xpress.ec carga |
+| Cotizaciones existentes | **COT-2026-00001:** fila, HTML del PDF y estado idénticos. La huella de las líneas solo cambió por la columna nueva `seleccion` (nula); sin esa clave, es idéntica a la de antes, y ninguna línea se modificó desde el 17/10. **COT-2026-00002:** 160.00 / 160.00 / 0.00 y el mismo snapshot |
+| Jobs de Scheduler | `procesar-lote` responde 200 por pricing.xpress.ec en la revisión nueva |
+| Caso real en BORRADOR | Con el administrador de prueba, se duplicó COT-2026-00002 como borrador y se abrió el cotizador. Las líneas se propusieron solas: el flete LCL, 160.00 en Recibo de Caja. Apareció el aviso "Esta tarifa no tiene recargos cargados…" con enlace a Recargos. "¿Por qué no aparece?" mostró **"Servicio Logístico (GLOVAL SHIPPING · CNSHA · DESTINO): otro puerto: es de gastos en destino pero está cargado en CNSHA, que es el ORIGEN de esta cotización; debería estar en ECGYE"**, más los 2 recargos de prueba de F5 (inactivos, FCL). Ganancia visible: costo 140.00, margen 20.00 (12.50 %). Sin errores de página ni desborde a 1280 y 375 px |
+| Limpieza | Borrador **descartado**; usuarios de prueba desactivados. No se emitió ni se envió nada |
 
 ## 5. Pendientes del gerente
 
