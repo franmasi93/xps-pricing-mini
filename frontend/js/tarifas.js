@@ -194,7 +194,58 @@
         XPS.mostrarError(alertas, error);
       }
     }
+    try {
+      await pintarVinculos(tarifa);
+    } catch (error) {
+      XPS.mostrarError(alertas, error);
+    }
     dialogoFicha.showModal();
+  }
+
+  // ---------- D-R2: recargos vinculados a la tarifa ----------
+
+  const FISCAL = { RECIBO_CAJA: "Recibo de Caja", FACTURA: "Factura" };
+  const BLOQUE = { RECOGIDA_ORIGEN: "Recogida en origen", DESPACHO_EXPORT: "Despacho de exportación", GASTOS_ORIGEN: "Gastos en origen",
+    SEGURO: "Seguro", GASTOS_DESTINO: "Gastos en destino", DESPACHO_IMPORT: "Despacho de importación", ENTREGA_FINAL: "Entrega final" };
+
+  async function pintarVinculos(tarifa) {
+    const alertasVinculos = document.getElementById("alertas-vinculos");
+    XPS.limpiarAlerta(alertasVinculos);
+    const vinculados = await XPS.api(`/tarifas/${tarifa.id}/recargos`);
+    const cuerpoVinculos = document.getElementById("tabla-vinculos");
+    cuerpoVinculos.replaceChildren(...(vinculados.length ? [] : [UI.filaVacia(5, "Esta tarifa no tiene recargos vinculados.")]));
+    for (const recargo of vinculados) {
+      const acciones = puedeEditar ? [UI.boton("Desvincular", () => cambiarVinculo(tarifa, recargo.id, false))] : [];
+      cuerpoVinculos.append(crear("tr", {}, [
+        UI.celda("Concepto", [UI.texto(recargo.concepto)]),
+        UI.celda("Lado y bloque", [UI.texto(`${recargo.lado === "ORIGEN" ? "Origen" : "Destino"} · ${BLOQUE[recargo.bloque_incoterm]}`)]),
+        UI.celda("Va en", [UI.texto(`${FISCAL[recargo.bloque_fiscal]}${recargo.bloque_fiscal === "FACTURA" && recargo.aplica_iva ? " con IVA" : ""}`)]),
+        UI.celda("Vigencia", [UI.texto(`${recargo.valido_desde} a ${recargo.valido_hasta}`, "cifra")]),
+        UI.celda("Acciones", acciones),
+      ]));
+    }
+    document.getElementById("vincular-nuevo").hidden = !puedeEditar;
+    if (puedeEditar) {
+      const ya = new Set(vinculados.map((r) => r.id));
+      const candidatos = (await XPS.api("/recargos?activo=true")).filter((r) => !ya.has(r.id)
+        && (!r.proveedor || r.proveedor.id === tarifa.proveedor.id) && (!r.modo || r.modo === tarifa.modo));
+      UI.opciones(document.getElementById("vincular-recargo"), candidatos, {
+        valor: (r) => r.id,
+        texto: (r) => `#${r.id} ${r.concepto} · ${r.lado === "ORIGEN" ? "origen" : "destino"} · ${r.puerto ? r.puerto.codigo : "de la tarifa"} · ${r.proveedor ? r.proveedor.nombre : "XPRESS"}`,
+        todos: "Elija un recargo…",
+      });
+    }
+  }
+
+  async function cambiarVinculo(tarifa, recargoId, vincular) {
+    const alertasVinculos = document.getElementById("alertas-vinculos");
+    try {
+      await XPS.api(`/tarifas/${tarifa.id}/recargos/${recargoId}`, { metodo: vincular ? "POST" : "DELETE" });
+      await pintarVinculos(tarifa);
+      XPS.mostrarAlerta(alertasVinculos, "exito", vincular ? "Recargo vinculado." : "Recargo desvinculado.");
+    } catch (error) {
+      XPS.mostrarError(alertasVinculos, error);
+    }
   }
 
   function pintarTramos(tramos, moneda, unidadPeso = "KG", permitidos = []) {
@@ -418,7 +469,8 @@
   formDuplicar.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     XPS.limpiarAlerta(alertasDuplicar);
-    const cuerpoDuplicar = { valido_desde: formDuplicar.elements.valido_desde.value, valido_hasta: formDuplicar.elements.valido_hasta.value };
+    const cuerpoDuplicar = { valido_desde: formDuplicar.elements.valido_desde.value, valido_hasta: formDuplicar.elements.valido_hasta.value,
+      copiar_vinculos: formDuplicar.elements.copiar_vinculos.checked };
     if (!cuerpoDuplicar.valido_desde || !cuerpoDuplicar.valido_hasta) {
       XPS.mostrarAlerta(alertasDuplicar, "error", "Indique las dos fechas de la nueva vigencia.");
       return;
@@ -445,6 +497,11 @@
   }
 
   // ---------- Inicio ----------
+
+  document.getElementById("btn-vincular").addEventListener("click", () => {
+    const elegido = Number(document.getElementById("vincular-recargo").value);
+    if (enFicha && elegido) cambiarVinculo(enFicha, elegido, true);
+  });
 
   const yo = await iniciarLayout("tarifas.html");
   if (!yo || !UI.exigirAlguno(yo, ["tarifa.ver"], alertas)) {

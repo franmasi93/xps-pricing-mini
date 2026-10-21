@@ -2027,3 +2027,11 @@ button.nav-grupo:focus-visible {
 .tabla-scroll {
   overflow-x: auto;
 }
+
+.campo-ancho {
+  grid-column: 1 / -1;
+}
+
+.bloque-vinculos {
+  margin-top: var(--esp-4);
+}

@@ -101,7 +101,24 @@ def crear_tarifa(datos: TarifaCrear, db: Session = Depends(get_db), actor: Usuar
 def duplicar_tarifa(
     tarifa_id: int, datos: TarifaDuplicar, db: Session = Depends(get_db), actor: Usuario = Depends(editor)
 ):
-    return servicio_tarifas.duplicar_tarifa(db, actor, tarifa_id, datos.valido_desde, datos.valido_hasta)
+    return servicio_tarifas.duplicar_tarifa(db, actor, tarifa_id, datos.valido_desde, datos.valido_hasta,
+                                            copiar_vinculos=datos.copiar_vinculos)
+
+
+@router.get("/tarifas/{tarifa_id}/recargos", response_model=None, tags=["tarifas"])
+def recargos_de_tarifa(tarifa_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(lector)):
+    """D-R2: los recargos vinculados a la tarifa (ficha de la tarifa)."""
+    return servicio_recargos.recargos_de_tarifa(db, usuario, tarifa_id)
+
+
+@router.post("/tarifas/{tarifa_id}/recargos/{recargo_id}", response_model=None, tags=["tarifas"])
+def vincular_recargo(tarifa_id: int, recargo_id: int, db: Session = Depends(get_db), actor: Usuario = Depends(editor)):
+    return servicio_recargos.vincular(db, actor, tarifa_id, recargo_id, True)
+
+
+@router.delete("/tarifas/{tarifa_id}/recargos/{recargo_id}", response_model=None, tags=["tarifas"])
+def desvincular_recargo(tarifa_id: int, recargo_id: int, db: Session = Depends(get_db), actor: Usuario = Depends(editor)):
+    return servicio_recargos.vincular(db, actor, tarifa_id, recargo_id, False)
 
 
 @router.get("/tarifas/{tarifa_id}/tramos", response_model=None, tags=["tarifas"])
@@ -155,6 +172,12 @@ def listar_recargos(
     )
     respuesta.headers["X-Total-Count"] = str(total[0])
     return items
+
+
+@router.post("/recargos/validar", response_model=None, tags=["recargos"])
+def validar_recargo(datos: dict, db: Session = Depends(get_db), actor: Usuario = Depends(editor)):
+    """D-R2: advertencias de coherencia antes de guardar (no bloquean ni guardan nada)."""
+    return {"advertencias": servicio_recargos.advertencias(db, datos)}
 
 
 @router.post("/recargos", response_model=None, status_code=status.HTTP_201_CREATED, tags=["recargos"])

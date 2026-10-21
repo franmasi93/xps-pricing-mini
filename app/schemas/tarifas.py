@@ -28,6 +28,7 @@ RateUnit = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO"]
 # D-F3-3: PCT_VALOR (seguro como % del valor) solo existe en los recargos; D3 de F4: PCT_RECIBO también.
 RateUnitRecargo = Literal["KG", "CBM", "WM", "CONTENEDOR", "ENVIO", "PCT_VALOR", "PCT_RECIBO"]
 UnidadPeso = Literal["KG", "LB"]
+BloqueFiscal = Literal["RECIBO_CAJA", "FACTURA"]
 MetodoVenta = Literal["MANUAL", "MARKUP", "MARGEN", "FIJO"]
 Lado = Literal["ORIGEN", "DESTINO"]
 BloqueRecargo = Literal[
@@ -158,7 +159,7 @@ class TramoCostoMargen(TramoCosto):
 class RecargoVenta(BaseModel):
     id: int
     proveedor: Referencia | None
-    puerto: PuertoRef
+    puerto: PuertoRef | None  # D-R2: sin puerto si está vinculado a tarifas
     lado: str
     bloque_incoterm: str
     concepto: str
@@ -170,6 +171,9 @@ class RecargoVenta(BaseModel):
     precio_venta_minimo: Decimal
     aplica_iva: bool
     rol_ingreso: str
+    bloque_fiscal: str
+    tarifas_vinculadas: list[dict] = []
+    servicios_vinculados: list[str] = []
     valido_desde: date
     valido_hasta: date
     estado_vigencia: EstadoVigencia
@@ -266,6 +270,7 @@ class TarifaActualizar(Entrada):
 class TarifaDuplicar(Entrada):
     valido_desde: date
     valido_hasta: date
+    copiar_vinculos: bool = True  # D-R2: los recargos vinculados a la tarifa original también se vinculan a la copia
 
 
 class TramoEntrada(Entrada):
@@ -280,7 +285,7 @@ class TramosEntrada(Entrada):
 
 class RecargoCrear(_VentaEntrada):
     proveedor_id: int | None = None
-    puerto_id: int
+    puerto_id: int | None = None  # D-R2: opcional si se vincula a tarifas
     lado: Lado
     bloque_incoterm: BloqueRecargo
     concepto: str = Field(max_length=200)
@@ -290,6 +295,10 @@ class RecargoCrear(_VentaEntrada):
     # Obligatorios y sin valor por defecto: Pricing debe decidirlos en cada recargo.
     aplica_iva: bool
     rol_ingreso: RolIngreso
+    # D-R3: Recibo de Caja o Factura (sin indicarlo y con puerto: la regla por país de antes).
+    bloque_fiscal: BloqueFiscal | None = None
+    tarifas_ids: list[int] = Field(default=[], max_length=200)
+    servicios: list[str] = Field(default=[], max_length=20)
 
 
 class RecargoActualizar(Entrada):
@@ -310,12 +319,14 @@ class RecargoActualizar(Entrada):
     minimo_venta_manual: Decimal | None = None
     aplica_iva: bool | None = None
     rol_ingreso: RolIngreso | None = None
+    bloque_fiscal: BloqueFiscal | None = None
+    tarifas_ids: list[int] | None = Field(default=None, max_length=200)
+    servicios: list[str] | None = Field(default=None, max_length=20)
     valido_desde: date | None = None
     valido_hasta: date | None = None
     activo: bool | None = None
 
     _sin_null = sin_null(
-        "puerto_id",
         "lado",
         "bloque_incoterm",
         "concepto",

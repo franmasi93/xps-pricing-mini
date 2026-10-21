@@ -101,6 +101,25 @@
         <tbody id="tabla-tramos"></tbody>
       </table>
     </div>
+    <section class="bloque-vinculos" aria-labelledby="titulo-vinculos">
+      <h3 id="titulo-vinculos">Recargos vinculados</h3>
+      <p class="ayuda">Salen primero en el cotizador al elegir esta tarifa, con el puerto de la tarifa según su lado.</p>
+      <div id="alertas-vinculos" hidden></div>
+      <table class="tabla">
+        <thead><tr><th>Concepto</th><th>Lado y bloque</th><th>Va en</th><th>Vigencia</th><th>Acciones</th></tr></thead>
+        <tbody id="tabla-vinculos"></tbody>
+      </table>
+      <div class="grupo-campos" id="vincular-nuevo" hidden>
+        <div class="campo">
+          <label for="vincular-recargo">Vincular un recargo existente</label>
+          <select class="select" id="vincular-recargo"></select>
+        </div>
+        <div class="campo">
+          <span class="etiqueta-vacia" aria-hidden="true">&nbsp;</span>
+          <button class="btn btn-secundario" type="button" id="btn-vincular">Vincular</button>
+        </div>
+      </div>
+    </section>
     <div class="acciones-form">
       <button class="btn btn-secundario" type="button" id="btn-editar-tramos" hidden>Editar tramos</button>
       <button class="btn btn-secundario" type="button" data-cerrar>Cerrar</button>
@@ -226,6 +245,9 @@
         <label for="duplicar-hasta">Nueva vigencia hasta</label>
         <input class="input" id="duplicar-hasta" name="valido_hasta" type="date" required>
       </div>
+      <label class="campo-check" for="duplicar-vinculos">
+        <input id="duplicar-vinculos" name="copiar_vinculos" type="checkbox" checked> Copiar también los recargos vinculados
+      </label>
       <div class="acciones-form">
         <button class="btn btn-secundario" type="button" data-cerrar>Cancelar</button>
         <button class="btn btn-primario" type="submit">Duplicar</button>

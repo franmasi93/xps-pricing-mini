@@ -6,7 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Date, DateTime, ForeignKey, Identity, Integer, Numeric, SmallInteger, String, Text, func, true
+from sqlalchemy import Date, DateTime, ForeignKey, Identity, Integer, Numeric, SmallInteger, String, Text, false, func, true
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -144,6 +144,8 @@ class LineaCotizacion(Base):
     unidad_peso: Mapped[str | None] = mapped_column(String(2))
     # FIX cotizador (0014): INCOTERM, FUERA_INCOTERM o ALTERNATIVA (D-F3-7); nula en el flete.
     seleccion: Mapped[str | None] = mapped_column(String(14))
+    # D-R2 (0015): la línea salió de un recargo vinculado a la tarifa o al servicio (etiqueta interna "Vinculado").
+    vinculado: Mapped[bool] = mapped_column(default=False, server_default=false())
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

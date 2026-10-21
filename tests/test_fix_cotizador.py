@@ -51,7 +51,8 @@ def test_caso_real_recargos_del_proveedor_y_propios_aparecen(client, crear_usuar
     cotizacion = _cotizacion(client, h, esc, modo)
     a, b, c = _linea(cotizacion, del_proveedor), _linea(cotizacion, propio), _linea(cotizacion, fuera)
     assert (a["seleccion"], a["incluida"], a["bloque_fiscal"]) == ("INCOTERM", True, "FACTURA")  # Ecuador → Factura
-    assert (b["seleccion"], b["incluida"], b["bloque_fiscal"], b["proveedor_propio"]) == ("INCOTERM", True, "FACTURA", True)
+    assert (b["seleccion"], b["incluida"], b["bloque_fiscal"]) == ("INCOTERM", True, "FACTURA")
+    assert "proveedor_propio" not in b and "proveedor" not in b  # D-R1: el comercial no recibe el proveedor
     assert (c["seleccion"], c["incluida"], c["bloque_fiscal"]) == ("FUERA_INCOTERM", False, "RECIBO_CAJA")  # exterior
     assert cotizacion["sin_recargos"] is False
     flete = next(l for l in cotizacion["lineas"] if l["bloque_incoterm"] == "FLETE_PRINCIPAL")

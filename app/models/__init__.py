@@ -28,7 +28,7 @@ from app.models.notificaciones import ConfigAvisos, Notificacion, PreferenciaNot
 from app.models.proveedores import Proveedor
 from app.models.seguridad import Permiso, Rol, Usuario, rol_permiso
 from app.models.servicios import Servicio, ServicioTramo, incoterm_servicio
-from app.models.tarifas import Recargo, Tarifa, TipoEquipo, TramoAereo
+from app.models.tarifas import Recargo, RecargoServicio, RecargoTarifa, Tarifa, TipoEquipo, TramoAereo
 
 __all__ = [
     "ConfigAvisos",
@@ -69,6 +69,8 @@ __all__ = [
     "Proveedor",
     "Puerto",
     "Recargo",
+    "RecargoServicio",
+    "RecargoTarifa",
     "Region",
     "Rol",
     "Servicio",

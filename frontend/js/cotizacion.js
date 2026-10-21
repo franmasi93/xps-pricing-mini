@@ -109,6 +109,12 @@
     if (linea.seleccion === "FUERA_INCOTERM") {
       concepto.push(crear("span", { clase: "badge badge-estado badge-alerta", texto: "Fuera del Incoterm" }));
     }
+    if (linea.vinculado) {
+      concepto.push(crear("span", { clase: "badge badge-estado badge-activo", texto: "Vinculado" }));
+    }
+    if ("proveedor" in linea) {
+      concepto.push(crear("span", { clase: "texto-suave", texto: ` ${linea.proveedor}` }));  // D-R1: solo interno
+    }
     if (linea.seleccion === "ALTERNATIVA") {
       concepto.push(crear("span", { clase: "badge badge-estado badge-inactivo", texto: "Alternativa" }));
     }

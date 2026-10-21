@@ -380,19 +380,22 @@ def concepto_clave(concepto: str) -> str:
     return " ".join(concepto.split()).lower()
 
 
-def _rango(recargo, proveedor_flete_id: int | None) -> tuple[int, int]:
-    """Menor es mejor: 1) proveedor del flete antes que NULL; 2) tipo de equipo > servicio > todos."""
+def _rango(recargo, proveedor_flete_id: int | None, vinculados: frozenset | set = frozenset()) -> tuple[int, int, int]:
+    """Menor es mejor: 0) vinculado a la tarifa o al servicio antes que general (D-R2); 1) proveedor del flete antes
+    que NULL; 2) tipo de equipo > servicio > todos."""
+    vinculo = 0 if recargo.id in vinculados else 1
     proveedor = 0 if proveedor_flete_id is not None and recargo.proveedor_id == proveedor_flete_id else 1
     especificidad = 0 if recargo.tipo_equipo_id is not None else (1 if recargo.modo is not None else 2)
-    return proveedor, especificidad
+    return vinculo, proveedor, especificidad
 
 
-def recargos_aplicables(recargos: Iterable[Any], proveedor_flete_id: int | None, modo: str, tipos: Iterable[int]) -> list:
-    """Filtra por proveedor (el del flete o NULL), servicio y tipo de equipo de la cotización."""
+def recargos_aplicables(recargos: Iterable[Any], proveedor_flete_id: int | None, modo: str, tipos: Iterable[int],
+                        vinculados: frozenset | set = frozenset()) -> list:
+    """Filtra por proveedor (el del flete o NULL; un vinculado no pasa por este filtro), servicio y tipo de equipo."""
     tipos = set(tipos)
     salida = []
     for recargo in recargos:
-        if recargo.proveedor_id is not None and recargo.proveedor_id != proveedor_flete_id:
+        if recargo.id not in vinculados and recargo.proveedor_id is not None and recargo.proveedor_id != proveedor_flete_id:
             continue
         if recargo.modo is not None and recargo.modo != modo:
             continue
@@ -408,6 +411,7 @@ def elegir_mas_especifico(
     modo: str,
     tipos: Iterable[int] = (),
     por_tipo_equipo: bool | None = None,
+    vinculados: frozenset | set = frozenset(),
 ) -> list[tuple[Any, tuple[int, ...]]]:
     """Un recargo por concepto o, si el servicio cobra por tipo de equipo, por concepto y tipo (H6).
 
@@ -420,7 +424,7 @@ def elegir_mas_especifico(
 
         por_tipo_equipo = servicios.forma_de_codigo(modo).usa_tipo_equipo
     tipos = sorted(set(tipos))
-    candidatos = recargos_aplicables(recargos, proveedor_flete_id, modo, tipos)
+    candidatos = recargos_aplicables(recargos, proveedor_flete_id, modo, tipos, vinculados)
     por_concepto: dict[str, list] = {}
     for recargo in candidatos:
         por_concepto.setdefault(concepto_clave(recargo.concepto), []).append(recargo)
@@ -429,7 +433,7 @@ def elegir_mas_especifico(
     for concepto in sorted(por_concepto):
         grupo = por_concepto[concepto]
         if not por_tipo_equipo:
-            ganador = min(grupo, key=lambda r: (_rango(r, proveedor_flete_id), r.id))
+            ganador = min(grupo, key=lambda r: (_rango(r, proveedor_flete_id, vinculados), r.id))
             elegidos.append((ganador, ()))
             continue
         cubre: dict[int, list[int]] = {}
@@ -438,7 +442,7 @@ def elegir_mas_especifico(
             del_tipo = [r for r in grupo if r.tipo_equipo_id in (None, tipo)]
             if not del_tipo:
                 continue
-            ganador = min(del_tipo, key=lambda r: (_rango(r, proveedor_flete_id), r.id))
+            ganador = min(del_tipo, key=lambda r: (_rango(r, proveedor_flete_id, vinculados), r.id))
             if ganador.id not in cubre:
                 cubre[ganador.id] = []
                 orden.append(ganador)

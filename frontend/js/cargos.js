@@ -17,6 +17,9 @@ const Cargos = (() => {
 
   function etiquetas(linea) {
     const salida = [crear("span", { clase: "texto-suave", texto: BLOQUES[linea.bloque_incoterm] || linea.bloque_incoterm })];
+    if (linea.vinculado) {
+      salida.push(crear("span", { clase: "badge badge-estado badge-activo", texto: "Vinculado" }));
+    }
     if (linea.seleccion === "FUERA_INCOTERM") {
       salida.push(crear("span", { clase: "badge badge-estado badge-alerta", texto: "Fuera del Incoterm" }));
     }
@@ -44,13 +47,18 @@ const Cargos = (() => {
   }
 
   function tabla(lineas, conCosto, conMargen, editable, alCambiar) {
-    const titulos = ["Cobrar", "Concepto", "Cantidad", "Unidad", "Precio USD", "Venta USD"];
+    // D-R1: el proveedor es interno; solo llega en el JSON con costo.ver (admin, pricing, gerencia).
+    const conProveedor = lineas.some((linea) => "proveedor" in linea);
+    const titulos = ["Cobrar", "Concepto"];
+    if (conProveedor) titulos.push("Proveedor");
+    titulos.push("Cantidad", "Unidad", "Precio USD", "Venta USD");
     if (conCosto) titulos.push("Costo USD");
     if (conMargen) titulos.push("Margen USD");
     const filas = lineas.map((linea) => {
       const celdas = [
         UI.celda("Cobrar", [casilla(linea, editable, alCambiar)]),
         UI.celda("Concepto", [crear("div", { texto: linea.concepto }), ...etiquetas(linea)]),
+        ...(conProveedor ? [UI.celda("Proveedor", [UI.texto(linea.proveedor, "texto-suave")])] : []),
         UI.celda("Cantidad", [UI.monto(linea.cantidad)]),
         UI.celda("Unidad", [UI.texto(linea.rate_unit === "KG" ? (linea.unidad_peso || "KG") : (UNIDADES[linea.rate_unit] || linea.rate_unit))]),
         UI.celda("Precio USD", [UI.monto(linea.precio_venta_unit_usd)]),

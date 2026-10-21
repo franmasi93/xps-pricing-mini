@@ -32,6 +32,8 @@ from app.models import (
     Proveedor,
     Puerto,
     Recargo,
+    RecargoServicio,
+    RecargoTarifa,
     Tarifa,
     TipoEquipo,
     Usuario,
@@ -355,7 +357,6 @@ def _linea_dict(linea: LineaCotizacion, calculo, nivel: str) -> dict[str, Any]:
         "bloque_incoterm": linea.bloque_incoterm,
         "tarifa_id": linea.tarifa_id,
         "recargo_id": linea.recargo_id,
-        "proveedor_id": linea.proveedor_id,
         "tipo_equipo": linea.tipo_equipo.codigo if linea.tipo_equipo else None,
         "cantidad": _d(calculo.cantidad),
         "rate_unit": linea.rate_unit,
@@ -374,12 +375,17 @@ def _linea_dict(linea: LineaCotizacion, calculo, nivel: str) -> dict[str, Any]:
         "motivo_ajuste": linea.motivo_ajuste,
         "valido_hasta_origen": linea.valido_hasta_origen.isoformat(),
         "seleccion": linea.seleccion,
-        "proveedor_propio": linea.recargo_id is not None and linea.proveedor_id is None,
+        "vinculado": linea.vinculado,
     }
     if linea.ajuste_manual:
         datos["bajo_minimo_venta"] = calculo.bajo_minimo_venta  # el mínimo de venta no revela el costo
     if nivel != NIVEL_VENTA:
+        # D-R1: el proveedor es interno: solo con costo.ver (admin, pricing, gerencia), nunca para el comercial.
+        origen = linea.tarifa or linea.recargo
         datos |= {
+            "proveedor_id": linea.proveedor_id,
+            "proveedor": origen.proveedor.nombre if origen is not None and origen.proveedor else "XPRESS (propio)",
+            "proveedor_propio": linea.recargo_id is not None and linea.proveedor_id is None,
             "costo_unit_original": _d(linea.costo_unit_original),
             "minimo_original": _d(linea.minimo_original),
             "costo_usd": _d(calculo.costo_usd),
@@ -807,7 +813,6 @@ def opciones_flete(db: Session, usuario: Usuario, cotizacion_id: int) -> dict:
         for tarifa in _tarifas_elegibles(db, cotizacion, tipo_id, hoy):
             opcion: dict[str, Any] = {
                 "tarifa_id": tarifa.id,
-                "proveedor": {"id": tarifa.proveedor.id, "nombre": tarifa.proveedor.nombre},
                 "rate_unit": tarifa.rate_unit,
                 "unidad_peso": tarifa.unidad_peso,
                 "transportista": tarifa.transportista,
@@ -818,6 +823,8 @@ def opciones_flete(db: Session, usuario: Usuario, cotizacion_id: int) -> dict:
                 "valido_hasta": tarifa.valido_hasta.isoformat(),
                 "tiene_tramos": bool(tarifa.tramos),
             }
+            if nivel != NIVEL_VENTA:
+                opcion["proveedor"] = {"id": tarifa.proveedor.id, "nombre": tarifa.proveedor.nombre}  # D-R1: interno
             try:
                 calculo = cotizador.calcular_linea(
                     _cantidad_tarifa(tarifa, carga),
@@ -884,6 +891,25 @@ def _puerto_de_bloque(cotizacion: Cotizacion, bloque: str) -> tuple[Puerto, str 
     return (cotizacion.destino if cotizacion.sentido == "IMPORTACION" else cotizacion.origen), None
 
 
+def _vinculos_cotizacion(db: Session, cotizacion: Cotizacion, tarifas: list[Tarifa], hoy: date) -> dict[str, Any]:
+    """D-R2: recargos vinculados a las tarifas elegidas (vigentes y activos), los que están vinculados a OTRAS
+    tarifas (no aplican como generales) y los vinculados por servicio."""
+    ids = [t.id for t in tarifas]
+    por_tarifa = []
+    if ids:
+        por_tarifa = list(db.scalars(
+            select(Recargo).options(selectinload(Recargo.moneda)).join(RecargoTarifa, RecargoTarifa.recargo_id == Recargo.id)
+            .where(RecargoTarifa.tarifa_id.in_(ids), Recargo.activo.is_(True), Recargo.valido_desde <= hoy,
+                   Recargo.valido_hasta >= hoy).distinct().order_by(Recargo.id)))
+    con_tarifa = set(db.scalars(select(RecargoTarifa.recargo_id).distinct()))
+    servicio_id = cotizacion.servicio.id
+    por_servicio: dict[int, set[int]] = {}
+    for recargo_id, sid in db.execute(select(RecargoServicio.recargo_id, RecargoServicio.servicio_id)):
+        por_servicio.setdefault(recargo_id, set()).add(sid)
+    return {"por_tarifa": por_tarifa, "ids_tarifa": {r.id for r in por_tarifa}, "con_tarifa": con_tarifa,
+            "por_servicio": por_servicio, "servicio_id": servicio_id}
+
+
 def _recargos_vigentes(db: Session, puerto: Puerto, bloque: str, lado: str | None, hoy: date) -> list[Recargo]:
     consulta = (
         select(Recargo)
@@ -903,7 +929,7 @@ def _recargos_vigentes(db: Session, puerto: Puerto, bloque: str, lado: str | Non
 
 def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
                  *, fiscal: str, aplica_iva: bool, rol: str, opcional: bool, incluida: bool,
-                 tipo_equipo_id: int | None, seleccion: str | None = None) -> LineaCotizacion:
+                 tipo_equipo_id: int | None, seleccion: str | None = None, vinculado: bool = False) -> LineaCotizacion:
     unidad_peso = None
     if objeto.rate_unit == "KG":
         unidad_peso = objeto.unidad_peso if isinstance(objeto, Tarifa) else "KG"
@@ -934,7 +960,13 @@ def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
         ajuste_manual=False,
         valido_hasta_origen=objeto.valido_hasta,
         seleccion=seleccion,
+        vinculado=vinculado,
     )
+
+
+def _fiscal_recargo(recargo: Recargo, bloque: str) -> str:
+    """D-R3: el bloque fiscal lo dice el recargo; el seguro sigue siempre en Recibo de Caja."""
+    return "RECIBO_CAJA" if bloque == "SEGURO" else recargo.bloque_fiscal
 
 
 def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], proveedor_id: int | None,
@@ -959,9 +991,11 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
     codigos_tipo = {c.tipo_equipo_id: c.tipo_equipo.codigo for c in cotizacion.contenedores}
 
     transportista = None
+    tarifas_elegidas: list[Tarifa] = []
     sobre_recibo: list[tuple] = []
     if "flete_principal" in bloques:
         tarifas = _elegir_tarifas(db, cotizacion, elegidas, hoy)
+        tarifas_elegidas = tarifas
         transportista = _transportista(tarifas)
         proveedor_flete = tarifas[0].proveedor_id
         for tarifa in tarifas:
@@ -985,19 +1019,35 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
     # desmarcados los de los bloques fuera del Incoterm y las alternativas que perdieron por D-F3-7. Las líneas
     # desmarcadas no se cobran: los totales no cambian hasta que el usuario las marque.
     por_tipo = cotizacion.servicio.usa_tipo_equipo
+    vinculos = _vinculos_cotizacion(db, cotizacion, tarifas_elegidas, hoy)
     for campo in CAMPOS_RECARGO:
         bloque = BLOQUE_RECARGO[campo]
         dentro = campo in bloques
         puerto, lado = _puerto_de_bloque(cotizacion, bloque)
-        vigentes = _recargos_vigentes(db, puerto, bloque, lado, hoy)
-        elegidos = cotizador.elegir_mas_especifico(vigentes, proveedor_flete, cotizacion.modo, tipos, por_tipo_equipo=por_tipo)
+        # D-R2: primero los vinculados a la tarifa elegida (toman el puerto de la tarifa por su lado); luego los
+        # generales del puerto, sin los vinculados a otras tarifas y sin los vinculados a otros servicios.
+        vigentes = [r for r in vinculos["por_tarifa"] if r.bloque_incoterm == bloque and (lado is None or r.lado == lado)]
+        vinculados = set(vinculos["ids_tarifa"])
+        for recargo in _recargos_vigentes(db, puerto, bloque, lado, hoy):
+            if recargo.id in vinculados:
+                continue
+            if recargo.id in vinculos["con_tarifa"]:
+                continue  # vinculado a otra tarifa
+            servicios_del_recargo = vinculos["por_servicio"].get(recargo.id)
+            if servicios_del_recargo is not None:
+                if vinculos["servicio_id"] not in servicios_del_recargo:
+                    continue
+                vinculados.add(recargo.id)
+            vigentes.append(recargo)
+        elegidos = cotizador.elegir_mas_especifico(vigentes, proveedor_flete, cotizacion.modo, tipos, por_tipo_equipo=por_tipo,
+                                                   vinculados=vinculados)
         if not elegidos:
             if dentro:
                 avisos.append(f"Sin recargo cargado para {bloque} en {puerto.codigo}")
             continue
         ganadores = {recargo.id for recargo, _ in elegidos}
         candidatos = [(recargo, cubre, "INCOTERM" if dentro else "FUERA_INCOTERM") for recargo, cubre in elegidos]
-        for recargo in cotizador.recargos_aplicables(vigentes, proveedor_flete, cotizacion.modo, tipos):
+        for recargo in cotizador.recargos_aplicables(vigentes, proveedor_flete, cotizacion.modo, tipos, vinculados):
             if recargo.id not in ganadores:
                 cubre = ((recargo.tipo_equipo_id,) if recargo.tipo_equipo_id else tuple(sorted(set(tipos)))) if por_tipo else ()
                 candidatos.append((recargo, cubre, "ALTERNATIVA"))
@@ -1007,7 +1057,7 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
             opcional = es_seguro or not marcada
             if recargo.rate_unit == "PCT_RECIBO":
                 # D3: se calcula al final, sobre la base
-                sobre_recibo.append((recargo, bloque, puerto, seleccion, marcada, opcional))
+                sobre_recibo.append((recargo, bloque, puerto, seleccion, marcada, opcional, recargo.id in vinculados))
                 continue
             try:
                 if recargo.rate_unit == "PCT_VALOR" and carga.valor_mercancia_usd is None:
@@ -1033,14 +1083,15 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
             lineas.append(
                 _nueva_linea(
                     recargo, recargo.concepto, bloque, precios, calculo,
-                    fiscal=cotizador.bloque_fiscal(bloque, puerto.pais.iso2),
+                    fiscal=_fiscal_recargo(recargo, bloque),
                     aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso,
                     opcional=opcional, incluida=marcada, tipo_equipo_id=tipo_linea, seleccion=seleccion,
+                    vinculado=recargo.id in vinculados,
                 )
             )
     if sobre_recibo:
         base = cotizador.base_pct_recibo(lineas)
-        for recargo, bloque, puerto, seleccion, marcada, opcional in sobre_recibo:
+        for recargo, bloque, puerto, seleccion, marcada, opcional, es_vinculado in sobre_recibo:
             precios = _precios(recargo, carga)
             try:
                 calculo = cotizador.calcular_pct_recibo(base, precios, tasa(recargo))
@@ -1052,9 +1103,9 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
             lineas.append(
                 _nueva_linea(
                     recargo, recargo.concepto, bloque, precios, calculo,
-                    fiscal=cotizador.bloque_fiscal(bloque, puerto.pais.iso2),
+                    fiscal=_fiscal_recargo(recargo, bloque),
                     aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso, opcional=opcional, incluida=marcada,
-                    tipo_equipo_id=recargo.tipo_equipo_id, seleccion=seleccion,
+                    tipo_equipo_id=recargo.tipo_equipo_id, seleccion=seleccion, vinculado=es_vinculado,
                 )
             )
         if base <= 0 and any(item[4] for item in sobre_recibo):
@@ -1113,12 +1164,19 @@ def _fecha(valor: date) -> str:
 
 
 def motivos_recargo(db: Session, cotizacion: Cotizacion, recargo: Recargo, proveedor_flete: int | None, hoy: date,
-                    tasas: dict[str, bool]) -> list[str]:
+                    tasas: dict[str, bool], tarifas_elegidas: set[int] | None = None) -> list[str]:
     """Por qué un recargo no entra en la propuesta de esta cotización, en palabras simples. Vacío = sí aplica."""
     motivos: list[str] = []
     if not recargo.activo:
         motivos.append("está inactivo")
-    if recargo.proveedor_id is not None and recargo.proveedor_id != proveedor_flete:
+    vinculos = {v.tarifa_id for v in recargo.vinculos_tarifa}
+    vinculado_aqui = bool(vinculos & (tarifas_elegidas or set()))
+    if vinculos and not vinculado_aqui:
+        motivos.append("está vinculado a otra tarifa (" + ", ".join(f"#{i}" for i in sorted(vinculos)) + ")")
+    servicios_v = {v.servicio_id for v in recargo.vinculos_servicio}
+    if servicios_v and cotizacion.servicio.id not in servicios_v:
+        motivos.append("está vinculado a otros servicios (" + ", ".join(v.servicio.codigo for v in recargo.vinculos_servicio) + ")")
+    if not vinculado_aqui and recargo.proveedor_id is not None and recargo.proveedor_id != proveedor_flete:
         motivos.append(f"es de otro proveedor ({recargo.proveedor.nombre})")
     if recargo.modo is not None and recargo.modo != cotizacion.modo:
         motivos.append(f"es de otro servicio ({recargo.modo}; esta cotización es {cotizacion.modo})")
@@ -1127,7 +1185,9 @@ def motivos_recargo(db: Session, cotizacion: Cotizacion, recargo: Recargo, prove
         motivos.append(f"es de otro tipo de contenedor ({recargo.tipo_equipo.codigo})")
     puerto, lado = _puerto_de_bloque(cotizacion, recargo.bloque_incoterm)
     bloque = NOMBRES_BLOQUE.get(recargo.bloque_incoterm, recargo.bloque_incoterm)
-    if recargo.puerto_id != puerto.id:
+    if vinculado_aqui or recargo.puerto_id is None:
+        pass  # vinculado a la tarifa: el puerto sale de la tarifa por su lado
+    elif recargo.puerto_id != puerto.id:
         papel = ("el ORIGEN" if recargo.puerto_id == cotizacion.origen_puerto_id
                  else "el DESTINO" if recargo.puerto_id == cotizacion.destino_puerto_id else None)
         if papel:
@@ -1160,26 +1220,33 @@ def recargos_descartados(db: Session, usuario: Usuario, cotizacion_id: int) -> d
     hoy = fechas.hoy_ecuador()
     flete = next((l for l in cotizacion.lineas if l.tarifa_id is not None), None)
     proveedor_flete = flete.proveedor_id if flete else cotizacion.proveedor_recargos_id
+    tarifas_elegidas = {l.tarifa_id for l in cotizacion.lineas if l.tarifa_id is not None}
     en_borrador = {l.recargo_id for l in cotizacion.lineas if l.recargo_id is not None}
     puertos = (cotizacion.origen_puerto_id, cotizacion.destino_puerto_id)
     filtro = Recargo.puerto_id.in_(puertos)
     if proveedor_flete is not None:
         filtro = filtro | (Recargo.proveedor_id == proveedor_flete)
+    # D-R2: también los vinculados a cualquier tarifa de esta ruta (los de otra tarifa explican por qué no salen).
+    filtro = filtro | Recargo.id.in_(select(RecargoTarifa.recargo_id).join(Tarifa, Tarifa.id == RecargoTarifa.tarifa_id).where(
+        Tarifa.origen_puerto_id == cotizacion.origen_puerto_id, Tarifa.destino_puerto_id == cotizacion.destino_puerto_id))
     consulta = (select(Recargo).options(selectinload(Recargo.moneda), selectinload(Recargo.puerto),
-                                        selectinload(Recargo.proveedor), selectinload(Recargo.tipo_equipo))
+                                        selectinload(Recargo.proveedor), selectinload(Recargo.tipo_equipo),
+                                        selectinload(Recargo.vinculos_tarifa),
+                                        selectinload(Recargo.vinculos_servicio).selectinload(RecargoServicio.servicio))
                 .where(filtro).order_by(Recargo.puerto_id, Recargo.bloque_incoterm, Recargo.id))
     tasas: dict[str, bool] = {}
     salida = []
     for recargo in db.scalars(consulta):
         if recargo.id in en_borrador:
             continue
-        motivos = motivos_recargo(db, cotizacion, recargo, proveedor_flete, hoy, tasas)
+        motivos = motivos_recargo(db, cotizacion, recargo, proveedor_flete, hoy, tasas, tarifas_elegidas)
         if not motivos:
             motivos = ["aplica, pero no está en el borrador: vuelva a elegir la tarifa para proponer las líneas"]
         salida.append({
             "recargo_id": recargo.id, "concepto": recargo.concepto,
             "proveedor": recargo.proveedor.nombre if recargo.proveedor else "XPRESS (propio)",
-            "puerto": recargo.puerto.codigo, "lado": recargo.lado, "bloque_incoterm": recargo.bloque_incoterm,
+            "puerto": recargo.puerto.codigo if recargo.puerto else "(de la tarifa)", "lado": recargo.lado,
+            "bloque_incoterm": recargo.bloque_incoterm,
             "modo": recargo.modo, "tipo_equipo": recargo.tipo_equipo.codigo if recargo.tipo_equipo else None,
             "valido_desde": recargo.valido_desde.isoformat(), "valido_hasta": recargo.valido_hasta.isoformat(),
             "activo": recargo.activo, "motivos": motivos,

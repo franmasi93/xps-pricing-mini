@@ -411,7 +411,8 @@ def _foto_tramos(tarifa: Tarifa) -> list[dict[str, Any]]:
     ]
 
 
-def duplicar_tarifa(db: Session, actor: Usuario, tarifa_id: int, valido_desde: date, valido_hasta: date):
+def duplicar_tarifa(db: Session, actor: Usuario, tarifa_id: int, valido_desde: date, valido_hasta: date,
+                    copiar_vinculos: bool = True):
     actor_id = auditoria.id_de(actor)
     original = obtener_tarifa(db, tarifa_id)
     datos = {campo: getattr(original, campo) for campo in CAMPOS_TARIFA}
@@ -426,6 +427,14 @@ def duplicar_tarifa(db: Session, actor: Usuario, tarifa_id: int, valido_desde: d
     enviar(db)
     despues = foto(nueva, CAMPOS_TARIFA) | {"tramos": _foto_tramos(nueva)}
     auditoria.registrar(db, actor, "tarifa", nueva.id, "CREAR", despues=despues, nota=f"duplicada de #{original.id}")
+    if copiar_vinculos:
+        # D-R2: los recargos vinculados a la original también quedan vinculados a la copia.
+        from app.models import RecargoTarifa
+
+        for vinculo in db.scalars(select(RecargoTarifa).where(RecargoTarifa.tarifa_id == original.id)):
+            db.add(RecargoTarifa(recargo_id=vinculo.recargo_id, tarifa_id=nueva.id, creado_por=actor_id))
+            auditoria.registrar(db, actor, "recargo", vinculo.recargo_id, "EDITAR", despues={"tarifa_id": nueva.id},
+                                nota=f"VINCULAR TARIFA {nueva.id} (duplicada de #{original.id})")
     confirmar(db)
     return _presentar(db, actor, nueva)
 

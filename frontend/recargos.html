@@ -101,7 +101,8 @@
       <div class="grupo-campos">
         <div class="campo">
           <label for="recargo-puerto">Puerto o aeropuerto</label>
-          <select class="select" id="recargo-puerto" name="puerto_id" required></select>
+          <select class="select" id="recargo-puerto" name="puerto_id" aria-describedby="ayuda-puerto"></select>
+          <p class="ayuda" id="ayuda-puerto">Si lo vincula a tarifas, déjelo en «De la tarifa»: el puerto se toma de la tarifa según el lado.</p>
         </div>
         <div class="campo">
           <label for="recargo-proveedor">Proveedor (vacío = cargo propio de XPRESS)</label>
@@ -176,11 +177,18 @@
           <input class="input cifra" id="recargo-minimo-manual" name="minimo_venta_manual" type="text" inputmode="decimal">
         </div>
         <div class="campo">
-          <label for="recargo-iva">IVA</label>
-          <select class="select" id="recargo-iva" name="aplica_iva" required>
+          <label for="recargo-fiscal">Va en</label>
+          <select class="select" id="recargo-fiscal" name="bloque_fiscal" required>
             <option value="">Elija…</option>
-            <option value="true">Aplica IVA (bloque Factura)</option>
-            <option value="false">Sin IVA (Recibo de Caja)</option>
+            <option value="RECIBO_CAJA">Recibo de Caja (IVA 0%)</option>
+            <option value="FACTURA">Factura</option>
+          </select>
+        </div>
+        <div class="campo" id="campo-iva">
+          <label for="recargo-iva">IVA de la factura</label>
+          <select class="select" id="recargo-iva" name="aplica_iva">
+            <option value="true">Aplica IVA</option>
+            <option value="false">Sin IVA (0%)</option>
           </select>
         </div>
         <div class="campo">
@@ -190,6 +198,15 @@
             <option value="PRINCIPAL">Principal</option>
             <option value="AGENTE">Agente</option>
           </select>
+        </div>
+        <div class="campo campo-ancho">
+          <label for="recargo-tarifas">Vincular a tarifas (opcional)</label>
+          <select class="select" id="recargo-tarifas" name="tarifas_ids" multiple size="5" aria-describedby="ayuda-tarifas"></select>
+          <p class="ayuda" id="ayuda-tarifas">Se muestran las tarifas del proveedor, servicio y puerto elegidos. Un recargo vinculado sale primero al elegir esa tarifa en el cotizador. Ctrl + clic para elegir varias.</p>
+        </div>
+        <div class="campo">
+          <label for="recargo-servicios">Vincular a servicios (opcional)</label>
+          <select class="select" id="recargo-servicios" name="servicios" multiple size="4"></select>
         </div>
         <div class="campo">
           <label for="recargo-desde">Válido desde</label>

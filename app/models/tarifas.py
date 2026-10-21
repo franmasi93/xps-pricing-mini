@@ -6,7 +6,7 @@ E0 (0007): "modo" es el código del servicio (FK a servicio.codigo); los tramos 
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Identity, Numeric, SmallInteger, String, Text, func, select
+from sqlalchemy import Date, DateTime, ForeignKey, Identity, Numeric, SmallInteger, String, Text, event, func, select
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CatalogoMixin
@@ -94,7 +94,8 @@ class Recargo(VentaMixin, CatalogoMixin, Base):
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     proveedor_id: Mapped[int | None] = mapped_column(ForeignKey("proveedor.id", ondelete="RESTRICT"))
-    puerto_id: Mapped[int] = mapped_column(ForeignKey("puerto.id", ondelete="RESTRICT"))
+    # D-R2 (0015): opcional si el recargo está vinculado a tarifas (toma el puerto de la tarifa según su lado).
+    puerto_id: Mapped[int | None] = mapped_column(ForeignKey("puerto.id", ondelete="RESTRICT"))
     lado: Mapped[str] = mapped_column(String(7))
     bloque_incoterm: Mapped[str] = mapped_column(String(20))
     concepto: Mapped[str] = mapped_column(String(120))
@@ -103,9 +104,63 @@ class Recargo(VentaMixin, CatalogoMixin, Base):
     rate_unit: Mapped[str] = mapped_column(String(10))
     aplica_iva: Mapped[bool]
     rol_ingreso: Mapped[str] = mapped_column(String(9))
+    # D-R3 (0015): RECIBO_CAJA o FACTURA, elegido en el recargo (reemplaza la regla por país del puerto).
+    bloque_fiscal: Mapped[str] = mapped_column(String(11))
 
     proveedor: Mapped[Proveedor | None] = relationship()
     moneda: Mapped[Moneda] = relationship()
-    puerto: Mapped[Puerto] = relationship()
+    puerto: Mapped[Puerto | None] = relationship()
+    vinculos_tarifa: Mapped[list["RecargoTarifa"]] = relationship(
+        back_populates="recargo", cascade="all, delete-orphan", order_by="RecargoTarifa.tarifa_id"
+    )
+    vinculos_servicio: Mapped[list["RecargoServicio"]] = relationship(
+        back_populates="recargo", cascade="all, delete-orphan", order_by="RecargoServicio.servicio_id"
+    )
     tipo_equipo: Mapped[TipoEquipo | None] = relationship()
     servicio: Mapped[Servicio | None] = relationship(foreign_keys=[modo], viewonly=True)
+
+
+class RecargoTarifa(Base):
+    """D-R2: un recargo vinculado a una tarifa sale primero al elegir esa tarifa en el cotizador."""
+
+    __tablename__ = "recargo_tarifa"
+
+    id: Mapped[int] = mapped_column(Identity(), primary_key=True)
+    recargo_id: Mapped[int] = mapped_column(ForeignKey("recargo.id", ondelete="CASCADE"))
+    tarifa_id: Mapped[int] = mapped_column(ForeignKey("tarifa.id", ondelete="CASCADE"))
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    creado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+
+    recargo: Mapped[Recargo] = relationship(back_populates="vinculos_tarifa")
+    tarifa: Mapped[Tarifa] = relationship()
+
+
+class RecargoServicio(Base):
+    """D-R2: un recargo vinculado a servicios solo aplica a esos servicios y le gana a uno general."""
+
+    __tablename__ = "recargo_servicio"
+
+    id: Mapped[int] = mapped_column(Identity(), primary_key=True)
+    recargo_id: Mapped[int] = mapped_column(ForeignKey("recargo.id", ondelete="CASCADE"))
+    servicio_id: Mapped[int] = mapped_column(ForeignKey("servicio.id", ondelete="RESTRICT"))
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    creado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+
+    recargo: Mapped[Recargo] = relationship(back_populates="vinculos_servicio")
+    servicio: Mapped[Servicio] = relationship()
+
+
+@event.listens_for(Recargo, "before_insert")
+def _bloque_fiscal_por_defecto(mapper, connection, recargo: Recargo) -> None:
+    """D-R3: un recargo insertado sin bloque fiscal (scripts y bancos de prueba) toma la regla de antes, la misma de la
+    migración 0015: seguro → Recibo de Caja; puerto de Ecuador → Factura; exterior → Recibo de Caja. El service
+    siempre lo envía explícito."""
+    if recargo.bloque_fiscal is not None:
+        return
+    if recargo.bloque_incoterm == "SEGURO" or recargo.puerto_id is None:
+        recargo.bloque_fiscal = "RECIBO_CAJA"
+        return
+    from app.models.geografia import Pais
+
+    iso2 = connection.execute(select(Pais.iso2).join(Puerto, Puerto.pais_id == Pais.id).where(Puerto.id == recargo.puerto_id)).scalar()
+    recargo.bloque_fiscal = "FACTURA" if iso2 == "EC" else "RECIBO_CAJA"

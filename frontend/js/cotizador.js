@@ -228,8 +228,9 @@
     const radio = crear("input", { atributos: { type: "radio", name: `grupo-${grupo.clave}`, value: opcion.tarifa_id, id } });
     radio.checked = indice === 0 && opcion.subtotal_venta_usd !== null;
     radio.addEventListener("change", () => proponer());  // FIX cotizador: elegir la tarifa propone las líneas
+    // D-R1: el proveedor solo llega con costo.ver; el comercial ve el transportista o la tarifa.
     const detalle = [
-      `${opcion.proveedor.nombre}`,
+      opcion.proveedor ? opcion.proveedor.nombre : (opcion.transportista || `Tarifa #${opcion.tarifa_id}`),
       `transit time ${opcion.transit_time_dias ?? "—"} días`,
       `días libres ${opcion.dias_libres ?? "—"}`,
       `vigente hasta ${opcion.valido_hasta}`,
