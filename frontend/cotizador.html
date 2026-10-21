@@ -164,8 +164,14 @@
           <h3>5. Elegir tarifa</h3>
           <p class="texto-suave" id="tarifas-bajada"></p>
           <div id="grupos-tarifas"></div>
+        </section>
+
+        <section class="tarjeta" id="paso-cargos" hidden aria-live="polite">
+          <h3>6. Cargos de esta cotización</h3>
+          <p class="texto-suave">Se proponen solos al elegir la tarifa: el flete, los recargos del proveedor y los propios de XPRESS. Los que el Incoterm le asigna a XPRESS vienen marcados; los demás, desmarcados para que decida.</p>
+          <div id="panel-cargos"></div>
           <div class="acciones-form">
-            <button class="btn btn-primario" id="btn-proponer" type="button">Proponer líneas</button>
+            <a class="btn btn-primario" id="btn-ver-cotizacion" href="cotizaciones.html">Revisar y emitir</a>
           </div>
         </section>
       </main>
@@ -175,6 +181,7 @@
   <script src="js/api.js"></script>
   <script src="js/layout.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/cargos.js"></script>
   <script src="js/cotizador.js"></script>
 </body>
 </html>

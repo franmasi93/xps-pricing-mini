@@ -1,5 +1,7 @@
 /* P9 Cotizador paso a paso. Todo cálculo (peso cobrable, W/M, precios, totales) lo hace el backend;
  * esta pantalla solo arma la cabecera, muestra las opciones de flete y pide proponer las líneas.
+ * FIX cotizador: al elegir la tarifa las líneas se proponen solas y se muestran abajo (panel de cargos, cargos.js),
+ * con Recibo de Caja y Factura, casillas por recargo y totales al instante.
  * ?id=N edita un BORRADOR existente (cambiar ruta, servicio, Incoterm o carga borra sus líneas: D-F3-10).
  * E0: los servicios activos (y sus tipos de ubicación y de equipo) salen del catálogo; no hay modos fijos.
  */
@@ -14,6 +16,7 @@
   let cotizacionId = parametros.get("id") ? Number(parametros.get("id")) : null;
   let tiposEquipo = [];
   let servicios = [];
+  let yo = null;
 
   const servicioDe = (codigo) => servicios.find((s) => s.codigo === codigo) || null;
   const servicioActual = () => servicioDe(campo("modo").value);
@@ -224,6 +227,7 @@
     const id = `tarifa-${grupo.clave}-${opcion.tarifa_id}`;
     const radio = crear("input", { atributos: { type: "radio", name: `grupo-${grupo.clave}`, value: opcion.tarifa_id, id } });
     radio.checked = indice === 0 && opcion.subtotal_venta_usd !== null;
+    radio.addEventListener("change", () => proponer());  // FIX cotizador: elegir la tarifa propone las líneas
     const detalle = [
       `${opcion.proveedor.nombre}`,
       `transit time ${opcion.transit_time_dias ?? "—"} días`,
@@ -248,9 +252,39 @@
         : [crear("p", { clase: "texto-suave", texto: "No hay tarifas vigentes para esta ruta (si el Incoterm no incluye el flete, no hace falta)." })];
       contenedor.append(crear("div", { clase: "opciones-flete" }, [crear("h4", { texto: titulo }), ...lista]));
     }
-    campo("tarifas-bajada").textContent = "Ordenadas por precio de venta para esta carga. Elija una por grupo.";
+    campo("tarifas-bajada").textContent = "Ordenadas por precio de venta para esta carga. Al elegir una, los cargos se proponen solos abajo.";
     campo("paso-tarifas").hidden = false;
     campo("paso-tarifas").scrollIntoView({ behavior: "smooth" });
+    const actual = await XPS.api(`/cotizaciones/${cotizacionId}`);
+    if (actual.requiere_proponer) {
+      await proponer();
+    } else {
+      pintarCargos(actual);
+    }
+  }
+
+  // ---------- Paso 6: cargos de esta cotización (FIX cotizador) ----------
+
+  function pintarCargos(cotizacion) {
+    const puedeRecargos = UI.tieneAlguno(yo, ["tarifa.editar"]);
+    Cargos.pintar(campo("panel-cargos"), cotizacion, {
+      editable: true,
+      alCambiar: cambiarLinea,
+      verDescartados: puedeRecargos ? () => XPS.api(`/cotizaciones/${cotizacionId}/recargos-descartados`) : null,
+      enlaceRecargos: puedeRecargos,
+    });
+    campo("btn-ver-cotizacion").href = `cotizacion.html?id=${cotizacionId}`;
+    campo("paso-cargos").hidden = false;
+  }
+
+  async function cambiarLinea(linea, incluida) {
+    XPS.limpiarAlerta(alertas);
+    try {
+      pintarCargos(await XPS.api(`/cotizaciones/${cotizacionId}/lineas/${linea.id}`, { metodo: "PATCH", cuerpo: { incluida } }));
+    } catch (error) {
+      XPS.mostrarError(alertas, error);
+      pintarCargos(await XPS.api(`/cotizaciones/${cotizacionId}`));
+    }
   }
 
   async function proponer() {
@@ -261,19 +295,24 @@
     }
     const ruta = `/cotizaciones/${cotizacionId}/proponer-lineas`;
     try {
+      let respuesta;
       try {
-        await XPS.api(ruta, { metodo: "POST", cuerpo: { tarifas } });
+        respuesta = await XPS.api(ruta, { metodo: "POST", cuerpo: { tarifas } });
       } catch (error) {
         if (!(error instanceof XPS.ErrorApi) || error.codigo !== "AJUSTES_SE_PIERDEN") {
           throw error;
         }
+        // D-F3-10: si había ajustes manuales, se mantiene la confirmación.
         if (!window.confirm(`${error.message}. ¿Continuar?`)) {
+          pintarCargos(await XPS.api(`/cotizaciones/${cotizacionId}`));
           return;
         }
-        await XPS.api(ruta, { metodo: "POST", cuerpo: { tarifas, confirmar: true } });
+        respuesta = await XPS.api(ruta, { metodo: "POST", cuerpo: { tarifas, confirmar: true } });
       }
-      XPS.irA(`cotizacion.html?id=${cotizacionId}`);
+      pintarCargos(respuesta);
+      campo("paso-cargos").scrollIntoView({ behavior: "smooth" });
     } catch (error) {
+      campo("paso-cargos").hidden = true;
       XPS.mostrarError(alertas, error);
     }
   }
@@ -327,7 +366,7 @@
   }
 
   async function iniciar() {
-    const yo = await iniciarLayout("cotizaciones.html");
+    yo = await iniciarLayout("cotizaciones.html");
     if (!yo || !UI.exigirAlguno(yo, ["cotizacion.crear"], alertas)) {
       return;
     }
@@ -358,7 +397,6 @@
       campo("btn-dimension").addEventListener("click", () => agregarDimension());
       campo("unidad-peso").addEventListener("change", actualizarUnidad);
       campo("btn-contenedor").addEventListener("click", () => agregarContenedor());
-      campo("btn-proponer").addEventListener("click", proponer);
       form.addEventListener("submit", guardar);
       form.hidden = false;
       if (cotizacionId !== null) {

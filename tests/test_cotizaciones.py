@@ -33,7 +33,9 @@ def _proponer(client, headers, cotizacion_id, **cuerpo):
 
 
 def _bloques(respuesta) -> set[str]:
-    return {linea["bloque_incoterm"] for linea in respuesta.json()["lineas"]}
+    """Los bloques que el Incoterm asigna a XPRESS. FIX cotizador: también llegan, desmarcadas, las líneas fuera del
+    Incoterm y las alternativas (D-F3-7); no cuentan aquí."""
+    return {linea["bloque_incoterm"] for linea in respuesta.json()["lineas"] if linea["seleccion"] in (None, "INCOTERM")}
 
 
 # ---------- Crear el borrador ----------
@@ -203,8 +205,11 @@ def test_mas_especifico_gana_en_lcl(client, crear_usuario, headers_de, db_sessio
     crear_recargo(db_session, esc.destino, "ENTREGA_FINAL", "DESTINO", proveedor_id=crear_proveedor(db_session).id)
     cotizacion = _crear(client, h, esc.payload("FOB")).json()
     lineas = _proponer(client, h, cotizacion["id"]).json()["lineas"]
-    recargos = {l["recargo_id"] for l in lineas if l["recargo_id"]}
+    recargos = {l["recargo_id"] for l in lineas if l["recargo_id"] and l["incluida"]}
     assert recargos == {lcl.id, del_proveedor.id}  # modo > todos; proveedor del flete > NULL; otro proveedor no entra
+    # FIX cotizador: los perdedores llegan desmarcados como alternativa; el de otro proveedor no llega
+    alternativas = {l["recargo_id"] for l in lineas if l["seleccion"] == "ALTERNATIVA"}
+    assert len(alternativas) == 2 and not alternativas & recargos
 
 
 def test_fcl_40hc_x2_y_20gp_x1(client, crear_usuario, headers_de, db_session):  # T232 (H6 obligatorio)

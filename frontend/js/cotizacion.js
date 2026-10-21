@@ -88,7 +88,8 @@
   }
 
   function celdaIncluida(linea, editable) {
-    if (!linea.opcional) {
+    // FIX cotizador: cualquier recargo se marca o desmarca; el flete principal siempre va.
+    if (!linea.opcional && linea.recargo_id === null) {
       return UI.texto("Sí");
     }
     if (!editable) {
@@ -105,6 +106,12 @@
     if (linea.ajuste_manual) {
       concepto.push(crear("span", { clase: "badge badge-estado badge-info", texto: `Ajuste: ${linea.motivo_ajuste}` }));
     }
+    if (linea.seleccion === "FUERA_INCOTERM") {
+      concepto.push(crear("span", { clase: "badge badge-estado badge-alerta", texto: "Fuera del Incoterm" }));
+    }
+    if (linea.seleccion === "ALTERNATIVA") {
+      concepto.push(crear("span", { clase: "badge badge-estado badge-inactivo", texto: "Alternativa" }));
+    }
     const celdas = [
       UI.celda("Concepto", concepto),
       UI.celda("Cantidad", [UI.monto(linea.cantidad)]),
@@ -116,6 +123,9 @@
     ];
     if (conCosto) {
       celdas.push(UI.celda("Costo USD", [UI.monto(linea.costo_usd)]));
+    }
+    if ("margen_usd" in linea) {
+      celdas.push(UI.celda("Margen USD", [UI.monto(linea.margen_usd)]));
     }
     celdas.push(UI.celda("Incluida", [celdaIncluida(linea, editable)]));
     if (editable) {
@@ -133,6 +143,7 @@
     const conCosto = cotizacion.lineas.some((linea) => "costo_usd" in linea);
     const titulos = ["Concepto", "Cantidad", "Unidad", "Precio USD", "Subtotal USD", "Fiscal"];
     if (conCosto) titulos.push("Costo USD");
+    if (cotizacion.lineas.some((linea) => "margen_usd" in linea)) titulos.push("Margen USD");
     titulos.push("Incluida");
     if (editable) titulos.push("Acciones");
     document.getElementById("cabecera-lineas").replaceChildren(crear("tr", {}, titulos.map((t) => crear("th", { texto: t }))));
@@ -167,7 +178,10 @@
       dato(`IVA ${Number(t.iva_tasa_aplicada)}%`, t.iva),
       dato("Total USD", t.total_general),
     ];
-    if ("costo_total" in t) elementos.push(dato("Costo total", t.costo_total));
+    if ("costo_total" in t) {
+      elementos.push(dato("Costo total", t.costo_total));
+      elementos.push(dato("Venta sin IVA", (Number(t.subtotal_recibo_caja || 0) + Number(t.subtotal_factura || 0)).toFixed(2)));
+    }
     if ("margen_total" in t) elementos.push(dato("Margen", `${t.margen_total} (${t.margen_pct}%)`));
     document.getElementById("totales").replaceChildren(...elementos);
     document.getElementById("bloque-totales").hidden = false;

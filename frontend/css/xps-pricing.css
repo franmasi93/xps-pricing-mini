@@ -1973,3 +1973,57 @@ button.nav-grupo:focus-visible {
     position: static;
   }
 }
+
+/* ---------- FIX cotizador: panel de cargos ---------- */
+
+.bloque-cargos {
+  margin-top: var(--esp-4);
+}
+
+.bloque-cargos h4 {
+  margin: 0 0 var(--esp-2);
+}
+
+.tabla-cargos td:first-child {
+  width: 64px;
+}
+
+.fila-apagada td {
+  color: var(--tinta-500);
+}
+
+.fila-alternativa td {
+  color: var(--tinta-500);
+  background: var(--fondo-suave, rgba(0, 0, 51, 0.03));
+}
+
+.total-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-2) 0;
+  border-bottom: 1px solid var(--linea);
+}
+
+.total-destacado {
+  font-weight: 700;
+}
+
+.totales-cargos {
+  margin-top: var(--esp-4);
+  max-width: 420px;
+  margin-left: auto;
+}
+
+.zona-descartados {
+  margin-top: var(--esp-3);
+}
+
+.lista-motivos {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+}

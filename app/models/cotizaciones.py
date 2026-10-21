@@ -142,6 +142,8 @@ class LineaCotizacion(Base):
     motivo_ajuste: Mapped[str | None] = mapped_column(String(300))
     valido_hasta_origen: Mapped[date] = mapped_column(Date)
     unidad_peso: Mapped[str | None] = mapped_column(String(2))
+    # FIX cotizador (0014): INCOTERM, FUERA_INCOTERM o ALTERNATIVA (D-F3-7); nula en el flete.
+    seleccion: Mapped[str | None] = mapped_column(String(14))
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

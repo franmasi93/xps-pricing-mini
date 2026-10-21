@@ -95,6 +95,9 @@ BLOQUE_RECARGO = {
     "despacho_import": "DESPACHO_IMPORT",
     "entrega_final": "ENTREGA_FINAL",
 }
+CAMPOS_RECARGO = ("recogida_origen", "despacho_export", "gastos_origen", "seguro", "gastos_destino", "despacho_import",
+                  "entrega_final")
+AVISO_SIN_RECARGOS = "Esta tarifa no tiene recargos cargados para este puerto y servicio"
 
 
 # ---------- Errores y alcance ----------
@@ -370,6 +373,8 @@ def _linea_dict(linea: LineaCotizacion, calculo, nivel: str) -> dict[str, Any]:
         "ajuste_manual": linea.ajuste_manual,
         "motivo_ajuste": linea.motivo_ajuste,
         "valido_hasta_origen": linea.valido_hasta_origen.isoformat(),
+        "seleccion": linea.seleccion,
+        "proveedor_propio": linea.recargo_id is not None and linea.proveedor_id is None,
     }
     if linea.ajuste_manual:
         datos["bajo_minimo_venta"] = calculo.bajo_minimo_venta  # el mínimo de venta no revela el costo
@@ -382,6 +387,8 @@ def _linea_dict(linea: LineaCotizacion, calculo, nivel: str) -> dict[str, Any]:
         }
         if linea.ajuste_manual:
             datos["bajo_costo"] = calculo.bajo_costo
+    if nivel == NIVEL_MARGEN:
+        datos["margen_usd"] = _d(calculo.subtotal_venta_usd - calculo.costo_usd)
     return datos
 
 
@@ -579,6 +586,7 @@ def presentar_cotizacion(db: Session, usuario: Usuario, cotizacion: Cotizacion, 
         "detalle_rechazo": cotizacion.detalle_rechazo,
         "cotizacion_origen_id": cotizacion.cotizacion_origen_id,
         "requiere_proponer": cotizacion.estado == "BORRADOR" and not cotizacion.lineas,
+        "sin_recargos": bool(cotizacion.lineas) and not any(l.recargo_id is not None for l in cotizacion.lineas),
         "lineas": [_linea_dict(linea, calculo, nivel) for linea, calculo in filas],
         "totales": _totales_dict(totales, nivel),
         "avisos": avisos,
@@ -895,7 +903,7 @@ def _recargos_vigentes(db: Session, puerto: Puerto, bloque: str, lado: str | Non
 
 def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
                  *, fiscal: str, aplica_iva: bool, rol: str, opcional: bool, incluida: bool,
-                 tipo_equipo_id: int | None) -> LineaCotizacion:
+                 tipo_equipo_id: int | None, seleccion: str | None = None) -> LineaCotizacion:
     unidad_peso = None
     if objeto.rate_unit == "KG":
         unidad_peso = objeto.unidad_peso if isinstance(objeto, Tarifa) else "KG"
@@ -925,6 +933,7 @@ def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
         incluida=incluida,
         ajuste_manual=False,
         valido_hasta_origen=objeto.valido_hasta,
+        seleccion=seleccion,
     )
 
 
@@ -972,22 +981,33 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
         # D-F3-9: sin flete, el proveedor opcional; sin él, solo los recargos propios (proveedor NULL).
         proveedor_flete = proveedor_id
 
-    for campo in ("recogida_origen", "despacho_export", "gastos_origen", "seguro", "gastos_destino",
-                  "despacho_import", "entrega_final"):
-        if campo not in bloques:
-            continue
+    # FIX cotizador: además de los recargos que el Incoterm asigna a XPRESS (marcados, como siempre), se proponen
+    # desmarcados los de los bloques fuera del Incoterm y las alternativas que perdieron por D-F3-7. Las líneas
+    # desmarcadas no se cobran: los totales no cambian hasta que el usuario las marque.
+    por_tipo = cotizacion.servicio.usa_tipo_equipo
+    for campo in CAMPOS_RECARGO:
         bloque = BLOQUE_RECARGO[campo]
+        dentro = campo in bloques
         puerto, lado = _puerto_de_bloque(cotizacion, bloque)
-        elegidos = cotizador.elegir_mas_especifico(
-            _recargos_vigentes(db, puerto, bloque, lado, hoy), proveedor_flete, cotizacion.modo, tipos,
-            por_tipo_equipo=cotizacion.servicio.usa_tipo_equipo,
-        )
+        vigentes = _recargos_vigentes(db, puerto, bloque, lado, hoy)
+        elegidos = cotizador.elegir_mas_especifico(vigentes, proveedor_flete, cotizacion.modo, tipos, por_tipo_equipo=por_tipo)
         if not elegidos:
-            avisos.append(f"Sin recargo cargado para {bloque} en {puerto.codigo}")
+            if dentro:
+                avisos.append(f"Sin recargo cargado para {bloque} en {puerto.codigo}")
             continue
-        for recargo, cubre in elegidos:
+        ganadores = {recargo.id for recargo, _ in elegidos}
+        candidatos = [(recargo, cubre, "INCOTERM" if dentro else "FUERA_INCOTERM") for recargo, cubre in elegidos]
+        for recargo in cotizador.recargos_aplicables(vigentes, proveedor_flete, cotizacion.modo, tipos):
+            if recargo.id not in ganadores:
+                cubre = ((recargo.tipo_equipo_id,) if recargo.tipo_equipo_id else tuple(sorted(set(tipos)))) if por_tipo else ()
+                candidatos.append((recargo, cubre, "ALTERNATIVA"))
+        es_seguro = bloque == "SEGURO"
+        for recargo, cubre, seleccion in candidatos:
+            marcada = seleccion == "INCOTERM" and not es_seguro  # D-F3-6: el seguro se propone apagado
+            opcional = es_seguro or not marcada
             if recargo.rate_unit == "PCT_RECIBO":
-                sobre_recibo.append((recargo, bloque, puerto))  # D3: se calcula al final, sobre la base
+                # D3: se calcula al final, sobre la base
+                sobre_recibo.append((recargo, bloque, puerto, seleccion, marcada, opcional))
                 continue
             try:
                 if recargo.rate_unit == "PCT_VALOR" and carga.valor_mercancia_usd is None:
@@ -1002,33 +1022,45 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
             if cantidad == 0 and recargo.rate_unit == "CONTENEDOR":
                 continue
             precios = _precios(recargo, carga)
-            calculo = cotizador.calcular_linea(cantidad, precios, tasa(recargo))
-            es_seguro = bloque == "SEGURO"
+            try:
+                calculo = cotizador.calcular_linea(cantidad, precios, tasa(recargo))
+            except ErrorNegocio as error:
+                if seleccion == "INCOTERM":
+                    raise
+                avisos.append(f"{recargo.concepto}: {error.mensaje}")  # una línea desmarcada sin tasa no frena la propuesta
+                continue
             tipo_linea = recargo.tipo_equipo_id or (cubre[0] if len(cubre) == 1 else None)
             lineas.append(
                 _nueva_linea(
                     recargo, recargo.concepto, bloque, precios, calculo,
                     fiscal=cotizador.bloque_fiscal(bloque, puerto.pais.iso2),
                     aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso,
-                    opcional=es_seguro, incluida=not es_seguro,  # D-F3-6: el seguro se propone apagado
-                    tipo_equipo_id=tipo_linea,
+                    opcional=opcional, incluida=marcada, tipo_equipo_id=tipo_linea, seleccion=seleccion,
                 )
             )
     if sobre_recibo:
         base = cotizador.base_pct_recibo(lineas)
-        for recargo, bloque, puerto in sobre_recibo:
+        for recargo, bloque, puerto, seleccion, marcada, opcional in sobre_recibo:
             precios = _precios(recargo, carga)
-            calculo = cotizador.calcular_pct_recibo(base, precios, tasa(recargo))
+            try:
+                calculo = cotizador.calcular_pct_recibo(base, precios, tasa(recargo))
+            except ErrorNegocio as error:
+                if seleccion == "INCOTERM":
+                    raise
+                avisos.append(f"{recargo.concepto}: {error.mensaje}")
+                continue
             lineas.append(
                 _nueva_linea(
                     recargo, recargo.concepto, bloque, precios, calculo,
                     fiscal=cotizador.bloque_fiscal(bloque, puerto.pais.iso2),
-                    aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso, opcional=False, incluida=True,
-                    tipo_equipo_id=recargo.tipo_equipo_id,
+                    aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso, opcional=opcional, incluida=marcada,
+                    tipo_equipo_id=recargo.tipo_equipo_id, seleccion=seleccion,
                 )
             )
-        if base <= 0:
+        if base <= 0 and any(item[4] for item in sobre_recibo):
             avisos.append(cotizador.AVISO_SIN_BASE)
+    if not any(linea.recargo_id is not None for linea in lineas):
+        avisos.append(AVISO_SIN_RECARGOS)
     orden_bloque = {bloque: posicion for posicion, bloque in enumerate(BLOQUES_LINEA)}
     lineas.sort(key=lambda l: (orden_bloque[l.bloque_incoterm], cotizador.concepto_clave(l.concepto)))
     for posicion, linea in enumerate(lineas, start=1):
@@ -1067,6 +1099,94 @@ def proponer_lineas(db: Session, actor: Usuario, cotizacion_id: int, datos: dict
     return _respuesta(db, actor, cotizacion.id, avisos)
 
 
+# ---------- ¿Por qué no aparece? (FIX cotizador) ----------
+
+NOMBRES_BLOQUE = {
+    "RECOGIDA_ORIGEN": "recogida en origen", "DESPACHO_EXPORT": "despacho de exportación",
+    "GASTOS_ORIGEN": "gastos en origen", "SEGURO": "seguro", "GASTOS_DESTINO": "gastos en destino",
+    "DESPACHO_IMPORT": "despacho de importación", "ENTREGA_FINAL": "entrega final",
+}
+
+
+def _fecha(valor: date) -> str:
+    return valor.strftime("%d/%m/%Y")
+
+
+def motivos_recargo(db: Session, cotizacion: Cotizacion, recargo: Recargo, proveedor_flete: int | None, hoy: date,
+                    tasas: dict[str, bool]) -> list[str]:
+    """Por qué un recargo no entra en la propuesta de esta cotización, en palabras simples. Vacío = sí aplica."""
+    motivos: list[str] = []
+    if not recargo.activo:
+        motivos.append("está inactivo")
+    if recargo.proveedor_id is not None and recargo.proveedor_id != proveedor_flete:
+        motivos.append(f"es de otro proveedor ({recargo.proveedor.nombre})")
+    if recargo.modo is not None and recargo.modo != cotizacion.modo:
+        motivos.append(f"es de otro servicio ({recargo.modo}; esta cotización es {cotizacion.modo})")
+    tipos = {c.tipo_equipo_id for c in cotizacion.contenedores}
+    if recargo.tipo_equipo_id is not None and recargo.tipo_equipo_id not in tipos:
+        motivos.append(f"es de otro tipo de contenedor ({recargo.tipo_equipo.codigo})")
+    puerto, lado = _puerto_de_bloque(cotizacion, recargo.bloque_incoterm)
+    bloque = NOMBRES_BLOQUE.get(recargo.bloque_incoterm, recargo.bloque_incoterm)
+    if recargo.puerto_id != puerto.id:
+        papel = ("el ORIGEN" if recargo.puerto_id == cotizacion.origen_puerto_id
+                 else "el DESTINO" if recargo.puerto_id == cotizacion.destino_puerto_id else None)
+        if papel:
+            motivos.append(f"otro puerto: es de {bloque} (lado {recargo.lado}) pero está cargado en {recargo.puerto.codigo}, "
+                           f"que es {papel} de esta cotización; debería estar en {puerto.codigo}")
+        else:
+            motivos.append(f"otro puerto: está en {recargo.puerto.codigo}; esta cotización usa {puerto.codigo} para {bloque}")
+    elif lado is not None and recargo.lado != lado:
+        motivos.append(f"otro lado: está como {recargo.lado}; en {puerto.codigo} esta cotización usa el lado {lado}")
+    if recargo.valido_hasta < hoy:
+        motivos.append(f"vencido el {_fecha(recargo.valido_hasta)}")
+    elif recargo.valido_desde > hoy:
+        motivos.append(f"vigente recién desde el {_fecha(recargo.valido_desde)}")
+    codigo = recargo.moneda.codigo
+    if codigo not in tasas:
+        try:
+            cotizador.tasa_vigente(db, codigo, hoy)
+            tasas[codigo] = True
+        except ErrorNegocio:
+            tasas[codigo] = False
+    if not tasas[codigo]:
+        motivos.append(f"sin tasa de cambio vigente para {codigo}")
+    return motivos
+
+
+def recargos_descartados(db: Session, usuario: Usuario, cotizacion_id: int) -> dict:
+    """Los recargos del proveedor del flete, los propios de XPRESS y los de los puertos de la cotización que NO están
+    en el borrador, cada uno con su motivo. Solo para quien edita tarifas y recargos (admin y pricing)."""
+    cotizacion = obtener_cotizacion(db, usuario, cotizacion_id)
+    hoy = fechas.hoy_ecuador()
+    flete = next((l for l in cotizacion.lineas if l.tarifa_id is not None), None)
+    proveedor_flete = flete.proveedor_id if flete else cotizacion.proveedor_recargos_id
+    en_borrador = {l.recargo_id for l in cotizacion.lineas if l.recargo_id is not None}
+    puertos = (cotizacion.origen_puerto_id, cotizacion.destino_puerto_id)
+    filtro = Recargo.puerto_id.in_(puertos)
+    if proveedor_flete is not None:
+        filtro = filtro | (Recargo.proveedor_id == proveedor_flete)
+    consulta = (select(Recargo).options(selectinload(Recargo.moneda), selectinload(Recargo.puerto),
+                                        selectinload(Recargo.proveedor), selectinload(Recargo.tipo_equipo))
+                .where(filtro).order_by(Recargo.puerto_id, Recargo.bloque_incoterm, Recargo.id))
+    tasas: dict[str, bool] = {}
+    salida = []
+    for recargo in db.scalars(consulta):
+        if recargo.id in en_borrador:
+            continue
+        motivos = motivos_recargo(db, cotizacion, recargo, proveedor_flete, hoy, tasas)
+        if not motivos:
+            motivos = ["aplica, pero no está en el borrador: vuelva a elegir la tarifa para proponer las líneas"]
+        salida.append({
+            "recargo_id": recargo.id, "concepto": recargo.concepto,
+            "proveedor": recargo.proveedor.nombre if recargo.proveedor else "XPRESS (propio)",
+            "puerto": recargo.puerto.codigo, "lado": recargo.lado, "bloque_incoterm": recargo.bloque_incoterm,
+            "modo": recargo.modo, "tipo_equipo": recargo.tipo_equipo.codigo if recargo.tipo_equipo else None,
+            "valido_desde": recargo.valido_desde.isoformat(), "valido_hasta": recargo.valido_hasta.isoformat(),
+            "activo": recargo.activo, "motivos": motivos,
+        })
+    return {"cotizacion_id": cotizacion.id, "proveedor_flete_id": proveedor_flete, "recargos": salida}
+
+
 # ---------- Ajuste de una línea (§10.4, H9) ----------
 
 
@@ -1079,6 +1199,7 @@ def _foto_linea(linea: LineaCotizacion) -> dict[str, Any]:
         "ajuste_manual": linea.ajuste_manual,
         "motivo_ajuste": linea.motivo_ajuste,
         "incluida": linea.incluida,
+        "seleccion": linea.seleccion,
     }
 
 
@@ -1107,14 +1228,28 @@ def actualizar_linea(db: Session, actor: Usuario, cotizacion_id: int, linea_id: 
             linea.motivo_ajuste = motivo
             notas.append(f"AJUSTE LINEA {linea.orden}: {motivo}")
         if cambios.get("incluida") is not None:
-            if not linea.opcional:
-                raise ErrorNegocio(422, "LINEA_NO_OPCIONAL", "Solo se activan o desactivan las líneas opcionales")
+            # FIX cotizador: cualquier recargo se marca o desmarca; el flete principal no.
+            if not linea.opcional and linea.recargo_id is None:
+                raise ErrorNegocio(422, "LINEA_NO_OPCIONAL", "El flete principal no se puede quitar de la cotización")
             if cambios["incluida"] and linea.rate_unit == "PCT_VALOR" and cotizacion.valor_mercancia_usd is None:
                 raise ErrorNegocio(
                     422, "VALOR_MERCANCIA_REQUERIDO", "Indique el valor de la mercancía para el seguro como % del valor"
                 )
+            if linea.recargo_id is not None:
+                linea.opcional = True  # un recargo desmarcado queda como opcional apagado (regla opcional OR incluida)
             linea.incluida = cambios["incluida"]
             notas.append(f"LINEA {linea.orden} {'INCLUIDA' if linea.incluida else 'EXCLUIDA'}")
+            if linea.incluida and linea.recargo_id is not None:
+                # D-F3-7: uno por concepto. Elegir una alternativa desmarca la otra del mismo concepto y bloque.
+                for otra in cotizacion.lineas:
+                    if (otra is not linea and otra.incluida and otra.recargo_id is not None
+                            and otra.bloque_incoterm == linea.bloque_incoterm
+                            and cotizador.concepto_clave(otra.concepto) == cotizador.concepto_clave(linea.concepto)
+                            and (otra.tipo_equipo_id is None or linea.tipo_equipo_id is None
+                                 or otra.tipo_equipo_id == linea.tipo_equipo_id)):
+                        otra.opcional = True
+                        otra.incluida = False
+                        notas.append(f"LINEA {otra.orden} EXCLUIDA (un recargo por concepto)")
         if not notas:
             raise ErrorNegocio(422, "SIN_CAMBIOS", "Indique un precio con motivo, quitar_ajuste o incluida")
         hoy = fechas.hoy_ecuador()

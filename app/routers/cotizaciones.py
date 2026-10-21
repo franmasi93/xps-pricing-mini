@@ -101,6 +101,14 @@ def cambiar_estado(
     return servicio.cambiar_estado(db, actor, cotizacion_id, datos.model_dump())
 
 
+@router.get("/{cotizacion_id}/recargos-descartados", response_model=None,
+            dependencies=[Depends(require_permiso("tarifa.editar"))])
+def recargos_descartados(cotizacion_id: int, db: Session = Depends(get_db),
+                         usuario: Usuario = Depends(get_usuario_habilitado)):
+    """FIX cotizador, "¿Por qué no aparece?": recargos fuera del borrador y su motivo (admin y pricing)."""
+    return servicio.recargos_descartados(db, usuario, cotizacion_id)
+
+
 @router.get("/{cotizacion_id}/pdf", response_class=Response)
 def descargar_pdf(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_habilitado)):
     """Endpoint "def": Playwright síncrono corre en el threadpool (compatible con Windows)."""
