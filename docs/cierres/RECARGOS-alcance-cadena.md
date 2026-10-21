@@ -6,7 +6,8 @@
 | Ejecutor | Claude Code |
 | Base | main `03b8719`, producción en la revisión 00015 |
 | Migración | `0016_alcance_recargos_tipo_carga` (0015 → 0016), escrita a mano, probada ida y vuelta |
-| Producción | PENDIENTE_REVISION |
+| Commits | `3d286f2` (código, migración, pruebas y acta) · este cierre |
+| Producción | https://pricing.xpress.ec · revisión **xps-pricing-00016-7h4** · migración **0016** |
 
 ## 1. Decisiones
 
@@ -82,7 +83,20 @@
   - el panel de cargos muestra la línea IMO y el motivo de cada alternativa;
   - "¿Por qué no aparece?" explica el nivel y las tarifas excluidas.
 
-PENDIENTE_LISTA
+**Alcance asignado a cada recargo de producción por la migración** (huella vacía = equivalente a sus columnas):
+
+| Id | Concepto | Activo | Alcance |
+|---|---|---|---|
+| 1 | Recargo PRUEBA F5 THC 40HC | no | PUERTO = ECGYE · SERVICIO = FCL · TIPO_EQUIPO = 40HC |
+| 2 | Recargo PRUEBA F5 BL | no | PUERTO = ECGYE · SERVICIO = FCL |
+| 3 | Recargo PRUEBA F5 Manejo local | no | PUERTO = GYE |
+| 4 | Recargo PRUEBA F5 Seguro | no | PUERTO = GYE |
+| 5 | Servicio Logístico | sí | PUERTO = CNSHA · SERVICIO = LCL · PROVEEDOR = GLOVAL SHIPPING ("Aplica a: LCL · destino CNSHA · GLOVAL SHIPPING") |
+
+Además:
+- **Tarifas:** las 12 quedaron aceptando solo GENERAL, sin clases excluidas.
+- **Cotizaciones:** las 9 quedaron GENERAL.
+- **Tipos de carga sembrados:** GENERAL, IMO, REFRIGERADA, SOBREDIMENSIONADA, PERECIBLE y ALTO_VALOR.
 
 ## 3. Pruebas
 
@@ -124,7 +138,17 @@ PENDIENTE_LISTA
 
 ## 4. Producción
 
-PENDIENTE_PRODUCCION
+| Paso | Resultado |
+|---|---|
+| Propuesta de antes (revisión 00015) | BORRADOR duplicado de COT-2026-00002 con la tarifa 12: solo el flete LCL, 160.00 en Recibo de Caja. Borrador descartado |
+| Respaldo | **1792609088026** (SUCCESSFUL, antes de migrar) |
+| Migración | `xps_pricing` 0015 → **0016** (alcance de la tabla de 2.3) |
+| Secretos | comparados antes de desplegar: los mismos 5 en la revisión vigente y en el comando |
+| Despliegue | `docs/DESPLIEGUE.md` → **xps-pricing-00016-7h4** al 100 %; URL run.app sigue apagada; 0 errores en sus logs; `procesar-lote` y `evaluar` responden 200 |
+| Salud | `/v1/salud` → `{"estado":"ok","bd":"ok"}`; pricing.xpress.ec carga |
+| **Propuesta de después** | La misma cotización y la misma tarifa: **idéntica** (líneas, bloque fiscal, selección y totales) |
+| Regresión | **COT-2026-00002:** total 160.00, md5 `fc1fe4d0ad7ff1c57d0e3e9355de9573`, idéntico. **COT-2026-00001:** estado y HTML del PDF idénticos. La fila y las líneas solo suman las columnas nuevas (`tipo_carga` = GENERAL, datos IMO vacíos, `motivo_alternativa` vacío); sin ellas, las huellas son las de antes |
+| Comprobación (administrador de prueba, BORRADOR descartado) | Recargos con la columna "Aplica a" y el filtro "Aplica en". Pantalla Tipos de carga. Cotizador y "¿Por qué no aparece?" (el recargo 5 sigue explicado como "otro puerto… debería estar en ECGYE"). Capturas `produccion_*.png` en `salidas/recargos-alcance/`. No se emitió ni se envió nada. Usuarios de prueba desactivados |
 
 ## 5. Datos de François
 
