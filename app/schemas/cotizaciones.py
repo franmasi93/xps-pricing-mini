@@ -54,6 +54,12 @@ class CotizacionCrear(Entrada):
     notas_internas: str | None = Field(default=None, max_length=2000)
     transportista: str | None = Field(default=None, max_length=200)
     descripcion_carga: str | None = Field(default=None, max_length=2000)
+    # D-T3: tipo de carga (GENERAL por defecto) y, si el tipo pide datos IMO, clase, UN, grupo y MSDS.
+    tipo_carga: str = Field(default="GENERAL", max_length=20)
+    imo_clase: str | None = Field(default=None, max_length=4)
+    imo_un: str | None = Field(default=None, max_length=4)
+    imo_grupo: str | None = Field(default=None, max_length=3)
+    msds_recibida: bool = False
 
 
 class CotizacionActualizar(Entrada):
@@ -77,6 +83,11 @@ class CotizacionActualizar(Entrada):
     notas_internas: str | None = Field(default=None, max_length=2000)
     transportista: str | None = Field(default=None, max_length=200)
     descripcion_carga: str | None = Field(default=None, max_length=2000)
+    tipo_carga: str | None = Field(default=None, max_length=20)
+    imo_clase: str | None = Field(default=None, max_length=4)
+    imo_un: str | None = Field(default=None, max_length=4)
+    imo_grupo: str | None = Field(default=None, max_length=3)
+    msds_recibida: bool | None = None
     # D-F3-10: si el cambio borra líneas con ajuste manual, hay que confirmarlo.
     confirmar: bool = False
 

@@ -13,6 +13,10 @@
 - D-R3 (0015): el recargo dice si va en Recibo de Caja o en Factura (el seguro, siempre en Recibo de Caja). Si no se
   indica y tiene puerto, se usa la regla de antes (Ecuador → Factura; exterior → Recibo de Caja).
 - Advertencias de coherencia (no bloquean): un gasto de destino en un puerto del exterior, o uno de origen en Ecuador.
+- D-A1 (0016): alcance en cadena (services/alcance.py): servicio, modo, tipo de contenedor, región, país, puerto, ruta,
+  proveedor, tipo de carga y clase IMO, cada uno multiselección ("Todos" = sin valores). Las columnas de antes
+  (puerto_id, modo, tipo_equipo_id) quedan como copia del valor cuando el nivel tiene uno solo; el dueño del cargo
+  (proveedor_id) fija el nivel PROVEEDOR.
 """
 from datetime import date
 from typing import Any
@@ -22,7 +26,23 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core import fechas
 from app.core.errors import ErrorNegocio, confirmar, enviar
-from app.models import Moneda, Proveedor, Puerto, Recargo, RecargoServicio, RecargoTarifa, Servicio, Tarifa, Usuario
+from app.models import (
+    Moneda,
+    Pais,
+    Proveedor,
+    Puerto,
+    Recargo,
+    RecargoAlcance,
+    RecargoTarifa,
+    Region,
+    Servicio,
+    Tarifa,
+    TipoCarga,
+    TipoEquipo,
+    Usuario,
+)
+from app.models.geografia import TipoUbicacion
+from app.services import alcance as alcance_svc
 from app.schemas.tarifas import PuertoRef, RecargoCosto, RecargoCostoMargen, RecargoVenta, Referencia, TipoEquipoRef
 from app.services import auditoria, precio_venta, servicios
 from app.services.tarifas import (
@@ -61,6 +81,7 @@ CAMPOS_RECARGO = (
     "aplica_iva",
     "rol_ingreso",
     "bloque_fiscal",
+    "alcance_firma",
     "activo",
 )
 BLOQUES_FISCALES = ("RECIBO_CAJA", "FACTURA")
@@ -80,6 +101,7 @@ def _clave_recargo(datos: dict[str, Any]) -> list:
         func.lower(Recargo.concepto) == datos["concepto"].lower(),
         Recargo.modo.is_not_distinct_from(datos.get("modo")),
         Recargo.tipo_equipo_id.is_not_distinct_from(datos.get("tipo_equipo_id")),
+        Recargo.alcance_firma == datos.get("alcance_firma", ""),
     ]
 
 
@@ -102,37 +124,110 @@ def _tarifas_de(db: Session, ids: list[int]) -> list[Tarifa]:
     return salida
 
 
-def _servicios_de(db: Session, codigos: list[str]) -> list[Servicio]:
-    salida = []
-    for codigo in dict.fromkeys(codigos):
-        servicio = db.scalars(select(Servicio).where(Servicio.codigo == codigo)).one_or_none()
-        if servicio is None:
-            raise ErrorNegocio(422, "SERVICIO_INEXISTENTE", f"El servicio {codigo} no existe")
-        salida.append(servicio)
+def alcance_api(alc: dict[str, set]) -> dict[str, list]:
+    """nivel → clave del JSON, con los valores ordenados."""
+    return {alcance_svc.CLAVE_API[nivel]: sorted(valores, key=str) for nivel, valores in alc.items() if valores}
+
+
+def _alcance_de_entrada(entrada: dict[str, Any]) -> dict[str, set]:
+    por_clave = {v: k for k, v in alcance_svc.CLAVE_API.items()}
+    salida: dict[str, set] = {}
+    for clave, valores in (entrada or {}).items():
+        nivel = por_clave.get(clave)
+        if nivel is None:
+            raise ErrorNegocio(422, "ALCANCE_INVALIDO", f"Nivel de alcance desconocido: {clave}")
+        if not isinstance(valores, list):
+            raise ErrorNegocio(422, "ALCANCE_INVALIDO", f"El nivel {clave} es una lista")
+        if valores:
+            salida[nivel] = {str(v).strip().upper() for v in valores} if nivel in alcance_svc.NIVELES_TEXTO else {int(v) for v in valores}
     return salida
 
 
-def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None = None) -> dict[str, Any]:
+def _validar_alcance(db: Session, alc: dict[str, set]) -> None:
+    """Cada valor existe; la ruta lleva origen y destino; la clase IMO, solo con un tipo de carga que pide datos IMO."""
+    for nivel, modelo, que in (("REGION", Region, "región"), ("PAIS", Pais, "país"), ("PUERTO", Puerto, "puerto"),
+                               ("PUERTO_ORIGEN", Puerto, "puerto de origen"), ("PUERTO_DESTINO", Puerto, "puerto de destino"),
+                               ("PROVEEDOR", Proveedor, "proveedor"), ("TIPO_EQUIPO", TipoEquipo, "tipo de contenedor")):
+        for valor in alc.get(nivel, ()):
+            if db.get(modelo, valor) is None:
+                raise ErrorNegocio(422, "ALCANCE_INVALIDO", f"El {que} {valor} no existe")
+    for codigo in alc.get("SERVICIO", ()):
+        if db.scalars(select(Servicio).where(Servicio.codigo == codigo)).one_or_none() is None:
+            raise ErrorNegocio(422, "REFERENCIA_INEXISTENTE", f"El servicio {codigo} no existe")
+    for codigo in alc.get("MODO", ()):
+        if db.scalars(select(TipoUbicacion).where(TipoUbicacion.codigo == codigo)).one_or_none() is None:
+            raise ErrorNegocio(422, "ALCANCE_INVALIDO", f"El modo {codigo} no existe")
+    tipos_carga = {t.codigo: t for t in db.scalars(select(TipoCarga))}
+    for codigo in alc.get("TIPO_CARGA", ()):
+        if codigo not in tipos_carga:
+            raise ErrorNegocio(422, "ALCANCE_INVALIDO", f"El tipo de carga {codigo} no existe")
+    if ("PUERTO_ORIGEN" in alc) != ("PUERTO_DESTINO" in alc):
+        raise ErrorNegocio(422, "RUTA_INCOMPLETA", "La ruta exacta exige puerto de origen y puerto de destino")
+    if "CLASE_IMO" in alc:
+        if not any(tipos_carga[c].pide_imo for c in alc.get("TIPO_CARGA", ())):
+            raise ErrorNegocio(422, "CLASE_IMO_SIN_TIPO", "La clase IMO va con un tipo de carga que pide datos IMO (por ejemplo IMO)")
+        if any(c not in {str(n) for n in range(1, 10)} for c in alc["CLASE_IMO"]):
+            raise ErrorNegocio(422, "CLASE_IMO_INVALIDA", "La clase IMO es un número del 1 al 9")
+    if "TIPO_EQUIPO" in alc:
+        servicios_con_equipo = [s for s in alc.get("SERVICIO", ()) if (sv := db.scalars(select(Servicio).where(
+            Servicio.codigo == s)).one_or_none()) is not None and sv.usa_tipo_equipo]
+        if len(alc.get("SERVICIO", ())) != 1 or not servicios_con_equipo:
+            raise ErrorNegocio(422, "TIPO_EQUIPO_NO_PERMITIDO",
+                               "El tipo de contenedor va con un único servicio que use tipo de equipo (por ejemplo FCL)")
+
+
+def _alcance_final(recargo: Recargo | None, datos: dict[str, Any], cambios: dict[str, Any] | None) -> dict[str, set]:
+    """El alcance pedido: el explícito ("alcance"), o el de antes ajustado por los campos sueltos (puerto_id, modo,
+    tipo_equipo_id, servicios). El dueño del cargo (proveedor_id) siempre fija el nivel PROVEEDOR."""
+    if "alcance" in (cambios if cambios is not None else datos) and datos.get("alcance") is not None:
+        alc = _alcance_de_entrada(datos["alcance"])
+    else:
+        alc = {k: set(v) for k, v in alcance_svc.de(recargo).items()} if recargo is not None else {}
+        sueltos = cambios if cambios is not None else datos
+        for campo, nivel in (("puerto_id", "PUERTO"), ("tipo_equipo_id", "TIPO_EQUIPO")):
+            if campo in sueltos:
+                alc.pop(nivel, None)
+                if datos.get(campo) is not None:
+                    alc[nivel] = {int(datos[campo])}
+        if "modo" in sueltos or "servicios" in sueltos:
+            alc.pop("SERVICIO", None)
+            codigos = {c for c in ([datos.get("modo")] + list(datos.get("servicios") or [])) if c}
+            if codigos:
+                alc["SERVICIO"] = set(codigos)
+    alc.pop("PROVEEDOR", None) if datos.get("proveedor_id") is not None else None
+    if datos.get("proveedor_id") is not None:
+        alc["PROVEEDOR"] = {datos["proveedor_id"]}
+    elif recargo is not None and recargo.proveedor_id is not None and cambios is not None and "proveedor_id" in cambios:
+        alc.get("PROVEEDOR", set()).discard(recargo.proveedor_id)
+        if not alc.get("PROVEEDOR"):
+            alc.pop("PROVEEDOR", None)
+    return alc
+
+
+def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None = None,
+                     recargo: Recargo | None = None, cambios: dict[str, Any] | None = None) -> dict[str, Any]:
     activo = datos.get("activo", True)
+    tarifas = _tarifas_de(db, datos.get("tarifas_ids") or [])
+    # D-A1: el alcance manda; las columnas de antes son la copia del valor único de cada nivel.
+    alc = _alcance_final(recargo, datos, cambios)
+    _validar_alcance(db, alc)
+    datos["puerto_id"] = next(iter(alc["PUERTO"])) if len(alc.get("PUERTO", ())) == 1 else None
+    datos["modo"] = next(iter(alc["SERVICIO"])) if len(alc.get("SERVICIO", ())) == 1 else None
+    datos["tipo_equipo_id"] = next(iter(alc["TIPO_EQUIPO"])) if len(alc.get("TIPO_EQUIPO", ())) == 1 else None
+    datos["_tarifas"], datos["_alcance"] = tarifas, alc
+    datos["alcance_firma"] = alcance_svc.firma(alc, datos["puerto_id"], datos["modo"], datos["tipo_equipo_id"],
+                                               datos.get("proveedor_id"))
     modo = datos.get("modo")
     servicio = servicios.servicio_utilizable(db, modo, activo) if modo is not None else None
-    tarifas = _tarifas_de(db, datos.get("tarifas_ids") or [])
-    vinculados_servicio = _servicios_de(db, datos.get("servicios") or [])
-    datos["_tarifas"], datos["_servicios"] = tarifas, vinculados_servicio
     puerto = None
     if datos.get("puerto_id") is not None:
         puerto = referencia_activa(db, Puerto, datos["puerto_id"], "el puerto", activo)
-    elif not tarifas:
-        raise ErrorNegocio(422, "PUERTO_REQUERIDO",
-                           "Elija el puerto o vincule el recargo a una tarifa (toma el puerto de la tarifa)")
     for tarifa in tarifas:
         if datos.get("proveedor_id") is not None and tarifa.proveedor_id != datos["proveedor_id"]:
             raise ErrorNegocio(422, "VINCULO_OTRO_PROVEEDOR",
                                f"La tarifa {tarifa.id} es de otro proveedor; el recargo debe ser del mismo o propio de XPRESS")
         if modo is not None and tarifa.modo != modo:
             raise ErrorNegocio(422, "VINCULO_OTRO_SERVICIO", f"La tarifa {tarifa.id} es de {tarifa.modo}, no de {modo}")
-    if vinculados_servicio and modo is not None and any(s.codigo != modo for s in vinculados_servicio):
-        raise ErrorNegocio(422, "VINCULO_OTRO_SERVICIO", "Con servicios vinculados, deje el servicio del recargo en «todos»")
     # D-R3: el bloque fiscal lo elige Pricing; el seguro va siempre en Recibo de Caja.
     if datos["bloque_incoterm"] == "SEGURO":
         datos["bloque_fiscal"] = "RECIBO_CAJA"
@@ -144,8 +239,11 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
         raise ErrorNegocio(422, "BLOQUE_FISCAL_INVALIDO", "El bloque fiscal es Recibo de Caja o Factura")
     if datos["bloque_fiscal"] == "RECIBO_CAJA":
         datos["aplica_iva"] = False  # el Recibo de Caja va con IVA 0%
-    # Sin puerto, las unidades y el tipo de ubicación salen del servicio de la primera tarifa vinculada.
-    referencia_servicio = servicio or (servicios.servicio_utilizable(db, tarifas[0].modo, False) if puerto is None else None)
+    # Unidades: las del servicio (único); con varios, las comunes; sin servicio, las del modo, del puerto o de la
+    # primera tarifa vinculada; sin nada de eso, las de cualquier servicio que no exija tipo de equipo.
+    referencia_servicio = servicio
+    if referencia_servicio is None and puerto is None and tarifas:
+        referencia_servicio = servicios.servicio_utilizable(db, tarifas[0].modo, False)
     if datos.get("proveedor_id") is not None:
         referencia_activa(db, Proveedor, datos["proveedor_id"], "el proveedor", activo)
     moneda = referencia_activa(db, Moneda, datos["moneda_id"], "la moneda", activo)
@@ -192,14 +290,25 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
             raise ErrorNegocio(422, "PCT_RECIBO_SOLO_USD", "El % sobre el Recibo de Caja se registra en USD")
         permitidas = {"PCT_RECIBO"}
     else:
-        permitidas = (
-            set(servicios.forma_de(referencia_servicio).unidades_recargo)
-            if referencia_servicio is not None
-            else servicios.unidades_recargo_sin_servicio(db, puerto.tipo)
-        )
+        if referencia_servicio is not None:
+            permitidas = set(servicios.forma_de(referencia_servicio).unidades_recargo)
+            referencia = f"el servicio {referencia_servicio.codigo}"
+        elif len(alc.get("SERVICIO", ())) > 1:
+            conjuntos = [set(servicios.forma_de(servicios.servicio_utilizable(db, c, False)).unidades_recargo)
+                         for c in alc["SERVICIO"]]
+            permitidas = set.intersection(*conjuntos)
+            referencia = "los servicios elegidos"
+        elif len(alc.get("MODO", ())) == 1:
+            permitidas = servicios.unidades_recargo_sin_servicio(db, next(iter(alc["MODO"])))
+            referencia = "ese modo"
+        elif puerto is not None:
+            permitidas = servicios.unidades_recargo_sin_servicio(db, puerto.tipo)
+            referencia = f"un {puerto.tipo_ubicacion.nombre.lower()}"
+        else:
+            permitidas = set().union(*(servicios.unidades_recargo_sin_servicio(db, t.codigo)
+                                       for t in db.scalars(select(TipoUbicacion))))
+            referencia = "cualquier servicio"
     if datos["rate_unit"] not in permitidas:
-        referencia = (f"el servicio {referencia_servicio.codigo}" if referencia_servicio is not None
-                      else f"un {puerto.tipo_ubicacion.nombre.lower()}")
         raise ErrorNegocio(
             422,
             "RATE_UNIT_INCOMPATIBLE",
@@ -207,7 +316,7 @@ def _validar_recargo(db: Session, datos: dict[str, Any], excluir_id: int | None 
         )
 
     validar_venta(datos)
-    if activo and puerto is not None:  # sin puerto (vinculado a tarifas) no hay superposición por puerto
+    if activo:  # D-A1: con la huella del alcance, dos alcances distintos del mismo concepto no se superponen
         conflicto = superpuesta(
             db, Recargo, _clave_recargo(datos), datos["valido_desde"], datos["valido_hasta"], excluir_id
         )
@@ -223,8 +332,21 @@ def _consulta_recargos():
         selectinload(Recargo.puerto),
         selectinload(Recargo.tipo_equipo),
         selectinload(Recargo.vinculos_tarifa).selectinload(RecargoTarifa.tarifa),
-        selectinload(Recargo.vinculos_servicio).selectinload(RecargoServicio.servicio),
+        selectinload(Recargo.alcance),
     )
+
+
+def nombres_alcance(db: Session) -> dict[str, dict]:
+    """Nombres legibles de todos los valores posibles del alcance (para el resumen "Aplica a")."""
+    return {
+        "PUERTO": {p.id: p.codigo for p in db.scalars(select(Puerto))},
+        "PAIS": {p.id: p.nombre for p in db.scalars(select(Pais))},
+        "REGION": {r.id: r.nombre for r in db.scalars(select(Region))},
+        "PROVEEDOR": {p.id: p.nombre for p in db.scalars(select(Proveedor))},
+        "TIPO_EQUIPO": {t.id: t.codigo for t in db.scalars(select(TipoEquipo))},
+        "MODO": {t.codigo: t.nombre for t in db.scalars(select(TipoUbicacion))},
+        "TIPO_CARGA": {t.codigo: t.nombre for t in db.scalars(select(TipoCarga))},
+    }
 
 
 def etiqueta_tarifa(tarifa: Tarifa) -> str:
@@ -234,24 +356,44 @@ def etiqueta_tarifa(tarifa: Tarifa) -> str:
 
 
 def advertencias(db: Session, datos: dict[str, Any]) -> list[str]:
-    """Coherencia del puerto con el lado (no bloquea): el error de producción fue un gasto de destino en Shanghái."""
-    if datos.get("puerto_id") is None or datos.get("lado") is None:
+    """Coherencia de la ubicación con el lado (no bloquea): el error de producción fue un gasto de destino en Shanghái.
+    D-A1: se revisan el puerto, los países y las regiones del alcance."""
+    lado = datos.get("lado")
+    if lado is None:
         return []
-    puerto = db.get(Puerto, datos["puerto_id"])
-    if puerto is None:
-        return []
-    pais = f"{puerto.pais.nombre} ({puerto.codigo})"
-    if datos["lado"] == "DESTINO" and puerto.pais.iso2 != "EC":
-        return [f"¿Seguro? Este gasto de destino está en un puerto de {pais}. En importaciones a Ecuador, el destino "
-                "es un puerto ecuatoriano. Si es para una tarifa, vincúlelo a ella y el puerto se toma solo."]
-    if datos["lado"] == "ORIGEN" and puerto.pais.iso2 == "EC":
-        return [f"¿Seguro? Este gasto de origen está en un puerto de {pais}. En importaciones, el origen es el puerto "
-                "del exterior."]
-    return []
+    try:
+        alc = _alcance_de_entrada(datos.get("alcance") or {})
+    except (ErrorNegocio, ValueError):
+        alc = {}
+    puertos = set(alc.get("PUERTO", set())) | ({int(datos["puerto_id"])} if datos.get("puerto_id") else set())
+    lugares: list[tuple[str, bool]] = []  # (descripción, es Ecuador)
+    for puerto_id in puertos:
+        puerto = db.get(Puerto, puerto_id)
+        if puerto is not None:
+            lugares.append((f"un puerto de {puerto.pais.nombre} ({puerto.codigo})", puerto.pais.iso2 == "EC"))
+    for pais_id in alc.get("PAIS", ()):
+        pais = db.get(Pais, pais_id)
+        if pais is not None:
+            lugares.append((f"el país {pais.nombre}", pais.iso2 == "EC"))
+    ecuador = db.scalars(select(Pais).where(Pais.iso2 == "EC")).one_or_none()
+    for region_id in alc.get("REGION", ()):
+        region = db.get(Region, region_id)
+        if region is not None:
+            lugares.append((f"la región {region.nombre}", ecuador is not None and ecuador.region_id == region.id))
+    salida = []
+    for descripcion, es_ecuador in lugares:
+        if lado == "DESTINO" and not es_ecuador:
+            salida.append(f"¿Seguro? Este gasto de destino está en {descripcion}. En importaciones a Ecuador, el destino "
+                          "es un puerto ecuatoriano. Si es para una tarifa, vincúlelo a ella y el puerto se toma solo.")
+        if lado == "ORIGEN" and es_ecuador:
+            salida.append(f"¿Seguro? Este gasto de origen está en {descripcion}. En importaciones, el origen es el puerto "
+                          "del exterior.")
+    return salida
 
 
-def presentar_recargo(recargo: Recargo, nivel: str, hoy: date, dias: int):
+def presentar_recargo(recargo: Recargo, nivel: str, hoy: date, dias: int, nombres: dict[str, dict] | None = None):
     venta, venta_minima = precios_de(recargo)
+    alc = alcance_svc.de(recargo)
     datos = {
         "id": recargo.id,
         "proveedor": Referencia.model_validate(recargo.proveedor) if recargo.proveedor else None,
@@ -269,7 +411,9 @@ def presentar_recargo(recargo: Recargo, nivel: str, hoy: date, dias: int):
         "rol_ingreso": recargo.rol_ingreso,
         "bloque_fiscal": recargo.bloque_fiscal,
         "tarifas_vinculadas": [{"id": v.tarifa_id, "etiqueta": etiqueta_tarifa(v.tarifa)} for v in recargo.vinculos_tarifa],
-        "servicios_vinculados": [v.servicio.codigo for v in recargo.vinculos_servicio],
+        "servicios_vinculados": sorted(alc.get("SERVICIO", set())),
+        "alcance": alcance_api(alc),
+        "aplica_a": alcance_svc.resumen(alc, recargo.lado, nombres, len(recargo.vinculos_tarifa)),
         "valido_desde": recargo.valido_desde,
         "valido_hasta": recargo.valido_hasta,
         "estado_vigencia": estado_vigencia(recargo.valido_desde, recargo.valido_hasta, hoy, dias),
@@ -288,7 +432,7 @@ def presentar_recargo(recargo: Recargo, nivel: str, hoy: date, dias: int):
 
 def _presentar(db: Session, usuario: Usuario, recargo: Recargo):
     db.refresh(recargo)
-    return presentar_recargo(recargo, nivel_de(usuario), fechas.hoy_ecuador(), dias_alerta(db))
+    return presentar_recargo(recargo, nivel_de(usuario), fechas.hoy_ecuador(), dias_alerta(db), nombres_alcance(db))
 
 
 def obtener_recargo(db: Session, recargo_id: int) -> Recargo:
@@ -300,7 +444,7 @@ def obtener_recargo(db: Session, recargo_id: int) -> Recargo:
 
 def detalle_recargo(db: Session, usuario: Usuario, recargo_id: int):
     recargo = obtener_recargo(db, recargo_id)
-    return presentar_recargo(recargo, nivel_de(usuario), fechas.hoy_ecuador(), dias_alerta(db))
+    return presentar_recargo(recargo, nivel_de(usuario), fechas.hoy_ecuador(), dias_alerta(db), nombres_alcance(db))
 
 
 def listar_recargos(
@@ -317,6 +461,7 @@ def listar_recargos(
     limit: int | None = None,
     offset: int = 0,
     total: list[int] | None = None,
+    aplica_en: int | None = None,
 ):
     """F5-A2: con limit/offset pagina en SQL (mismos filtros); `total`, si se pasa, recibe el conteo sin paginar."""
     hoy, dias = fechas.hoy_ecuador(), dias_alerta(db)
@@ -332,23 +477,50 @@ def listar_recargos(
             filtros.append(columna == valor)
     if activo is not None:
         filtros.append(Recargo.activo.is_(activo))
+    if aplica_en is not None:
+        # D-A1: "todo lo que aplica a ECGYE": su puerto, su país, su región, una ruta que lo incluya, o sin ubicación.
+        puerto = db.get(Puerto, aplica_en)
+        if puerto is not None:
+            ubicacion = select(RecargoAlcance.recargo_id).where(
+                ((RecargoAlcance.nivel.in_(("PUERTO", "PUERTO_ORIGEN", "PUERTO_DESTINO"))) & (RecargoAlcance.valor_id == puerto.id))
+                | ((RecargoAlcance.nivel == "PAIS") & (RecargoAlcance.valor_id == puerto.pais_id))
+                | ((RecargoAlcance.nivel == "REGION") & (RecargoAlcance.valor_id == puerto.pais.region_id)))
+            con_ubicacion = select(RecargoAlcance.recargo_id).where(
+                RecargoAlcance.nivel.in_(("PUERTO", "PUERTO_ORIGEN", "PUERTO_DESTINO", "PAIS", "REGION")))
+            filtros.append(Recargo.id.in_(ubicacion) | Recargo.id.not_in(con_ubicacion))
     if total is not None:
         total.append(db.scalar(select(func.count()).select_from(Recargo).where(*filtros)))
     consulta = _consulta_recargos().where(*filtros).order_by(Recargo.puerto_id, Recargo.lado, Recargo.id)
     if limit is not None:
         consulta = consulta.limit(limit).offset(offset)
     recargos = db.scalars(consulta)
-    nivel = nivel_de(usuario)
-    return [presentar_recargo(r, nivel, hoy, dias) for r in recargos]
+    nivel, nombres = nivel_de(usuario), nombres_alcance(db)
+    return [presentar_recargo(r, nivel, hoy, dias, nombres) for r in recargos]
 
 
 def _vinculos(recargo: Recargo) -> dict[str, list]:
-    return {"tarifas": sorted(v.tarifa_id for v in recargo.vinculos_tarifa),
-            "servicios": sorted(v.servicio.codigo for v in recargo.vinculos_servicio)}
+    return {"tarifas": sorted(v.tarifa_id for v in recargo.vinculos_tarifa)}
+
+
+def _aplicar_alcance(db: Session, actor: Usuario, recargo: Recargo, alc: dict[str, set]) -> None:
+    """Deja exactamente el alcance pedido y audita el cambio (antes/después por nivel)."""
+    antes = alcance_api(alcance_svc.de(recargo))
+    despues = alcance_api(alc)
+    if antes == despues:
+        return
+    recargo.alcance.clear()
+    enviar(db)
+    for nivel, valores in alc.items():
+        for valor in sorted(valores, key=str):
+            texto = nivel in alcance_svc.NIVELES_TEXTO
+            recargo.alcance.append(RecargoAlcance(nivel=nivel, valor_texto=valor if texto else None,
+                                                  valor_id=None if texto else valor))
+    auditoria.registrar(db, actor, "recargo", recargo.id, "EDITAR", antes={"alcance": antes}, despues={"alcance": despues},
+                        nota="ALCANCE")
 
 
 def _aplicar_vinculos(db: Session, actor: Usuario, recargo: Recargo, tarifas: list[Tarifa] | None,
-                      servicios_: list[Servicio] | None) -> None:
+                      servicios_=None) -> None:
     """Deja exactamente los vínculos pedidos (None = no tocar) y audita cada alta y cada baja."""
     actor_id = auditoria.id_de(actor)
     if tarifas is not None:
@@ -364,19 +536,6 @@ def _aplicar_vinculos(db: Session, actor: Usuario, recargo: Recargo, tarifas: li
                 recargo.vinculos_tarifa.append(RecargoTarifa(tarifa_id=tarifa.id, creado_por=actor_id))
                 auditoria.registrar(db, actor, "recargo", recargo.id, "EDITAR", despues={"tarifa_id": tarifa.id},
                                     nota=f"VINCULAR TARIFA {tarifa.id}")
-    if servicios_ is not None:
-        pedidos = {s.id for s in servicios_}
-        for vinculo in list(recargo.vinculos_servicio):
-            if vinculo.servicio_id not in pedidos:
-                recargo.vinculos_servicio.remove(vinculo)
-                auditoria.registrar(db, actor, "recargo", recargo.id, "EDITAR", antes={"servicio_id": vinculo.servicio_id},
-                                    nota=f"DESVINCULAR SERVICIO {vinculo.servicio_id}")
-        actuales = {v.servicio_id for v in recargo.vinculos_servicio}
-        for servicio in servicios_:
-            if servicio.id not in actuales:
-                recargo.vinculos_servicio.append(RecargoServicio(servicio_id=servicio.id, creado_por=actor_id))
-                auditoria.registrar(db, actor, "recargo", recargo.id, "EDITAR", despues={"servicio": servicio.codigo},
-                                    nota=f"VINCULAR SERVICIO {servicio.codigo}")
     enviar(db)
 
 
@@ -384,10 +543,17 @@ def crear_recargo(db: Session, actor: Usuario, datos: dict[str, Any]):
     actor_id = auditoria.id_de(actor)
     datos = _validar_recargo(db, dict(datos) | {"activo": True})
     recargo = Recargo(**{campo: datos.get(campo) for campo in CAMPOS_RECARGO}, creado_por=actor_id)
+    # D-A1: el alcance se arma antes de insertar (así el valor por defecto del modelo no se aplica).
+    for nivel, valores in datos["_alcance"].items():
+        for valor in sorted(valores, key=str):
+            texto = nivel in alcance_svc.NIVELES_TEXTO
+            recargo.alcance.append(RecargoAlcance(nivel=nivel, valor_texto=valor if texto else None,
+                                                  valor_id=None if texto else valor))
     db.add(recargo)
     enviar(db)
-    auditoria.registrar(db, actor, "recargo", recargo.id, "CREAR", despues=foto(recargo, CAMPOS_RECARGO))
-    _aplicar_vinculos(db, actor, recargo, datos["_tarifas"], datos["_servicios"])
+    auditoria.registrar(db, actor, "recargo", recargo.id, "CREAR",
+                        despues=foto(recargo, CAMPOS_RECARGO) | {"alcance": alcance_api(datos["_alcance"])})
+    _aplicar_vinculos(db, actor, recargo, datos["_tarifas"])
     confirmar(db)
     return _presentar(db, actor, recargo)
 
@@ -396,17 +562,18 @@ def actualizar_recargo(db: Session, actor: Usuario, recargo_id: int, cambios: di
     recargo = obtener_recargo(db, recargo_id)
     vigentes = _vinculos(recargo)
     base = {campo: getattr(recargo, campo) for campo in CAMPOS_RECARGO}
-    base |= {"tarifas_ids": vigentes["tarifas"], "servicios": vigentes["servicios"]}
-    final = _validar_recargo(db, base | cambios, excluir_id=recargo.id)
+    base |= {"tarifas_ids": vigentes["tarifas"]}
+    final = _validar_recargo(db, base | cambios, excluir_id=recargo.id, recargo=recargo, cambios=cambios)
     antes = foto(recargo, CAMPOS_RECARGO)
     with db.no_autoflush:
         for campo in cambios:
             if campo in CAMPOS_RECARGO:
                 setattr(recargo, campo, final[campo])
-        for campo in ("bloque_fiscal", "aplica_iva"):  # el seguro y el Recibo de Caja los ajusta la validación
+        # el seguro y el Recibo de Caja los ajusta la validación; puerto, servicio y equipo son copia del alcance
+        for campo in ("bloque_fiscal", "aplica_iva", "puerto_id", "modo", "tipo_equipo_id", "alcance_firma"):
             setattr(recargo, campo, final[campo])
-        _aplicar_vinculos(db, actor, recargo, final["_tarifas"] if "tarifas_ids" in cambios else None,
-                          final["_servicios"] if "servicios" in cambios else None)
+        _aplicar_vinculos(db, actor, recargo, final["_tarifas"] if "tarifas_ids" in cambios else None)
+        _aplicar_alcance(db, actor, recargo, final["_alcance"])
         despues = foto(recargo, CAMPOS_RECARGO)
         if despues != antes:
             accion = "DESACTIVAR" if antes["activo"] and not despues["activo"] else "EDITAR"
@@ -436,7 +603,4 @@ def vincular(db: Session, actor: Usuario, tarifa_id: int, recargo_id: int, vincu
     pedidos = sorted(set(actuales) | {tarifa_id}) if vincular_ else [i for i in actuales if i != tarifa_id]
     if pedidos == sorted(actuales):
         return _presentar(db, actor, recargo)
-    if not pedidos and recargo.puerto_id is None:
-        raise ErrorNegocio(422, "PUERTO_REQUERIDO",
-                           "Este recargo no tiene puerto: no se puede quitar su única tarifa. Edítelo y elija un puerto")
     return actualizar_recargo(db, actor, recargo_id, {"tarifas_ids": pedidos})

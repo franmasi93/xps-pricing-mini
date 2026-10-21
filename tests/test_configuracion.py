@@ -10,6 +10,9 @@ from app.services.configuracion import leer_iva_tasa
 SEED = [
     # La 0004 deja vacías las condiciones provisionales (H2 de F3): emitir exige cargarlas.
     ("condiciones_generales_pdf", "", "TEXTO", "config.editar"),
+    # D-T6 (0016): texto adicional de condiciones para carga IMO (desvío aprobado: una clave nueva).
+    ("condiciones_imo_pdf", "Sujeto a aceptación de la naviera o aerolínea y a la presentación de la MSDS. "
+     "El embarque debe cumplir el código IMDG / IATA DGR.", "TEXTO", "config.editar"),
     ("dias_alerta_vencimiento", "7", "ENTERO", "tarifa.editar"),
     ("firma_correo", "Pendiente de definir.", "TEXTO", "config.editar"),
     ("iva_tasa", "15.00", "DECIMAL", "config.editar"),

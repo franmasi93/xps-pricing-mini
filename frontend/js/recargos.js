@@ -28,7 +28,7 @@
   const cabecera = document.getElementById("cabecera-recargos");
   const cuerpo = document.getElementById("tabla-recargos");
   const filtros = {
-    puerto: document.getElementById("filtro-puerto"),
+    aplica_en: document.getElementById("filtro-aplica"),
     lado: document.getElementById("filtro-lado"),
     bloque: document.getElementById("filtro-bloque"),
     proveedor: document.getElementById("filtro-proveedor"),
@@ -43,7 +43,9 @@
 
   let puedeEditar = false;
   let diasAlerta = "7";
-  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [], servicios: [], ubicaciones: [], tarifas: [] };
+  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [], servicios: [], ubicaciones: [], tarifas: [],
+    regiones: [], paises: [], tiposCarga: [] };
+  let selector = null;  // D-A1: "¿Dónde aplica?" (alcance.js)
   const FISCAL = { RECIBO_CAJA: "Recibo de Caja", FACTURA: "Factura" };
   let enEdicion = null;
 
@@ -54,7 +56,7 @@
   function pintar(lista) {
     const conCosto = lista.some((r) => "costo" in r);
     const conMargen = lista.some((r) => "margen_pct" in r);
-    const columnas = ["Puerto", "Lado y bloque", "Concepto", "Servicio", "Unidad", "Venta"];
+    const columnas = ["Aplica a", "Lado y bloque", "Concepto", "Unidad", "Venta"];
     if (conCosto) columnas.push("Costo");
     if (conMargen) columnas.push("Margen");
     columnas.push("IVA / rol", "Vigencia", "Estado");
@@ -62,15 +64,10 @@
     cabecera.replaceChildren(crear("tr", {}, columnas.map((c) => crear("th", { texto: c }))));
     cuerpo.replaceChildren(...(lista.length ? [] : [UI.filaVacia(columnas.length, "No hay recargos con estos filtros.")]));
     for (const recargo of lista) {
-      const servicio = recargo.modo ? nombreServicio(recargo.modo) : "Todos";
-      const modo = recargo.tipo_equipo ? `${servicio} ${recargo.tipo_equipo.codigo}` : servicio;
       const celdas = [
-        UI.celda("Puerto", [UI.texto(recargo.puerto ? recargo.puerto.codigo : "De la tarifa", "cifra"),
-          ...(recargo.tarifas_vinculadas.length ? [crear("span", { clase: "badge badge-estado badge-info", texto: `Vinculado a ${recargo.tarifas_vinculadas.length} tarifa(s)` })] : []),
-          ...(recargo.servicios_vinculados.length ? [crear("span", { clase: "badge badge-estado badge-info", texto: `Solo ${recargo.servicios_vinculados.join(", ")}` })] : [])]),
+        UI.celda("Aplica a", [UI.texto(recargo.aplica_a.replace(/^Aplica a: /, ""))]),
         UI.celda("Lado y bloque", [UI.texto(`${recargo.lado === "ORIGEN" ? "Origen" : "Destino"} · ${BLOQUES[recargo.bloque_incoterm]}`)]),
         UI.celda("Concepto", [UI.texto(recargo.proveedor ? `${recargo.concepto} (${recargo.proveedor.nombre})` : recargo.concepto)]),
-        UI.celda("Servicio", [UI.texto(modo)]),
         UI.celda("Unidad", [UI.texto({ PCT_VALOR: "% del valor", PCT_RECIBO: "% sobre Recibo de Caja" }[recargo.rate_unit] || recargo.rate_unit)]),
         UI.celda("Venta", [UI.monto(recargo.precio_venta, recargo.moneda)]),
       ];
@@ -138,11 +135,10 @@
     const actual = form.elements.bloque_incoterm.value;
     UI.opciones(form.elements.bloque_incoterm, BLOQUES_POR_LADO[lado].map((b) => ({ b })), { valor: (x) => x.b, texto: (x) => BLOQUES[x.b] });
     if (BLOQUES_POR_LADO[lado].includes(actual)) form.elements.bloque_incoterm.value = actual;
-    const servicio = servicioDe(form.elements.modo.value);
-    document.getElementById("campo-equipo").hidden = !(servicio && servicio.usa_tipo_equipo);
-    const enUso = enEdicion && enEdicion.tipo_equipo ? enEdicion.tipo_equipo.id : null;
-    const tipos = catalogos.tipos.filter((t) => servicio && t.servicio_id === servicio.id && (t.activo || t.id === enUso));
-    UI.opciones(form.elements.tipo_equipo_id, tipos, { valor: (t) => t.id, texto: (t) => t.codigo, todos: "Cualquiera" });
+    if (selector) {
+      selector.fijarProveedor(Number(form.elements.proveedor_id.value) || null);
+      document.getElementById("resumen-alcance").textContent = selector.resumen(lado);
+    }
     document.getElementById("campo-iva").hidden = form.elements.bloque_fiscal.value !== "FACTURA";
     pintarTarifas();
     const manual = form.elements.metodo_venta.value === "MANUAL";
@@ -158,12 +154,12 @@
       for (const t of enEdicion.tarifas_vinculadas) elegidas.add(t.id);
     }
     const proveedor = Number(form.elements.proveedor_id.value) || null;
-    const modo = form.elements.modo.value || null;
-    const puerto = Number(form.elements.puerto_id.value) || null;
+    const servicios = selector ? selector.servicios() : [];
+    const puertos = selector ? selector.puertos() : [];
     const lado = form.elements.lado.value;
     const visibles = catalogos.tarifas.filter((t) => elegidas.has(t.id) || (
-      (!proveedor || t.proveedor.id === proveedor) && (!modo || t.modo === modo)
-      && (!puerto || (lado === "ORIGEN" ? t.origen.id : t.destino.id) === puerto)));
+      (!proveedor || t.proveedor.id === proveedor) && (!servicios.length || servicios.includes(t.modo))
+      && (!puertos.length || puertos.includes(lado === "ORIGEN" ? t.origen.id : t.destino.id))));
     form.elements.tarifas_ids.replaceChildren(...visibles.map((t) => {
       const opcion = crear("option", { texto: `#${t.id} ${t.proveedor.nombre} · ${t.modo}${t.tipo_equipo ? ` ${t.tipo_equipo.codigo}` : ""} · ${t.origen.codigo} → ${t.destino.codigo} · hasta ${t.valido_hasta}`, atributos: { value: t.id } });
       opcion.selected = elegidas.has(t.id);
@@ -178,32 +174,27 @@
     delete form.dataset.tarifasListas;
     XPS.limpiarAlerta(alertasDialogo);
     document.getElementById("titulo-recargo").textContent = recargo ? `Editar recargo #${recargo.id}` : "Nuevo recargo";
-    UI.opciones(form.elements.puerto_id, catalogos.puertos.filter((p) => p.activo || (recargo && recargo.puerto && p.id === recargo.puerto.id)), {
-      valor: (p) => p.id,
-      texto: (p) => `${p.codigo} · ${p.nombre} (${nombreUbicacion(p.tipo).toLowerCase()})`,
-      todos: "De la tarifa vinculada",
-    });
-    UI.opciones(form.elements.servicios, catalogos.servicios.filter((s) => s.activo || (recargo && recargo.servicios_vinculados.includes(s.codigo))), { valor: (s) => s.codigo, texto: (s) => s.nombre });
-    // Solo servicios activos para recargos nuevos; al editar, también el del recargo aunque esté inactivo.
-    const ofrecidos = catalogos.servicios.filter((s) => s.activo || (recargo && s.codigo === recargo.modo));
-    UI.opciones(form.elements.modo, ofrecidos, { valor: (s) => s.codigo, texto: (s) => (s.activo ? s.nombre : `${s.nombre} (inactivo)`), todos: "Todos los compatibles" });
+    selector = Alcance.crearSelector(document.getElementById("niveles-alcance"), {
+      servicios: catalogos.servicios.filter((s) => s.activo || (recargo && (recargo.alcance.servicios || []).includes(s.codigo))),
+      ubicaciones: catalogos.ubicaciones, tipos: catalogos.tipos, regiones: catalogos.regiones, paises: catalogos.paises,
+      puertos: catalogos.puertos.filter((p) => p.activo), proveedores: catalogos.proveedores.filter((p) => p.activo),
+      tiposCarga: catalogos.tiposCarga.filter((t) => t.activo),
+    }, () => ajustar());
+    selector.establecer(recargo ? recargo.alcance : {});
     UI.opciones(form.elements.proveedor_id, catalogos.proveedores.filter((p) => p.activo), { valor: (p) => p.id, texto: (p) => p.nombre, todos: "Cargo propio de XPRESS" });
     UI.opciones(form.elements.moneda_id, catalogos.monedas.filter((m) => m.activo), { valor: (m) => m.id, texto: (m) => m.codigo });
     if (recargo) {
       form.elements.lado.value = recargo.lado;
       form.elements.metodo_venta.value = recargo.metodo_venta;
-      form.elements.modo.value = recargo.modo || "";
     }
     ajustar();
     if (recargo) {
       const moneda = catalogos.monedas.find((m) => m.codigo === recargo.moneda);
       const valores = {
-        puerto_id: recargo.puerto ? recargo.puerto.id : "",
         bloque_fiscal: recargo.bloque_fiscal,
         proveedor_id: recargo.proveedor ? recargo.proveedor.id : "",
         bloque_incoterm: recargo.bloque_incoterm,
         concepto: recargo.concepto,
-        tipo_equipo_id: recargo.tipo_equipo ? recargo.tipo_equipo.id : "",
         rate_unit: recargo.rate_unit,
         moneda_id: moneda ? moneda.id : "",
         costo: recargo.costo,
@@ -219,7 +210,6 @@
       for (const [campo, valor] of Object.entries(valores)) {
         form.elements[campo].value = valor === null || valor === undefined ? "" : String(valor);
       }
-      for (const opcion of form.elements.servicios.options) opcion.selected = recargo.servicios_vinculados.includes(opcion.value);
     }
     ajustar();
     dialogo.showModal();
@@ -232,14 +222,12 @@
       const valor = elemento.value.trim().replace(/^(-?\d+),(\d+)$/, "$1.$2");
       datos[elemento.name] = valor === "" ? null : valor;
     }
-    for (const campo of ["puerto_id", "proveedor_id", "moneda_id", "tipo_equipo_id"]) {
+    for (const campo of ["proveedor_id", "moneda_id"]) {
       if (datos[campo] !== null && datos[campo] !== undefined) datos[campo] = Number(datos[campo]);
     }
-    const servicio = servicioDe(datos.modo);
-    if (!(servicio && servicio.usa_tipo_equipo)) datos.tipo_equipo_id = null;
+    datos.alcance = selector.leer();
     datos.aplica_iva = datos.bloque_fiscal === "FACTURA" ? datos.aplica_iva === "true" : false;
     datos.tarifas_ids = [...form.elements.tarifas_ids.selectedOptions].map((o) => Number(o.value));
-    datos.servicios = [...form.elements.servicios.selectedOptions].map((o) => o.value);
     if (datos.metodo_venta === "MANUAL") datos.parametro_venta = null;
     else {
       datos.precio_venta_manual = null;
@@ -250,18 +238,15 @@
 
   function original(campo) {
     const r = enEdicion;
-    if (campo === "puerto_id") return r.puerto ? r.puerto.id : null;
     if (campo === "tarifas_ids") return r.tarifas_vinculadas.map((t) => t.id);
-    if (campo === "servicios") return r.servicios_vinculados;
     if (campo === "proveedor_id") return r.proveedor ? r.proveedor.id : null;
-    if (campo === "tipo_equipo_id") return r.tipo_equipo ? r.tipo_equipo.id : null;
     if (campo === "moneda_id") return (catalogos.monedas.find((m) => m.codigo === r.moneda) || {}).id;
     return r[campo];
   }
 
+  const r0alcance = () => (enEdicion ? enEdicion.alcance : {});
   form.elements.lado.addEventListener("change", ajustar);
-  for (const nombre of ["bloque_fiscal", "proveedor_id", "puerto_id"]) form.elements[nombre].addEventListener("change", ajustar);
-  form.elements.modo.addEventListener("change", ajustar);
+  for (const nombre of ["bloque_fiscal", "proveedor_id"]) form.elements[nombre].addEventListener("change", ajustar);
   form.elements.metodo_venta.addEventListener("change", ajustar);
 
   form.addEventListener("submit", async (evento) => {
@@ -270,10 +255,6 @@
     const datos = leer();
     if (datos.bloque_fiscal === null || datos.rol_ingreso === null) {
       XPS.mostrarAlerta(alertasDialogo, "error", "Indique si va en Recibo de Caja o Factura y el rol del ingreso.");
-      return;
-    }
-    if (datos.puerto_id === null && !datos.tarifas_ids.length) {
-      XPS.mostrarAlerta(alertasDialogo, "error", "Elija el puerto o vincule el recargo a una tarifa.");
       return;
     }
     try {
@@ -285,6 +266,11 @@
       if (enEdicion) {
         const cambios = {};
         for (const [campo, valor] of Object.entries(datos)) {
+          if (campo === "alcance") {
+            const ordenar = (a) => JSON.stringify(Object.keys(a).sort().map((k) => [k, [...a[k]].map(String).sort()]));
+            if (ordenar(valor) !== ordenar(r0alcance())) cambios.alcance = valor;
+            continue;
+          }
           if (JSON.stringify(valor ?? "") !== JSON.stringify(original(campo) ?? "") && String(valor ?? "") !== String(original(campo) ?? "")) cambios[campo] = valor;
         }
         if (Object.keys(cambios).length) {
@@ -331,8 +317,7 @@
 
   try {
     diasAlerta = await UI.diasAlerta();
-    const [todos, puertos, proveedores, monedas, tipos, servicios, ubicaciones, tarifas] = await Promise.all([
-      XPS.api("/recargos"),
+    const [puertos, proveedores, monedas, tipos, servicios, ubicaciones, tarifas, regiones, paises, tiposCarga] = await Promise.all([
       XPS.api("/puertos"),
       XPS.api("/proveedores"),
       XPS.api("/monedas"),
@@ -340,11 +325,13 @@
       XPS.api("/servicios"),
       XPS.api("/tipos-ubicacion"),
       XPS.api("/tarifas?activo=true"),
+      XPS.api("/regiones"),
+      XPS.api("/paises"),
+      XPS.api("/tipos-carga"),
     ]);
-    catalogos = { puertos, proveedores, monedas, tipos, servicios, ubicaciones, tarifas };
+    catalogos = { puertos, proveedores, monedas, tipos, servicios, ubicaciones, tarifas, regiones, paises, tiposCarga };
     UI.opciones(filtros.modo, servicios, { valor: (s) => s.codigo, texto: (s) => s.nombre, todos: "Todos" });
-    const conRecargos = new Set(todos.filter((r) => r.puerto).map((r) => r.puerto.id));
-    UI.opciones(filtros.puerto, puertos.filter((p) => conRecargos.has(p.id)), { valor: (p) => p.id, texto: (p) => `${p.codigo} · ${p.nombre}`, todos: "Todos" });
+    UI.opciones(filtros.aplica_en, puertos.filter((p) => p.activo), { valor: (p) => p.id, texto: (p) => `${p.codigo} · ${p.nombre}`, todos: "Todos" });
     UI.opciones(filtros.bloque, Object.keys(BLOQUES).map((b) => ({ b })), { valor: (x) => x.b, texto: (x) => BLOQUES[x.b], todos: "Todos" });
     UI.opciones(filtros.proveedor, proveedores, { valor: (p) => p.id, texto: (p) => p.nombre, todos: "Todos" });
     await cargar();

@@ -99,6 +99,8 @@ class TipoEquipoActualizar(Entrada):
 
 class TarifaVenta(BaseModel):
     id: int
+    tipos_carga: list[str] = ["GENERAL"]
+    clases_imo_excluidas: list[str] = []
     proveedor: Referencia
     modo: str
     origen: PuertoRef
@@ -174,6 +176,8 @@ class RecargoVenta(BaseModel):
     bloque_fiscal: str
     tarifas_vinculadas: list[dict] = []
     servicios_vinculados: list[str] = []
+    alcance: dict[str, list] = {}  # D-A1: nivel → valores ("Todos" = sin la clave)
+    aplica_a: str = ""
     valido_desde: date
     valido_hasta: date
     estado_vigencia: EstadoVigencia
@@ -212,6 +216,9 @@ class _VentaEntrada(Entrada):
 
 
 class TarifaCrear(_VentaEntrada):
+    # D-T4: tipos de carga que acepta (por defecto solo GENERAL) y clases IMO excluidas.
+    tipos_carga: list[str] = Field(default_factory=lambda: ["GENERAL"], max_length=20)
+    clases_imo_excluidas: list[str] = Field(default_factory=list, max_length=9)
     proveedor_id: int
     modo: Modo
     origen_puerto_id: int
@@ -227,6 +234,9 @@ class TarifaCrear(_VentaEntrada):
 
 class TarifaActualizar(Entrada):
     """PATCH parcial. Los campos opcionales del modelo aceptan null; los obligatorios no."""
+
+    tipos_carga: list[str] | None = Field(default=None, max_length=20)  # D-T4
+    clases_imo_excluidas: list[str] | None = Field(default=None, max_length=9)
 
     proveedor_id: int | None = None
     modo: Modo | None = None
@@ -299,6 +309,7 @@ class RecargoCrear(_VentaEntrada):
     bloque_fiscal: BloqueFiscal | None = None
     tarifas_ids: list[int] = Field(default=[], max_length=200)
     servicios: list[str] = Field(default=[], max_length=20)
+    alcance: dict[str, list] | None = None  # D-A1: {"puertos": [..], "paises": [..], "regiones": [..], …}
 
 
 class RecargoActualizar(Entrada):
@@ -322,6 +333,7 @@ class RecargoActualizar(Entrada):
     bloque_fiscal: BloqueFiscal | None = None
     tarifas_ids: list[int] | None = Field(default=None, max_length=200)
     servicios: list[str] | None = Field(default=None, max_length=20)
+    alcance: dict[str, list] | None = None
     valido_desde: date | None = None
     valido_hasta: date | None = None
     activo: bool | None = None

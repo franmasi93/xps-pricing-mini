@@ -132,6 +132,7 @@
   <div class="card">
     <div class="ct"><i></i>Mercancía / Carga</div>
     <div class="kv"><span>Descripción</span><b>{{ d.descripcion_carga | texto }}</b></div>
+    {% if d.carga_especial %}<div class="kv"><span>Tipo de carga</span><b>{{ d.carga_especial }}</b></div>{% endif %}
     <div class="kv"><span>Bultos</span><b class="m">{{ d.carga.bultos | texto }}</b></div>
     {% if carga.medidas %}<div class="kv"><span>Medidas</span><b class="m">{% for m in carga.medidas %}{{ m }}{% if not loop.last %}<br>{% endif %}{% endfor %}</b></div>{% endif %}
     <div class="kv"><span>Peso real</span><b class="m">{{ carga.peso_real }}{% if carga.peso_real_eq %}<small>= {{ carga.peso_real_eq }}</small>{% endif %}</b></div>

@@ -32,14 +32,13 @@ from app.models import (
     Proveedor,
     Puerto,
     Recargo,
-    RecargoServicio,
     RecargoTarifa,
     Tarifa,
     TipoEquipo,
     Usuario,
 )
 from app.models.cotizaciones import BLOQUES_LINEA
-from app.services import administracion, auditoria, clientes, cotizador, pdf, precio_venta, servicios
+from app.services import administracion, alcance, auditoria, clientes, cotizador, pdf, precio_venta, servicios
 from app.services.empresa import datos_empresa
 from app.services.configuracion import leer_config, leer_iva_tasa
 from app.services.cotizador import Bulto, Carga
@@ -62,6 +61,8 @@ CAMPOS_QUE_BORRAN_LINEAS = (
     "contenedores",
     "unidad_peso",
     "peso_lb",
+    "tipo_carga",
+    "imo_clase",
 )
 CAMPOS_CABECERA = (
     "cliente_id",
@@ -83,6 +84,11 @@ CAMPOS_CABECERA = (
     "peso_lb",
     "transportista",
     "descripcion_carga",
+    "tipo_carga",
+    "imo_clase",
+    "imo_un",
+    "imo_grupo",
+    "msds_recibida",
 )
 MEDIDAS = ("largo", "ancho", "alto")
 # Claves de línea y cabecera que solo existen con costo.ver (y las de margen, con margen.ver).
@@ -224,7 +230,60 @@ def _validar(db: Session, actor: Usuario, datos: dict[str, Any], contenedores: l
     for campo in ("notas_cliente", "notas_internas", "transportista", "descripcion_carga"):
         if datos.get(campo) is not None:
             datos[campo] = datos[campo].strip() or None
+    _validar_tipo_carga(db, datos)
     return datos
+
+
+def _validar_tipo_carga(db: Session, datos: dict[str, Any]) -> None:
+    """D-T3: tipo de carga del catálogo (GENERAL por defecto). Si pide datos IMO: clase (1–9, subclase opcional) y UN
+    (4 dígitos) obligatorios; grupo de embalaje I/II/III opcional; MSDS sí/no. Si no, los datos IMO se limpian."""
+    from app.models import TipoCarga
+
+    codigo = (datos.get("tipo_carga") or "GENERAL").strip().upper()
+    tipo = db.scalars(select(TipoCarga).where(TipoCarga.codigo == codigo)).one_or_none()
+    if tipo is None or not tipo.activo:
+        raise ErrorNegocio(422, "TIPO_CARGA_INVALIDO", f"El tipo de carga {codigo} no existe o está inactivo")
+    datos["tipo_carga"] = tipo.codigo
+    if not tipo.pide_imo:
+        datos |= {"imo_clase": None, "imo_un": None, "imo_grupo": None, "msds_recibida": False}
+        return
+    import re
+
+    clase = (datos.get("imo_clase") or "").strip()
+    if not re.fullmatch(r"[1-9](\.[1-9])?", clase):
+        raise ErrorNegocio(422, "IMO_CLASE_INVALIDA", "Indique la clase IMO: un número del 1 al 9, con subclase opcional (por ejemplo 2.1)")
+    un = (datos.get("imo_un") or "").strip().upper().removeprefix("UN")
+    if not re.fullmatch(r"[0-9]{4}", un):
+        raise ErrorNegocio(422, "IMO_UN_INVALIDO", "Indique el número UN: 4 dígitos (por ejemplo 1263)")
+    grupo = (datos.get("imo_grupo") or "").strip().upper() or None
+    if grupo is not None and grupo not in ("I", "II", "III"):
+        raise ErrorNegocio(422, "IMO_GRUPO_INVALIDO", "El grupo de embalaje es I, II o III")
+    datos |= {"imo_clase": clase, "imo_un": un, "imo_grupo": grupo, "msds_recibida": bool(datos.get("msds_recibida"))}
+
+
+def texto_carga_especial(cotizacion) -> str | None:
+    """D-T6: "Carga peligrosa · IMO clase 3 · UN1263 · GE II" (None si la carga es GENERAL)."""
+    if (cotizacion.tipo_carga or "GENERAL") == "GENERAL":
+        return None
+    if cotizacion.imo_clase:
+        partes = ["Carga peligrosa", f"IMO clase {cotizacion.imo_clase}", f"UN{cotizacion.imo_un}"]
+        if cotizacion.imo_grupo:
+            partes.append(f"GE {cotizacion.imo_grupo}")
+        return " · ".join(partes)
+    from app.models import TipoCarga
+
+    tipo = object_session(cotizacion).scalars(select(TipoCarga).where(TipoCarga.codigo == cotizacion.tipo_carga)).one_or_none()
+    return f"Carga {tipo.nombre.lower() if tipo else cotizacion.tipo_carga.lower()}"
+
+
+def _condiciones(db: Session, cotizacion: Cotizacion) -> str:
+    """Las condiciones generales; con carga IMO, más el texto adicional de Configuración (D-T6)."""
+    condiciones = leer_config(db, "condiciones_generales_pdf").strip()
+    if cotizacion.imo_clase:
+        extra = leer_config(db, "condiciones_imo_pdf").strip()
+        if extra:
+            condiciones = f"{condiciones}\n\n{extra}" if condiciones else extra
+    return condiciones
 
 
 def _medida(bulto: dict[str, Any], clave: str) -> Decimal:
@@ -376,6 +435,7 @@ def _linea_dict(linea: LineaCotizacion, calculo, nivel: str) -> dict[str, Any]:
         "valido_hasta_origen": linea.valido_hasta_origen.isoformat(),
         "seleccion": linea.seleccion,
         "vinculado": linea.vinculado,
+        "motivo_alternativa": linea.motivo_alternativa,
     }
     if linea.ajuste_manual:
         datos["bajo_minimo_venta"] = calculo.bajo_minimo_venta  # el mínimo de venta no revela el costo
@@ -529,6 +589,8 @@ def presentar_cotizacion(db: Session, usuario: Usuario, cotizacion: Cotizacion, 
     nivel = nivel_de(usuario)
     hoy = fechas.hoy_ecuador()
     avisos = list(avisos or [])
+    if cotizacion.imo_clase and not cotizacion.msds_recibida and cotizacion.estado == "BORRADOR":
+        avisos.append("Falta la MSDS")  # D-T7: no bloquea emitir
     if cotizacion.estado == "BORRADOR":
         filas, avisos_vivos = _vivo(db, cotizacion, hoy)
         avisos += avisos_vivos
@@ -592,6 +654,10 @@ def presentar_cotizacion(db: Session, usuario: Usuario, cotizacion: Cotizacion, 
         "detalle_rechazo": cotizacion.detalle_rechazo,
         "cotizacion_origen_id": cotizacion.cotizacion_origen_id,
         "requiere_proponer": cotizacion.estado == "BORRADOR" and not cotizacion.lineas,
+        "tipo_carga": cotizacion.tipo_carga,
+        "imo": {"clase": cotizacion.imo_clase, "un": cotizacion.imo_un, "grupo": cotizacion.imo_grupo,
+                "msds_recibida": cotizacion.msds_recibida},
+        "carga_especial": texto_carga_especial(cotizacion),
         "sin_recargos": bool(cotizacion.lineas) and not any(l.recargo_id is not None for l in cotizacion.lineas),
         "lineas": [_linea_dict(linea, calculo, nivel) for linea, calculo in filas],
         "totales": _totales_dict(totales, nivel),
@@ -781,7 +847,19 @@ def _tarifas_elegibles(db: Session, cotizacion: Cotizacion, tipo_equipo_id: int 
     )
     if tipo_equipo_id is not None:
         consulta = consulta.where(Tarifa.tipo_equipo_id == tipo_equipo_id)
-    return list(db.scalars(consulta.order_by(Tarifa.id)))
+    return [t for t in db.scalars(consulta.order_by(Tarifa.id)) if motivo_tarifa_carga(t, cotizacion) is None]
+
+
+def motivo_tarifa_carga(tarifa: Tarifa, cotizacion: Cotizacion) -> str | None:
+    """D-T4: None si la tarifa acepta el tipo y la clase de la carga; si no, el motivo ("no acepta IMO clase 1")."""
+    tipo = cotizacion.tipo_carga or "GENERAL"
+    aceptados = tarifa.tipos_carga or ["GENERAL"]
+    if tipo not in aceptados:
+        return f"no acepta carga {tipo} (acepta {', '.join(aceptados)})"
+    clase = (cotizacion.imo_clase or "").split(".")[0]
+    if clase and clase in (tarifa.clases_imo_excluidas or []):
+        return f"no acepta {tipo} clase {clase}"
+    return None
 
 
 def _cantidad_tarifa(tarifa: Tarifa, carga: Carga) -> Decimal:
@@ -891,45 +969,19 @@ def _puerto_de_bloque(cotizacion: Cotizacion, bloque: str) -> tuple[Puerto, str 
     return (cotizacion.destino if cotizacion.sentido == "IMPORTACION" else cotizacion.origen), None
 
 
-def _vinculos_cotizacion(db: Session, cotizacion: Cotizacion, tarifas: list[Tarifa], hoy: date) -> dict[str, Any]:
-    """D-R2: recargos vinculados a las tarifas elegidas (vigentes y activos), los que están vinculados a OTRAS
-    tarifas (no aplican como generales) y los vinculados por servicio."""
-    ids = [t.id for t in tarifas]
-    por_tarifa = []
-    if ids:
-        por_tarifa = list(db.scalars(
-            select(Recargo).options(selectinload(Recargo.moneda)).join(RecargoTarifa, RecargoTarifa.recargo_id == Recargo.id)
-            .where(RecargoTarifa.tarifa_id.in_(ids), Recargo.activo.is_(True), Recargo.valido_desde <= hoy,
-                   Recargo.valido_hasta >= hoy).distinct().order_by(Recargo.id)))
-    con_tarifa = set(db.scalars(select(RecargoTarifa.recargo_id).distinct()))
-    servicio_id = cotizacion.servicio.id
-    por_servicio: dict[int, set[int]] = {}
-    for recargo_id, sid in db.execute(select(RecargoServicio.recargo_id, RecargoServicio.servicio_id)):
-        por_servicio.setdefault(recargo_id, set()).add(sid)
-    return {"por_tarifa": por_tarifa, "ids_tarifa": {r.id for r in por_tarifa}, "con_tarifa": con_tarifa,
-            "por_servicio": por_servicio, "servicio_id": servicio_id}
-
-
-def _recargos_vigentes(db: Session, puerto: Puerto, bloque: str, lado: str | None, hoy: date) -> list[Recargo]:
-    consulta = (
-        select(Recargo)
-        .options(selectinload(Recargo.moneda))
-        .where(
-            Recargo.activo.is_(True),
-            Recargo.puerto_id == puerto.id,
-            Recargo.bloque_incoterm == bloque,
-            Recargo.valido_desde <= hoy,
-            Recargo.valido_hasta >= hoy,
-        )
-    )
-    if lado is not None:
-        consulta = consulta.where(Recargo.lado == lado)
-    return list(db.scalars(consulta.order_by(Recargo.id)))
+def _recargos_activos(db: Session, hoy: date) -> list[Recargo]:
+    """D-A1 (0016): todos los recargos activos y vigentes, con su alcance y sus vínculos a tarifas; el alcance decide
+    después a qué cotización aplica cada uno."""
+    return list(db.scalars(
+        select(Recargo).options(selectinload(Recargo.moneda), selectinload(Recargo.alcance),
+                                selectinload(Recargo.vinculos_tarifa), selectinload(Recargo.proveedor))
+        .where(Recargo.activo.is_(True), Recargo.valido_desde <= hoy, Recargo.valido_hasta >= hoy).order_by(Recargo.id)))
 
 
 def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
                  *, fiscal: str, aplica_iva: bool, rol: str, opcional: bool, incluida: bool,
-                 tipo_equipo_id: int | None, seleccion: str | None = None, vinculado: bool = False) -> LineaCotizacion:
+                 tipo_equipo_id: int | None, seleccion: str | None = None, vinculado: bool = False,
+                 motivo_alternativa: str | None = None) -> LineaCotizacion:
     unidad_peso = None
     if objeto.rate_unit == "KG":
         unidad_peso = objeto.unidad_peso if isinstance(objeto, Tarifa) else "KG"
@@ -961,6 +1013,7 @@ def _nueva_linea(objeto, concepto: str, bloque: str, precios, calculo,
         valido_hasta_origen=objeto.valido_hasta,
         seleccion=seleccion,
         vinculado=vinculado,
+        motivo_alternativa=motivo_alternativa,
     )
 
 
@@ -1019,45 +1072,58 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
     # desmarcados los de los bloques fuera del Incoterm y las alternativas que perdieron por D-F3-7. Las líneas
     # desmarcadas no se cobran: los totales no cambian hasta que el usuario las marque.
     por_tipo = cotizacion.servicio.usa_tipo_equipo
-    vinculos = _vinculos_cotizacion(db, cotizacion, tarifas_elegidas, hoy)
+    ids_tarifa = {t.id for t in tarifas_elegidas}
+    contexto = alcance.contexto(cotizacion, proveedor_flete, ids_tarifa)
+    activos = _recargos_activos(db, hoy)
+    vinculados = {r.id for r in activos if {v.tarifa_id for v in r.vinculos_tarifa} & ids_tarifa}
+    # Los vinculados a la tarifa elegida primero (como en D-R2), después el resto por id.
+    todos = sorted(activos, key=lambda r: (r.id not in vinculados, r.id))
+    alcances = {r.id: alcance.de(r) for r in todos}
+
+    def rango_de(recargo):
+        return alcance.rango(recargo, alcances[recargo.id], recargo.id in vinculados, proveedor_flete)
+
+    def tipos_de(recargo):
+        return alcance.tipos_de(alcances[recargo.id])
+
     for campo in CAMPOS_RECARGO:
         bloque = BLOQUE_RECARGO[campo]
         dentro = campo in bloques
         puerto, lado = _puerto_de_bloque(cotizacion, bloque)
-        # D-R2: primero los vinculados a la tarifa elegida (toman el puerto de la tarifa por su lado); luego los
-        # generales del puerto, sin los vinculados a otras tarifas y sin los vinculados a otros servicios.
-        vigentes = [r for r in vinculos["por_tarifa"] if r.bloque_incoterm == bloque and (lado is None or r.lado == lado)]
-        vinculados = set(vinculos["ids_tarifa"])
-        for recargo in _recargos_vigentes(db, puerto, bloque, lado, hoy):
-            if recargo.id in vinculados:
+        # D-A1: aplica si cumple todos los niveles de su alcance (contra el puerto de su lado; D-A3). Un vinculado a
+        # otra tarifa no aplica; uno vinculado a la tarifa elegida no mira la ubicación ni el proveedor (D-R2).
+        vigentes = []
+        for recargo in todos:
+            if recargo.bloque_incoterm != bloque or (lado is not None and recargo.lado != lado):
                 continue
-            if recargo.id in vinculos["con_tarifa"]:
-                continue  # vinculado a otra tarifa
-            servicios_del_recargo = vinculos["por_servicio"].get(recargo.id)
-            if servicios_del_recargo is not None:
-                if vinculos["servicio_id"] not in servicios_del_recargo:
-                    continue
-                vinculados.add(recargo.id)
+            if recargo.vinculos_tarifa and recargo.id not in vinculados:
+                continue
+            if alcance.motivos(alcances[recargo.id], contexto, puerto, vinculado=recargo.id in vinculados):
+                continue
             vigentes.append(recargo)
         elegidos = cotizador.elegir_mas_especifico(vigentes, proveedor_flete, cotizacion.modo, tipos, por_tipo_equipo=por_tipo,
-                                                   vinculados=vinculados)
+                                                   rango_de=rango_de, tipos_de=tipos_de)
         if not elegidos:
             if dentro:
                 avisos.append(f"Sin recargo cargado para {bloque} en {puerto.codigo}")
             continue
         ganadores = {recargo.id for recargo, _ in elegidos}
-        candidatos = [(recargo, cubre, "INCOTERM" if dentro else "FUERA_INCOTERM") for recargo, cubre in elegidos]
-        for recargo in cotizador.recargos_aplicables(vigentes, proveedor_flete, cotizacion.modo, tipos, vinculados):
-            if recargo.id not in ganadores:
-                cubre = ((recargo.tipo_equipo_id,) if recargo.tipo_equipo_id else tuple(sorted(set(tipos)))) if por_tipo else ()
-                candidatos.append((recargo, cubre, "ALTERNATIVA"))
+        candidatos = [(recargo, cubre, "INCOTERM" if dentro else "FUERA_INCOTERM", None) for recargo, cubre in elegidos]
+        for recargo in vigentes:
+            if recargo.id in ganadores:
+                continue
+            propios = tipos_de(recargo)
+            cubre = (tuple(sorted(propios & set(tipos))) if propios else tuple(sorted(set(tipos)))) if por_tipo else ()
+            ganador = next((g for g, _ in elegidos if cotizador.concepto_clave(g.concepto) == cotizador.concepto_clave(recargo.concepto)), None)
+            motivo = alcance.motivo_derrota(rango_de(ganador), rango_de(recargo), ganador.concepto) if ganador else None
+            candidatos.append((recargo, cubre, "ALTERNATIVA", motivo))
         es_seguro = bloque == "SEGURO"
-        for recargo, cubre, seleccion in candidatos:
+        for recargo, cubre, seleccion, motivo_alt in candidatos:
             marcada = seleccion == "INCOTERM" and not es_seguro  # D-F3-6: el seguro se propone apagado
             opcional = es_seguro or not marcada
             if recargo.rate_unit == "PCT_RECIBO":
                 # D3: se calcula al final, sobre la base
-                sobre_recibo.append((recargo, bloque, puerto, seleccion, marcada, opcional, recargo.id in vinculados))
+                sobre_recibo.append((recargo, bloque, puerto, seleccion, marcada, opcional, recargo.id in vinculados, motivo_alt))
                 continue
             try:
                 if recargo.rate_unit == "PCT_VALOR" and carga.valor_mercancia_usd is None:
@@ -1086,12 +1152,12 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
                     fiscal=_fiscal_recargo(recargo, bloque),
                     aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso,
                     opcional=opcional, incluida=marcada, tipo_equipo_id=tipo_linea, seleccion=seleccion,
-                    vinculado=recargo.id in vinculados,
+                    vinculado=recargo.id in vinculados, motivo_alternativa=motivo_alt,
                 )
             )
     if sobre_recibo:
         base = cotizador.base_pct_recibo(lineas)
-        for recargo, bloque, puerto, seleccion, marcada, opcional, es_vinculado in sobre_recibo:
+        for recargo, bloque, puerto, seleccion, marcada, opcional, es_vinculado, motivo_alt in sobre_recibo:
             precios = _precios(recargo, carga)
             try:
                 calculo = cotizador.calcular_pct_recibo(base, precios, tasa(recargo))
@@ -1106,6 +1172,7 @@ def _proponer(db: Session, cotizacion: Cotizacion, elegidas: dict[str, int], pro
                     fiscal=_fiscal_recargo(recargo, bloque),
                     aplica_iva=recargo.aplica_iva, rol=recargo.rol_ingreso, opcional=opcional, incluida=marcada,
                     tipo_equipo_id=recargo.tipo_equipo_id, seleccion=seleccion, vinculado=es_vinculado,
+                    motivo_alternativa=motivo_alt,
                 )
             )
         if base <= 0 and any(item[4] for item in sobre_recibo):
@@ -1173,30 +1240,28 @@ def motivos_recargo(db: Session, cotizacion: Cotizacion, recargo: Recargo, prove
     vinculado_aqui = bool(vinculos & (tarifas_elegidas or set()))
     if vinculos and not vinculado_aqui:
         motivos.append("está vinculado a otra tarifa (" + ", ".join(f"#{i}" for i in sorted(vinculos)) + ")")
-    servicios_v = {v.servicio_id for v in recargo.vinculos_servicio}
-    if servicios_v and cotizacion.servicio.id not in servicios_v:
-        motivos.append("está vinculado a otros servicios (" + ", ".join(v.servicio.codigo for v in recargo.vinculos_servicio) + ")")
-    if not vinculado_aqui and recargo.proveedor_id is not None and recargo.proveedor_id != proveedor_flete:
-        motivos.append(f"es de otro proveedor ({recargo.proveedor.nombre})")
-    if recargo.modo is not None and recargo.modo != cotizacion.modo:
-        motivos.append(f"es de otro servicio ({recargo.modo}; esta cotización es {cotizacion.modo})")
-    tipos = {c.tipo_equipo_id for c in cotizacion.contenedores}
-    if recargo.tipo_equipo_id is not None and recargo.tipo_equipo_id not in tipos:
-        motivos.append(f"es de otro tipo de contenedor ({recargo.tipo_equipo.codigo})")
     puerto, lado = _puerto_de_bloque(cotizacion, recargo.bloque_incoterm)
     bloque = NOMBRES_BLOQUE.get(recargo.bloque_incoterm, recargo.bloque_incoterm)
-    if vinculado_aqui or recargo.puerto_id is None:
-        pass  # vinculado a la tarifa: el puerto sale de la tarifa por su lado
-    elif recargo.puerto_id != puerto.id:
-        papel = ("el ORIGEN" if recargo.puerto_id == cotizacion.origen_puerto_id
-                 else "el DESTINO" if recargo.puerto_id == cotizacion.destino_puerto_id else None)
-        if papel:
-            motivos.append(f"otro puerto: es de {bloque} (lado {recargo.lado}) pero está cargado en {recargo.puerto.codigo}, "
-                           f"que es {papel} de esta cotización; debería estar en {puerto.codigo}")
-        else:
-            motivos.append(f"otro puerto: está en {recargo.puerto.codigo}; esta cotización usa {puerto.codigo} para {bloque}")
-    elif lado is not None and recargo.lado != lado:
-        motivos.append(f"otro lado: está como {recargo.lado}; en {puerto.codigo} esta cotización usa el lado {lado}")
+    if lado is not None and recargo.lado != lado:
+        motivos.append(f"otro lado: está como {recargo.lado}; {bloque} va del lado {lado}")
+    # D-A1: el alcance, nivel por nivel, con el texto de siempre para proveedor, servicio, contenedor y puerto.
+    alc = alcance.de(recargo)
+    contexto = alcance.contexto(cotizacion, proveedor_flete, tarifas_elegidas)
+    for nivel, texto in alcance.motivos(alc, contexto, puerto, vinculado=vinculado_aqui, nombres=_nombres_alcance(db, alc)):
+        if nivel == "PUERTO" and len(alc["PUERTO"]) == 1:
+            unico = next(iter(alc["PUERTO"]))
+            papel = ("el ORIGEN" if unico == cotizacion.origen_puerto_id
+                     else "el DESTINO" if unico == cotizacion.destino_puerto_id else None)
+            codigo = db.get(Puerto, unico).codigo
+            if papel:
+                motivos.append(f"otro puerto: es de {bloque} (lado {recargo.lado}) pero está cargado en {codigo}, "
+                               f"que es {papel} de esta cotización; debería estar en {puerto.codigo}")
+            else:
+                motivos.append(f"otro puerto: está en {codigo}; esta cotización usa {puerto.codigo} para {bloque}")
+            continue
+        prefijo = {"PROVEEDOR": "es de otro proveedor", "SERVICIO": "es de otro servicio",
+                   "TIPO_EQUIPO": "es de otro tipo de contenedor"}.get(nivel)
+        motivos.append(f"{prefijo}: {texto}" if prefijo else texto)
     if recargo.valido_hasta < hoy:
         motivos.append(f"vencido el {_fecha(recargo.valido_hasta)}")
     elif recargo.valido_desde > hoy:
@@ -1222,8 +1287,20 @@ def recargos_descartados(db: Session, usuario: Usuario, cotizacion_id: int) -> d
     proveedor_flete = flete.proveedor_id if flete else cotizacion.proveedor_recargos_id
     tarifas_elegidas = {l.tarifa_id for l in cotizacion.lineas if l.tarifa_id is not None}
     en_borrador = {l.recargo_id for l in cotizacion.lineas if l.recargo_id is not None}
-    puertos = (cotizacion.origen_puerto_id, cotizacion.destino_puerto_id)
-    filtro = Recargo.puerto_id.in_(puertos)
+    # D-A1: los recargos que podrían tener que ver con esta cotización: los de sus puertos (o de su país o región,
+    # o de su ruta), los del proveedor del flete, los sin ubicación y los vinculados a tarifas de esta ruta.
+    from app.models import RecargoAlcance
+
+    origen, destino = cotizacion.origen, cotizacion.destino
+    ubicacion = select(RecargoAlcance.recargo_id).where(
+        ((RecargoAlcance.nivel.in_(("PUERTO", "PUERTO_ORIGEN", "PUERTO_DESTINO")))
+         & RecargoAlcance.valor_id.in_((origen.id, destino.id)))
+        | ((RecargoAlcance.nivel == "PAIS") & RecargoAlcance.valor_id.in_((origen.pais_id, destino.pais_id)))
+        | ((RecargoAlcance.nivel == "REGION") & RecargoAlcance.valor_id.in_((origen.pais.region_id, destino.pais.region_id))))
+    con_ubicacion = select(RecargoAlcance.recargo_id).where(
+        RecargoAlcance.nivel.in_(("PUERTO", "PUERTO_ORIGEN", "PUERTO_DESTINO", "PAIS", "REGION")))
+    # Los propios de XPRESS y los del proveedor del flete, siempre (así "solo Asia" explica por qué no aplica aquí).
+    filtro = Recargo.id.in_(ubicacion) | Recargo.id.not_in(con_ubicacion) | Recargo.proveedor_id.is_(None)
     if proveedor_flete is not None:
         filtro = filtro | (Recargo.proveedor_id == proveedor_flete)
     # D-R2: también los vinculados a cualquier tarifa de esta ruta (los de otra tarifa explican por qué no salen).
@@ -1231,8 +1308,7 @@ def recargos_descartados(db: Session, usuario: Usuario, cotizacion_id: int) -> d
         Tarifa.origen_puerto_id == cotizacion.origen_puerto_id, Tarifa.destino_puerto_id == cotizacion.destino_puerto_id))
     consulta = (select(Recargo).options(selectinload(Recargo.moneda), selectinload(Recargo.puerto),
                                         selectinload(Recargo.proveedor), selectinload(Recargo.tipo_equipo),
-                                        selectinload(Recargo.vinculos_tarifa),
-                                        selectinload(Recargo.vinculos_servicio).selectinload(RecargoServicio.servicio))
+                                        selectinload(Recargo.vinculos_tarifa), selectinload(Recargo.alcance))
                 .where(filtro).order_by(Recargo.puerto_id, Recargo.bloque_incoterm, Recargo.id))
     tasas: dict[str, bool] = {}
     salida = []
@@ -1251,7 +1327,33 @@ def recargos_descartados(db: Session, usuario: Usuario, cotizacion_id: int) -> d
             "valido_desde": recargo.valido_desde.isoformat(), "valido_hasta": recargo.valido_hasta.isoformat(),
             "activo": recargo.activo, "motivos": motivos,
         })
-    return {"cotizacion_id": cotizacion.id, "proveedor_flete_id": proveedor_flete, "recargos": salida}
+    # D-T4: las tarifas de la ruta que no se ofrecen por el tipo de carga o la clase IMO.
+    tarifas = []
+    for tarifa in db.scalars(select(Tarifa).options(selectinload(Tarifa.proveedor)).where(
+            Tarifa.activo.is_(True), Tarifa.modo == cotizacion.modo, Tarifa.origen_puerto_id == cotizacion.origen_puerto_id,
+            Tarifa.destino_puerto_id == cotizacion.destino_puerto_id, Tarifa.valido_desde <= hoy,
+            Tarifa.valido_hasta >= hoy).order_by(Tarifa.id)):
+        motivo = motivo_tarifa_carga(tarifa, cotizacion)
+        if motivo:
+            tarifas.append({"tarifa_id": tarifa.id, "proveedor": tarifa.proveedor.nombre, "motivos": [motivo]})
+    return {"cotizacion_id": cotizacion.id, "proveedor_flete_id": proveedor_flete, "recargos": salida, "tarifas": tarifas}
+
+
+def _nombres_alcance(db: Session, alc: dict[str, set]) -> dict[str, dict]:
+    """Nombres legibles de los valores del alcance para los motivos y el resumen."""
+    from app.models import Pais, Proveedor as ProveedorModelo, Region, TipoEquipo as TipoEquipoModelo
+    from app.models.geografia import TipoUbicacion
+
+    salida: dict[str, dict] = {}
+    for nivel, modelo, campo in (("PUERTO", Puerto, "codigo"), ("PAIS", Pais, "nombre"), ("REGION", Region, "nombre"),
+                                 ("PROVEEDOR", ProveedorModelo, "nombre"), ("TIPO_EQUIPO", TipoEquipoModelo, "codigo")):
+        ids = set(alc.get(nivel, set()))
+        if nivel == "PUERTO":
+            ids |= set(alc.get("PUERTO_ORIGEN", set())) | set(alc.get("PUERTO_DESTINO", set()))
+        if ids:
+            salida[nivel] = {o.id: getattr(o, campo) for o in db.scalars(select(modelo).where(modelo.id.in_(ids)))}
+    salida["MODO"] = {t.codigo: t.nombre for t in db.scalars(select(TipoUbicacion))}
+    return salida
 
 
 # ---------- Ajuste de una línea (§10.4, H9) ----------
@@ -1424,6 +1526,7 @@ def _snapshot(cotizacion: Cotizacion, condiciones: str, totales: cotizador.Total
         "transit_time": _texto_dias([t.transit_time_dias for t in fletes]),
         "dias_libres": _texto_dias([t.dias_libres for t in fletes]),
         "condiciones": condiciones,
+        **({"carga_especial": texto_carga_especial(cotizacion)} if texto_carga_especial(cotizacion) else {}),
         "notas_cliente": cotizacion.notas_cliente,
         "transportista": cotizacion.transportista,
         "descripcion_carga": cotizacion.descripcion_carga,
@@ -1450,8 +1553,8 @@ def emitir_cotizacion(db: Session, actor: Usuario, cotizacion_id: int, valida_ha
     contacto = cotizacion.contacto
     if contacto is None or not contacto.activo or contacto.cliente_id != cotizacion.cliente_id:
         raise ErrorNegocio(422, "CONTACTO_REQUERIDO", "Indique un contacto activo del cliente antes de emitir")
-    condiciones = leer_config(db, "condiciones_generales_pdf").strip()
-    if not condiciones:
+    condiciones = _condiciones(db, cotizacion)
+    if not leer_config(db, "condiciones_generales_pdf").strip():
         raise ErrorNegocio(
             422, "CONDICIONES_PDF_VACIAS", "Cargue las condiciones generales en Configuración antes de emitir"
         )
@@ -1623,7 +1726,7 @@ def pdf_cotizacion(db: Session, usuario: Usuario, cotizacion_id: int) -> tuple[b
         incluidas = [(linea, calculo) for linea, calculo in filas if linea.incluida]
         totales = cotizador.totales([_Fila(l, c) for l, c in incluidas], leer_iva_tasa(db))
         datos = _snapshot(
-            cotizacion, leer_config(db, "condiciones_generales_pdf").strip(), totales, incluidas, datos_empresa(db)
+            cotizacion, _condiciones(db, cotizacion), totales, incluidas, datos_empresa(db)
         )
         datos["valida_hasta"] = min((l.valido_hasta_origen for l, _ in incluidas), default=None)
         datos["valida_hasta"] = datos["valida_hasta"].isoformat() if datos["valida_hasta"] else None

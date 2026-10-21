@@ -42,6 +42,8 @@ const GRUPOS_MENU = [
       { texto: "Proveedores", archivo: "proveedores.html", permisos: ["catalogo.editar", "costo.ver"] },
       // E0: los lee cualquier usuario con tarifas; los edita catalogo.editar.
       { texto: "Tipos de equipo", archivo: "tipos-equipo.html", permisos: ["catalogo.editar", "tarifa.ver"] },
+      // D-T2: tipos de carga (IMO, refrigerada, OOG…).
+      { texto: "Tipos de carga", archivo: "tipos-carga.html", permisos: ["catalogo.editar"] },
     ],
   },
   {
@@ -111,7 +113,7 @@ const ICONOS = {
   "tipos-equipo.html": "caja", "configuracion.html": "ajustes", "servicios.html": "capas", "tipos-ubicacion.html": "ancla",
   "plantillas-correo.html": "correo", "usuarios.html": "usuario", "roles.html": "escudo", "motivos-rechazo.html": "rechazo",
   "tipos-identificacion.html": "credencial", "notificaciones-config.html": "campana",
-  "notificaciones-bitacora.html": "bitacora", "auditoria.html": "ojo", "catalogos-perfil.html": "lista",
+  "notificaciones-bitacora.html": "bitacora", "auditoria.html": "ojo", "catalogos-perfil.html": "lista", "tipos-carga.html": "caja",
 };
 
 // Pantallas que no están en el menú pero pertenecen a un grupo (para dejarlo abierto y marcar la opción).

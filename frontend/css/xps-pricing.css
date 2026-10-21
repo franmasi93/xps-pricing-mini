@@ -2035,3 +2035,26 @@ button.nav-grupo:focus-visible {
 .bloque-vinculos {
   margin-top: var(--esp-4);
 }
+
+/* ---------- D-A1: alcance en cadena del recargo ---------- */
+
+.bloque-alcance {
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-md);
+  padding: var(--esp-3, 12px);
+}
+
+.resumen-alcance {
+  font-weight: 600;
+  margin: 0 0 var(--esp-2);
+}
+
+.campo-alcance select[multiple] {
+  min-height: 96px;
+}
+
+.input-chico {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}

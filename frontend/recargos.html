@@ -41,8 +41,8 @@
         <section class="tarjeta" id="herramientas" hidden>
           <div class="filtros">
             <div class="campo">
-              <label for="filtro-puerto">Puerto</label>
-              <select class="select" id="filtro-puerto"></select>
+              <label for="filtro-aplica">Aplica en (puerto)</label>
+              <select class="select" id="filtro-aplica"></select>
             </div>
             <div class="campo">
               <label for="filtro-lado">Lado</label>
@@ -100,11 +100,6 @@
     <form id="form-recargo" novalidate>
       <div class="grupo-campos">
         <div class="campo">
-          <label for="recargo-puerto">Puerto o aeropuerto</label>
-          <select class="select" id="recargo-puerto" name="puerto_id" aria-describedby="ayuda-puerto"></select>
-          <p class="ayuda" id="ayuda-puerto">Si lo vincula a tarifas, déjelo en «De la tarifa»: el puerto se toma de la tarifa según el lado.</p>
-        </div>
-        <div class="campo">
           <label for="recargo-proveedor">Proveedor (vacío = cargo propio de XPRESS)</label>
           <select class="select" id="recargo-proveedor" name="proveedor_id"></select>
         </div>
@@ -122,14 +117,6 @@
         <div class="campo">
           <label for="recargo-concepto">Concepto</label>
           <input class="input" id="recargo-concepto" name="concepto" type="text" maxlength="120" required>
-        </div>
-        <div class="campo">
-          <label for="recargo-modo">Servicio (vacío = todos los compatibles)</label>
-          <select class="select" id="recargo-modo" name="modo"></select>
-        </div>
-        <div class="campo" id="campo-equipo">
-          <label for="recargo-equipo">Tipo de equipo (opcional)</label>
-          <select class="select" id="recargo-equipo" name="tipo_equipo_id"></select>
         </div>
         <div class="campo">
           <label for="recargo-unidad">Unidad</label>
@@ -199,14 +186,16 @@
             <option value="AGENTE">Agente</option>
           </select>
         </div>
+        <fieldset class="campo campo-ancho bloque-alcance">
+          <legend>¿Dónde aplica?</legend>
+          <p class="resumen-alcance" id="resumen-alcance" aria-live="polite"></p>
+          <div class="grupo-campos" id="niveles-alcance"></div>
+          <p class="ayuda">Un recargo aplica si cumple todos los niveles elegidos. Si dos del mismo concepto aplican, gana el más específico: tarifa vinculada &gt; ruta exacta &gt; puerto &gt; país &gt; región &gt; servicio o modo &gt; todos.</p>
+        </fieldset>
         <div class="campo campo-ancho">
           <label for="recargo-tarifas">Vincular a tarifas (opcional)</label>
           <select class="select" id="recargo-tarifas" name="tarifas_ids" multiple size="5" aria-describedby="ayuda-tarifas"></select>
           <p class="ayuda" id="ayuda-tarifas">Se muestran las tarifas del proveedor, servicio y puerto elegidos. Un recargo vinculado sale primero al elegir esa tarifa en el cotizador. Ctrl + clic para elegir varias.</p>
-        </div>
-        <div class="campo">
-          <label for="recargo-servicios">Vincular a servicios (opcional)</label>
-          <select class="select" id="recargo-servicios" name="servicios" multiple size="4"></select>
         </div>
         <div class="campo">
           <label for="recargo-desde">Válido desde</label>
@@ -229,6 +218,7 @@
   <script src="js/api.js"></script>
   <script src="js/layout.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/alcance.js"></script>
   <script src="js/recargos.js"></script>
 </body>
 </html>

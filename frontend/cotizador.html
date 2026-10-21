@@ -111,6 +111,34 @@
                 <input class="input cifra" id="valor" type="text" inputmode="decimal" placeholder="Para el seguro como % del valor">
               </div>
             </div>
+            <div class="grupo-campos">
+              <div class="campo">
+                <label for="tipo-carga">Tipo de carga</label>
+                <select class="select" id="tipo-carga"></select>
+              </div>
+            </div>
+            <div class="grupo-campos" id="bloque-imo" hidden>
+              <div class="campo">
+                <label for="imo-clase">Clase IMO (1–9, subclase opcional)</label>
+                <input class="input cifra" id="imo-clase" type="text" maxlength="4" placeholder="3 o 2.1">
+              </div>
+              <div class="campo">
+                <label for="imo-un">Número UN (4 dígitos)</label>
+                <input class="input cifra" id="imo-un" type="text" maxlength="4" inputmode="numeric" placeholder="1263">
+              </div>
+              <div class="campo">
+                <label for="imo-grupo">Grupo de embalaje</label>
+                <select class="select" id="imo-grupo">
+                  <option value="">Sin grupo</option>
+                  <option value="I">I</option>
+                  <option value="II">II</option>
+                  <option value="III">III</option>
+                </select>
+              </div>
+              <label class="campo-check" for="imo-msds">
+                <input id="imo-msds" type="checkbox"> MSDS recibida
+              </label>
+            </div>
             <div class="campo">
               <label for="descripcion-carga">Descripción de la mercancía (sale en el PDF)</label>
               <textarea class="input" id="descripcion-carga" maxlength="2000" rows="2"></textarea>

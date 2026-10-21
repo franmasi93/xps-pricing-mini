@@ -412,6 +412,8 @@ def elegir_mas_especifico(
     tipos: Iterable[int] = (),
     por_tipo_equipo: bool | None = None,
     vinculados: frozenset | set = frozenset(),
+    rango_de=None,
+    tipos_de=None,
 ) -> list[tuple[Any, tuple[int, ...]]]:
     """Un recargo por concepto o, si el servicio cobra por tipo de equipo, por concepto y tipo (H6).
 
@@ -424,7 +426,15 @@ def elegir_mas_especifico(
 
         por_tipo_equipo = servicios.forma_de_codigo(modo).usa_tipo_equipo
     tipos = sorted(set(tipos))
-    candidatos = recargos_aplicables(recargos, proveedor_flete_id, modo, tipos, vinculados)
+    # D-A1/D-A2 (0016): con rango_de, los recargos ya vienen filtrados por su alcance y la precedencia la da rango_de;
+    # tipos_de(r) devuelve los tipos de equipo del alcance (None = todos). Sin ellos, la regla de antes.
+    if rango_de is None:
+        candidatos = recargos_aplicables(recargos, proveedor_flete_id, modo, tipos, vinculados)
+        rango_de = lambda r: _rango(r, proveedor_flete_id, vinculados)  # noqa: E731
+    else:
+        candidatos = list(recargos)
+    if tipos_de is None:
+        tipos_de = lambda r: {r.tipo_equipo_id} if r.tipo_equipo_id is not None else None  # noqa: E731
     por_concepto: dict[str, list] = {}
     for recargo in candidatos:
         por_concepto.setdefault(concepto_clave(recargo.concepto), []).append(recargo)
@@ -433,16 +443,16 @@ def elegir_mas_especifico(
     for concepto in sorted(por_concepto):
         grupo = por_concepto[concepto]
         if not por_tipo_equipo:
-            ganador = min(grupo, key=lambda r: (_rango(r, proveedor_flete_id, vinculados), r.id))
+            ganador = min(grupo, key=lambda r: (rango_de(r), r.id))
             elegidos.append((ganador, ()))
             continue
         cubre: dict[int, list[int]] = {}
         orden: list = []
         for tipo in tipos:
-            del_tipo = [r for r in grupo if r.tipo_equipo_id in (None, tipo)]
+            del_tipo = [r for r in grupo if tipos_de(r) is None or tipo in tipos_de(r)]
             if not del_tipo:
                 continue
-            ganador = min(del_tipo, key=lambda r: (_rango(r, proveedor_flete_id, vinculados), r.id))
+            ganador = min(del_tipo, key=lambda r: (rango_de(r), r.id))
             if ganador.id not in cubre:
                 cubre[ganador.id] = []
                 orden.append(ganador)

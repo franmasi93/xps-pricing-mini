@@ -16,6 +16,12 @@
   let cotizacionId = parametros.get("id") ? Number(parametros.get("id")) : null;
   let tiposEquipo = [];
   let servicios = [];
+  let tiposCarga = [];
+
+  function ajustarImo() {
+    const tipo = tiposCarga.find((t) => t.codigo === campo("tipo-carga").value);
+    campo("bloque-imo").hidden = !(tipo && tipo.pide_imo);
+  }
   let yo = null;
 
   const servicioDe = (codigo) => servicios.find((s) => s.codigo === codigo) || null;
@@ -175,6 +181,12 @@
       notas_internas: textoONulo("notas-internas"),
       transportista: textoONulo("transportista"),
       descripcion_carga: textoONulo("descripcion-carga"),
+      // D-T3: tipo de carga y datos IMO (solo si el tipo los pide).
+      tipo_carga: campo("tipo-carga").value || "GENERAL",
+      imo_clase: campo("bloque-imo").hidden ? null : textoONulo("imo-clase"),
+      imo_un: campo("bloque-imo").hidden ? null : textoONulo("imo-un"),
+      imo_grupo: campo("bloque-imo").hidden ? null : (campo("imo-grupo").value || null),
+      msds_recibida: !campo("bloque-imo").hidden && campo("imo-msds").checked,
     };
     datos[unidad() === "LB" ? "peso_lb" : "peso_kg"] = textoONulo("peso") || "0";
     const sufijo = sufijoMedida();
@@ -347,6 +359,12 @@
     campo("peso").value = (cotizacion.carga.unidad_peso === "LB" ? cotizacion.carga.peso_lb : cotizacion.carga.peso_kg) ?? "";
     campo("transportista").value = cotizacion.transportista ?? "";
     campo("descripcion-carga").value = cotizacion.descripcion_carga ?? "";
+    campo("tipo-carga").value = cotizacion.tipo_carga || "GENERAL";
+    campo("imo-clase").value = cotizacion.imo.clase ?? "";
+    campo("imo-un").value = cotizacion.imo.un ?? "";
+    campo("imo-grupo").value = cotizacion.imo.grupo ?? "";
+    campo("imo-msds").checked = Boolean(cotizacion.imo.msds_recibida);
+    ajustarImo();
     campo("cbm").value = cotizacion.carga.cbm ?? "";
     campo("bultos").value = cotizacion.carga.bultos ?? "";
     campo("valor").value = cotizacion.carga.valor_mercancia_usd ?? "";
@@ -372,7 +390,12 @@
       return;
     }
     try {
-      const [incoterms, tipos, todos] = await Promise.all([XPS.api("/incoterms"), XPS.api("/tipos-equipo"), XPS.api("/servicios")]);
+      const [incoterms, tipos, todos, cargas] = await Promise.all([XPS.api("/incoterms"), XPS.api("/tipos-equipo"), XPS.api("/servicios"),
+        XPS.api("/tipos-carga?activo=true")]);
+      tiposCarga = cargas;
+      UI.opciones(campo("tipo-carga"), cargas, { valor: (t) => t.codigo, texto: (t) => t.nombre });
+      campo("tipo-carga").value = "GENERAL";
+      campo("tipo-carga").addEventListener("change", ajustarImo);
       tiposEquipo = tipos.filter((t) => t.activo);
       servicios = todos;
       // La fuente única: solo los servicios activos, en su orden.

@@ -83,6 +83,14 @@ class Cotizacion(CatalogoMixin, Base):
     unidad_peso: Mapped[str] = mapped_column(String(2), default="KG", server_default="KG")
     peso_lb: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
 
+    # D-T3 (0016): tipo de carga (GENERAL por defecto) y datos IMO; editables en BORRADOR, congelados al emitir.
+    tipo_carga: Mapped[str] = mapped_column(ForeignKey("tipo_carga.codigo", ondelete="RESTRICT"), default="GENERAL",
+                                            server_default="GENERAL")
+    imo_clase: Mapped[str | None] = mapped_column(String(4))
+    imo_un: Mapped[str | None] = mapped_column(String(4))
+    imo_grupo: Mapped[str | None] = mapped_column(String(3))
+    msds_recibida: Mapped[bool] = mapped_column(default=False, server_default=false())
+
     cliente: Mapped[Cliente] = relationship()
     contacto: Mapped[ContactoCliente | None] = relationship()
     comercial: Mapped[Usuario] = relationship(foreign_keys=[comercial_id])
@@ -146,6 +154,8 @@ class LineaCotizacion(Base):
     seleccion: Mapped[str | None] = mapped_column(String(14))
     # D-R2 (0015): la línea salió de un recargo vinculado a la tarifa o al servicio (etiqueta interna "Vinculado").
     vinculado: Mapped[bool] = mapped_column(default=False, server_default=false())
+    # D-A2 (0016): por qué una alternativa perdió (por ejemplo, "más específico: ruta exacta").
+    motivo_alternativa: Mapped[str | None] = mapped_column(String(200))
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

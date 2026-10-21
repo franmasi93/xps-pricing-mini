@@ -7,6 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, ForeignKey, Identity, Numeric, SmallInteger, String, Text, event, func, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CatalogoMixin
@@ -74,6 +75,9 @@ class Tarifa(VentaMixin, CatalogoMixin, Base):
     origen: Mapped[Puerto] = relationship(foreign_keys=[origen_puerto_id])
     destino: Mapped[Puerto] = relationship(foreign_keys=[destino_puerto_id])
     tipo_equipo: Mapped[TipoEquipo | None] = relationship()
+    # D-T4 (0016): tipos de carga que acepta (por defecto solo GENERAL) y clases IMO excluidas.
+    tipos_carga: Mapped[list[str]] = mapped_column(JSONB, default=lambda: ["GENERAL"])
+    clases_imo_excluidas: Mapped[list[str]] = mapped_column(JSONB, default=list)
     servicio: Mapped[Servicio] = relationship(foreign_keys=[modo], viewonly=True)
     tramos: Mapped[list["TramoAereo"]] = relationship(order_by="TramoAereo.desde_kg")
 
@@ -106,6 +110,9 @@ class Recargo(VentaMixin, CatalogoMixin, Base):
     rol_ingreso: Mapped[str] = mapped_column(String(9))
     # D-R3 (0015): RECIBO_CAJA o FACTURA, elegido en el recargo (reemplaza la regla por país del puerto).
     bloque_fiscal: Mapped[str] = mapped_column(String(11))
+    # D-A1 (0016): huella del alcance cuando no es el equivalente a las columnas (vacía en los recargos de antes);
+    # entra en la exclusión de superposición para que alcances distintos del mismo concepto no choquen.
+    alcance_firma: Mapped[str] = mapped_column(String(32), default="", server_default="")
 
     proveedor: Mapped[Proveedor | None] = relationship()
     moneda: Mapped[Moneda] = relationship()
@@ -113,8 +120,9 @@ class Recargo(VentaMixin, CatalogoMixin, Base):
     vinculos_tarifa: Mapped[list["RecargoTarifa"]] = relationship(
         back_populates="recargo", cascade="all, delete-orphan", order_by="RecargoTarifa.tarifa_id"
     )
-    vinculos_servicio: Mapped[list["RecargoServicio"]] = relationship(
-        back_populates="recargo", cascade="all, delete-orphan", order_by="RecargoServicio.servicio_id"
+    # D-A1 (0016): alcance en cadena (un nivel sin filas = "Todos").
+    alcance: Mapped[list["RecargoAlcance"]] = relationship(
+        back_populates="recargo", cascade="all, delete-orphan", order_by="RecargoAlcance.id"
     )
     tipo_equipo: Mapped[TipoEquipo | None] = relationship()
     servicio: Mapped[Servicio | None] = relationship(foreign_keys=[modo], viewonly=True)
@@ -135,19 +143,31 @@ class RecargoTarifa(Base):
     tarifa: Mapped[Tarifa] = relationship()
 
 
-class RecargoServicio(Base):
-    """D-R2: un recargo vinculado a servicios solo aplica a esos servicios y le gana a uno general."""
+class RecargoAlcance(Base):
+    """D-A1 (0016): un valor de un nivel del alcance del recargo (servicio, modo, tipo de equipo, región, país,
+    puerto, ruta, proveedor, tipo de carga o clase IMO). Los niveles por texto guardan el código."""
 
-    __tablename__ = "recargo_servicio"
+    __tablename__ = "recargo_alcance"
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     recargo_id: Mapped[int] = mapped_column(ForeignKey("recargo.id", ondelete="CASCADE"))
-    servicio_id: Mapped[int] = mapped_column(ForeignKey("servicio.id", ondelete="RESTRICT"))
-    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    creado_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+    nivel: Mapped[str] = mapped_column(String(16))
+    valor_id: Mapped[int | None]
+    valor_texto: Mapped[str | None] = mapped_column(String(20))
 
-    recargo: Mapped[Recargo] = relationship(back_populates="vinculos_servicio")
-    servicio: Mapped[Servicio] = relationship()
+    recargo: Mapped[Recargo] = relationship(back_populates="alcance")
+
+
+class TipoCarga(CatalogoMixin, Base):
+    """D-T2 (0016): atributo de la carga (IMO, refrigerada, OOG…), combinable con cualquier servicio."""
+
+    __tablename__ = "tipo_carga"
+
+    id: Mapped[int] = mapped_column(Identity(), primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(20), unique=True)
+    nombre: Mapped[str] = mapped_column(String(60))
+    pide_imo: Mapped[bool] = mapped_column(default=False)
+    orden: Mapped[int] = mapped_column(SmallInteger, default=0)
 
 
 @event.listens_for(Recargo, "before_insert")
@@ -164,3 +184,21 @@ def _bloque_fiscal_por_defecto(mapper, connection, recargo: Recargo) -> None:
 
     iso2 = connection.execute(select(Pais.iso2).join(Puerto, Puerto.pais_id == Pais.id).where(Puerto.id == recargo.puerto_id)).scalar()
     recargo.bloque_fiscal = "FACTURA" if iso2 == "EC" else "RECIBO_CAJA"
+
+
+@event.listens_for(Recargo, "after_insert")
+def _alcance_por_defecto(mapper, connection, recargo: Recargo) -> None:
+    """D-A1: un recargo insertado sin alcance (scripts y bancos de prueba) recibe el equivalente a sus columnas, como
+    en la migración 0016: su puerto → PUERTO, su servicio → SERVICIO, su tipo de equipo → TIPO_EQUIPO, su proveedor →
+    PROVEEDOR. El service siempre lo arma explícito antes de insertar."""
+    if recargo.alcance:
+        return
+    filas = []
+    for nivel, valor in (("PUERTO", recargo.puerto_id), ("TIPO_EQUIPO", recargo.tipo_equipo_id),
+                         ("PROVEEDOR", recargo.proveedor_id)):
+        if valor is not None:
+            filas.append({"recargo_id": recargo.id, "nivel": nivel, "valor_id": valor, "valor_texto": None})
+    if recargo.modo is not None:
+        filas.append({"recargo_id": recargo.id, "nivel": "SERVICIO", "valor_id": None, "valor_texto": recargo.modo})
+    if filas:
+        connection.execute(RecargoAlcance.__table__.insert(), filas)

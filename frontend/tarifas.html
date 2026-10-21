@@ -170,6 +170,15 @@
           <input class="input" id="tarifa-transportista" name="transportista" type="text" maxlength="200">
         </div>
         <div class="campo">
+          <label for="tarifa-tipos-carga">Acepta tipos de carga</label>
+          <select class="select" id="tarifa-tipos-carga" name="tipos_carga" multiple size="4" aria-describedby="ayuda-tipos-carga"></select>
+          <p class="ayuda" id="ayuda-tipos-carga">El cotizador solo ofrece esta tarifa para estos tipos de carga. Ctrl + clic para varios.</p>
+        </div>
+        <div class="campo" id="campo-clases-excluidas" hidden>
+          <label for="tarifa-clases-excluidas">Clases IMO excluidas</label>
+          <select class="select" id="tarifa-clases-excluidas" name="clases_imo_excluidas" multiple size="4"></select>
+        </div>
+        <div class="campo">
           <label for="tarifa-moneda">Moneda</label>
           <select class="select" id="tarifa-moneda" name="moneda_id" required></select>
         </div>

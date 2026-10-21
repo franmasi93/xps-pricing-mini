@@ -39,7 +39,30 @@
 
   let puedeEditar = false;
   let diasAlerta = "7";
-  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [], servicios: [], formas: [] };
+  let catalogos = { puertos: [], proveedores: [], monedas: [], tipos: [], servicios: [], formas: [], tiposCarga: [] };
+
+  // D-T4: tipos de carga que acepta la tarifa y clases IMO excluidas (solo si acepta un tipo que pide datos IMO).
+  function pintarCarga(tarifa) {
+    const tipos = formTarifa.elements.tipos_carga;
+    const elegidos = new Set(tarifa ? tarifa.tipos_carga : ["GENERAL"]);
+    tipos.replaceChildren(...catalogos.tiposCarga.filter((t) => t.activo || elegidos.has(t.codigo)).map((t) => {
+      const opcion = crear("option", { texto: t.nombre, atributos: { value: t.codigo } });
+      opcion.selected = elegidos.has(t.codigo);
+      return opcion;
+    }));
+    const excluidas = new Set(tarifa ? tarifa.clases_imo_excluidas : []);
+    formTarifa.elements.clases_imo_excluidas.replaceChildren(...["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((c) => {
+      const opcion = crear("option", { texto: `Clase ${c}`, atributos: { value: c } });
+      opcion.selected = excluidas.has(c);
+      return opcion;
+    }));
+    ajustarCarga();
+  }
+
+  function ajustarCarga() {
+    const imo = new Set(catalogos.tiposCarga.filter((t) => t.pide_imo).map((t) => t.codigo));
+    document.getElementById("campo-clases-excluidas").hidden = ![...formTarifa.elements.tipos_carga.selectedOptions].some((o) => imo.has(o.value));
+  }
   let enEdicion = null;
   let enFicha = null;
 
@@ -161,6 +184,7 @@
       par("Servicio", etiquetaServicio(tarifa)),
       par("Unidad", tarifa.rate_unit === "KG" ? `${tarifa.rate_unit} · por ${tarifa.unidad_peso === "LB" ? "libra" : "kilo"}` : tarifa.rate_unit),
       par("Transportista", tarifa.transportista),
+      par("Acepta carga", `${(tarifa.tipos_carga || ["GENERAL"]).join(", ")}${(tarifa.clases_imo_excluidas || []).length ? ` (sin IMO clase ${tarifa.clases_imo_excluidas.join(", ")})` : ""}`),
       par("Moneda", tarifa.moneda),
       par("Venta", UI.monto(tarifa.precio_venta, tarifa.moneda)),
       par("Venta mínima", UI.monto(tarifa.precio_venta_minimo, tarifa.moneda)),
@@ -396,13 +420,14 @@
       formTarifa.elements[campo].disabled = conTramos;
     }
     formTarifa.elements.precio_venta_manual.disabled = conTramos;
+    pintarCarga(tarifa);
     dialogoTarifa.showModal();
   }
 
   function leerFormulario() {
     const datos = {};
     for (const elemento of formTarifa.elements) {
-      if (!elemento.name || elemento.disabled || elemento.closest("[hidden]")) continue;
+      if (!elemento.name || elemento.disabled || elemento.closest("[hidden]") || elemento.multiple) continue;
       const valor = elemento.value.trim().replace(/^(-?\d+),(\d+)$/, "$1.$2");
       datos[elemento.name] = valor === "" ? null : valor;
     }
@@ -410,6 +435,10 @@
       if (datos[campo] !== null && datos[campo] !== undefined) datos[campo] = Number(datos[campo]);
     }
     if (document.getElementById("campo-unidad-peso").hidden) datos.unidad_peso = "KG";
+    datos.tipos_carga = [...formTarifa.elements.tipos_carga.selectedOptions].map((o) => o.value).sort();
+    if (!datos.tipos_carga.length) datos.tipos_carga = ["GENERAL"];
+    datos.clases_imo_excluidas = document.getElementById("campo-clases-excluidas").hidden ? []
+      : [...formTarifa.elements.clases_imo_excluidas.selectedOptions].map((o) => o.value).sort();
     const metodo = datos.metodo_venta || (enEdicion && enEdicion.metodo_venta);
     // Campos que no corresponden al servicio o al método van vacíos, como exige el backend.
     const servicio = servicioDe(datos.modo || (enEdicion && enEdicion.modo));
@@ -530,8 +559,10 @@
     UI.opciones(filtros.modo, servicios, { valor: (s) => s.codigo, texto: (s) => s.nombre, todos: "Todos" });
     opcionesDeFiltro(todas);
     if (puedeEditar) {
-      const [puertos, proveedores, monedas] = await Promise.all([XPS.api("/puertos"), XPS.api("/proveedores"), XPS.api("/monedas")]);
-      catalogos = { ...catalogos, puertos, proveedores, monedas };
+      const [puertos, proveedores, monedas, tiposCarga] = await Promise.all([XPS.api("/puertos"), XPS.api("/proveedores"),
+        XPS.api("/monedas"), XPS.api("/tipos-carga")]);
+      catalogos = { ...catalogos, puertos, proveedores, monedas, tiposCarga };
+      formTarifa.elements.tipos_carga.addEventListener("change", ajustarCarga);
     }
     await cargar();
     herramientas.hidden = false;

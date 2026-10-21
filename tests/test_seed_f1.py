@@ -10,5 +10,5 @@ def test_conteos_despues_de_upgrade(db_session):  # T136
 
     # La revisión head la verifica el seed de la última migración (T138); aquí solo el seed de 0002.
     assert list(db_session.execute(text("SELECT codigo FROM moneda")).scalars()) == ["USD"]
-    assert (contar("incoterm"), contar("configuracion")) == (11, 4)
+    assert (contar("incoterm"), contar("configuracion")) == (11, 5)  # + condiciones_imo_pdf (D-T6, 0016)
     assert conteo_rbac_base(db_session) == (4, 15, 38)  # D-E0-1: sin los permisos de las extensiones

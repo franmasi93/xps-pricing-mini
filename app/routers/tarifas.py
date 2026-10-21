@@ -158,17 +158,19 @@ def listar_recargos(
     vigente_en: date | None = None,
     por_vencer: bool | None = None,
     activo: bool | None = None,
+    aplica_en: int | None = None,
     limit: int | None = Query(default=None, ge=1, le=LIMITE_MAXIMO),
     offset: int = Query(default=0, ge=0),
     respuesta: Response = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(lector),
 ):
-    """F5-A2: sin limit, la lista completa (como en F2); con limit/offset, una página. El total va en X-Total-Count."""
+    """F5-A2: sin limit, la lista completa (como en F2); con limit/offset, una página. El total va en X-Total-Count.
+    D-A1: aplica_en = id de un puerto → los recargos cuyo alcance lo incluye (puerto, país, región, ruta o sin ubicación)."""
     total: list[int] = []
     items = servicio_recargos.listar_recargos(
         db, usuario, puerto, lado, bloque, proveedor, modo, vigente_en, por_vencer, activo,
-        limit=limit, offset=offset, total=total,
+        limit=limit, offset=offset, total=total, aplica_en=aplica_en,
     )
     respuesta.headers["X-Total-Count"] = str(total[0])
     return items

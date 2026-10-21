@@ -25,6 +25,7 @@ const Cargos = (() => {
     }
     if (linea.seleccion === "ALTERNATIVA") {
       salida.push(crear("span", { clase: "badge badge-estado badge-inactivo", texto: "Alternativa" }));
+      if (linea.motivo_alternativa) salida.push(crear("div", { clase: "ayuda", texto: linea.motivo_alternativa }));  // D-A2
     }
     if (linea.proveedor_propio) {
       salida.push(crear("span", { clase: "badge badge-estado badge-info", texto: "Propio XPRESS" }));
@@ -91,6 +92,9 @@ const Cargos = (() => {
     const conCosto = cotizacion.lineas.some((linea) => "costo_usd" in linea);
     const conMargen = cotizacion.lineas.some((linea) => "margen_usd" in linea);
     const partes = [];
+    if (cotizacion.carga_especial) {
+      partes.push(crear("p", { clase: "texto-suave", texto: cotizacion.carga_especial }));  // D-T6
+    }
     if (cotizacion.sin_recargos) {
       const aviso = [crear("span", { texto: "Esta tarifa no tiene recargos cargados para este puerto y servicio. " })];
       if (enlaceRecargos) aviso.push(crear("a", { texto: "Ir a Recargos", atributos: { href: "recargos.html" } }));
@@ -131,14 +135,16 @@ const Cargos = (() => {
   }
 
   function descartados(datos) {
+    const extra = (datos.tarifas || []).map((t) => crear("p", { clase: "texto-suave",
+      texto: `Tarifa #${t.tarifa_id} (${t.proveedor}): ${t.motivos.join(" · ")}` }));  // D-T4
     if (!datos.recargos.length) {
-      return [crear("p", { clase: "texto-suave", texto: "No hay recargos del proveedor ni propios fuera de esta cotización." })];
+      return [...extra, crear("p", { clase: "texto-suave", texto: "No hay recargos del proveedor ni propios fuera de esta cotización." })];
     }
     const filas = datos.recargos.map((r) => crear("tr", {}, [
       UI.celda("Recargo", [crear("div", { texto: r.concepto }), crear("span", { clase: "texto-suave", texto: `${r.proveedor} · ${r.puerto} · ${r.lado} · ${BLOQUES[r.bloque_incoterm] || r.bloque_incoterm}` })]),
       UI.celda("Por qué no aparece", [crear("ul", { clase: "lista-motivos" }, r.motivos.map((m) => crear("li", { texto: m })))]),
     ]));
-    return [crear("div", { clase: "tabla-scroll" }, [crear("table", { clase: "tabla" }, [
+    return [...extra, crear("div", { clase: "tabla-scroll" }, [crear("table", { clase: "tabla" }, [
       crear("thead", {}, [crear("tr", {}, [crear("th", { texto: "Recargo" }), crear("th", { texto: "Por qué no aparece" })])]),
       crear("tbody", {}, filas),
     ])])];

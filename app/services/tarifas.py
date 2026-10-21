@@ -57,6 +57,8 @@ CAMPOS_TARIFA = (
     "notas",
     "transportista",
     "unidad_peso",
+    "tipos_carga",
+    "clases_imo_excluidas",
     "activo",
 )
 MONTOS = ("costo", "minimo", "parametro_venta", "precio_venta_manual", "minimo_venta_manual")
@@ -248,6 +250,7 @@ def _validar_tarifa(db: Session, datos: dict[str, Any], excluir_id: int | None =
         )
     datos["transportista"] = (datos.get("transportista") or "").strip() or None
     validar_venta(datos)
+    _validar_carga_tarifa(db, datos)
     if activa:
         conflicto = superpuesta(
             db, Tarifa, _clave_tarifa(datos), datos["valido_desde"], datos["valido_hasta"], excluir_id
@@ -255,6 +258,23 @@ def _validar_tarifa(db: Session, datos: dict[str, Any], excluir_id: int | None =
         if conflicto is not None:
             raise error_superposicion(conflicto, "la tarifa")
     return datos
+
+
+def _validar_carga_tarifa(db: Session, datos: dict[str, Any]) -> None:
+    """D-T4: al menos un tipo de carga del catálogo; las clases IMO excluidas, del 1 al 9 y solo si acepta IMO."""
+    from app.models import TipoCarga
+
+    tipos = {t.codigo: t for t in db.scalars(select(TipoCarga))}
+    pedidos = sorted({str(c).strip().upper() for c in (datos.get("tipos_carga") or ["GENERAL"])})
+    for codigo in pedidos:
+        if codigo not in tipos:
+            raise ErrorNegocio(422, "TIPO_CARGA_INVALIDO", f"El tipo de carga {codigo} no existe")
+    clases = sorted({str(c).strip() for c in (datos.get("clases_imo_excluidas") or [])})
+    if any(c not in {str(n) for n in range(1, 10)} for c in clases):
+        raise ErrorNegocio(422, "CLASE_IMO_INVALIDA", "Las clases IMO excluidas van del 1 al 9")
+    if clases and not any(tipos[c].pide_imo for c in pedidos):
+        raise ErrorNegocio(422, "CLASE_IMO_SIN_TIPO", "Las clases excluidas solo aplican si la tarifa acepta carga IMO")
+    datos["tipos_carga"], datos["clases_imo_excluidas"] = pedidos, clases
 
 
 def _consulta_tarifas():
@@ -289,6 +309,8 @@ def presentar_tarifa(tarifa: Tarifa, nivel: str, hoy: date, dias: int):
         "valido_hasta": tarifa.valido_hasta,
         "estado_vigencia": estado_vigencia(tarifa.valido_desde, tarifa.valido_hasta, hoy, dias),
         "tiene_tramos": bool(tarifa.tramos),
+        "tipos_carga": list(tarifa.tipos_carga or ["GENERAL"]),
+        "clases_imo_excluidas": list(tarifa.clases_imo_excluidas or []),
         "activo": tarifa.activo,
         "creado_en": tarifa.creado_en,
         "actualizado_en": tarifa.actualizado_en,

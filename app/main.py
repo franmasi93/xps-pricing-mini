@@ -28,6 +28,7 @@ from app.routers import (
     salud,
     servicios,
     tarifas,
+    tipos_carga,
     usuarios,
 )
 
@@ -90,6 +91,7 @@ api.include_router(geografia.router)
 api.include_router(monedas.router)
 api.include_router(proveedores.router)
 api.include_router(catalogos.router)
+api.include_router(tipos_carga.router)  # D-T2: catálogo Tipo de carga
 api.include_router(servicios.router)
 api.include_router(tarifas.router)
 api.include_router(perfil.router)  # E1-B: antes de clientes (rutas fijas /clientes/…)

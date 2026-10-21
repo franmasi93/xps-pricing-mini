@@ -49,6 +49,7 @@
       dato("Carga", partesCarga.join(" · ")),
       dato(c.servicio.etiqueta_transportista, c.transportista),
       dato("Descripción de la mercancía", c.descripcion_carga),
+      dato("Tipo de carga", c.carga_especial || "General"),
       dato("Comercial", c.comercial.nombre),
     ];
     if (carga.peso_cobrable_kg) elementos.push(dato("Peso cobrable", `${carga.peso_cobrable_kg} kg = ${carga.peso_cobrable_lb} lb (volumétrico ${carga.peso_volumetrico_kg} kg)`));
@@ -111,6 +112,9 @@
     }
     if (linea.vinculado) {
       concepto.push(crear("span", { clase: "badge badge-estado badge-activo", texto: "Vinculado" }));
+    }
+    if (linea.motivo_alternativa && linea.seleccion === "ALTERNATIVA") {
+      concepto.push(crear("div", { clase: "ayuda", texto: linea.motivo_alternativa }));
     }
     if ("proveedor" in linea) {
       concepto.push(crear("span", { clase: "texto-suave", texto: ` ${linea.proveedor}` }));  // D-R1: solo interno

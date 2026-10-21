@@ -124,7 +124,8 @@ def test_vinculo_por_servicio(client, crear_usuario, headers_de, db_session):  #
     solo_lcl = client.post("/v1/recargos", json=payload_recargo(db_session, esc.destino, servicios=["LCL"]), headers=admin)
     assert solo_fcl.status_code == 201 and solo_lcl.status_code == 201, solo_fcl.text
     lineas = {l["recargo_id"]: l for l in _cotizacion(client, headers_de(comercial), esc)["lineas"] if l["recargo_id"]}
-    assert solo_fcl.json()["id"] not in lineas and lineas[solo_lcl.json()["id"]]["vinculado"] is True
+    # D-A1: el servicio es un nivel del alcance (no un vínculo): aplica solo al servicio elegido, sin etiqueta "Vinculado".
+    assert solo_fcl.json()["id"] not in lineas and lineas[solo_lcl.json()["id"]]["vinculado"] is False
 
 
 def test_api_vinculos_validaciones_y_auditoria(client, crear_usuario, headers_de, db_session):  # TRV-05
@@ -133,7 +134,8 @@ def test_api_vinculos_validaciones_y_auditoria(client, crear_usuario, headers_de
     esc = Escenario(db_session, admin, modo="LCL")
     sin_nada = payload_recargo(db_session, esc.destino) | {"puerto_id": None}
     respuesta = client.post("/v1/recargos", json=sin_nada, headers=h)
-    assert (respuesta.status_code, respuesta.json()["detail"]["codigo"]) == (422, "PUERTO_REQUERIDO")
+    # D-A1: el puerto ya no es obligatorio (un recargo puede aplicar a todos); sin puerto falta elegir "Va en".
+    assert (respuesta.status_code, respuesta.json()["detail"]["codigo"]) == (422, "BLOQUE_FISCAL_REQUERIDO")
     otro = payload_recargo(db_session, esc.destino) | {"puerto_id": None, "tarifas_ids": [esc.tarifa.id],
                                                         "proveedor_id": Escenario(db_session, admin).proveedor.id}
     assert client.post("/v1/recargos", json=otro, headers=h).json()["detail"]["codigo"] == "VINCULO_OTRO_PROVEEDOR"
@@ -145,7 +147,7 @@ def test_api_vinculos_validaciones_y_auditoria(client, crear_usuario, headers_de
     en_ficha = client.get(f"/v1/tarifas/{esc.tarifa.id}/recargos", headers=h).json()
     assert [r["id"] for r in en_ficha] == [datos["id"]]
     unico = client.delete(f"/v1/tarifas/{esc.tarifa.id}/recargos/{datos['id']}", headers=h)
-    assert unico.json()["detail"]["codigo"] == "PUERTO_REQUERIDO"  # sin puerto no puede quedar sin tarifa
+    assert unico.status_code == 200 and unico.json()["tarifas_vinculadas"] == []  # D-A1: queda con alcance "Todos"
     general = client.post("/v1/recargos", json=payload_recargo(db_session, esc.destino), headers=h).json()
     assert client.post(f"/v1/tarifas/{esc.tarifa.id}/recargos/{general['id']}", headers=h).status_code == 200
     assert client.delete(f"/v1/tarifas/{esc.tarifa.id}/recargos/{general['id']}", headers=h).status_code == 200
